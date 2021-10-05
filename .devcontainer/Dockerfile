@@ -69,6 +69,29 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash 
 RUN curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
 RUN chmod +x /usr/local/bin/docker-compose
 
+# Install Go. Keep in sync with other Dockerfiles.
+ENV GOLANG_VERSION 1.17.1
+ENV GOLANG_DOWNLOAD_SHA256 dab7d9c34361dc21ec237d584590d72500652e7c909bf082758fb63064fca0ef
+RUN curl -fsSL "https://dl.google.com/go/go${GOLANG_VERSION}.linux-amd64.tar.gz" -o golang.tar.gz \
+    && echo "$GOLANG_DOWNLOAD_SHA256  golang.tar.gz" | sha256sum -c - \
+    && tar -C /usr/local -xzf golang.tar.gz \
+    && rm golang.tar.gz
+
+# Install Go tools: gotestcover, shadow, delve
+RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go get -v golang.org/x/tools/go/analysis/passes/shadow/cmd/shadow github.com/go-delve/delve/cmd/dlv
+ENV PATH="$PATH:/usr/local/gotools/bin:/usr/local/go/bin"
+
+#TODO install these tools:
+#   gopkgs
+#   go-outline
+#   gotests
+#   gomodifytags
+#   impl
+#   goplay
+#   dlv-dap
+#   staticcheck
+#   gopls
+
 # Create the user
 RUN groupadd --gid $USER_GID $USERNAME \
     && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
