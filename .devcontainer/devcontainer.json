@@ -1,0 +1,30 @@
+{
+  "name": "Platform-Go-Focal-Amd64",
+
+  "dockerComposeFile": "docker-compose-vscode.yml",
+  "service": "vscode",
+  "shutdownAction": "stopCompose",
+  "workspaceFolder": "/workspaces/platform-go",
+
+  "settings": {
+    "terminal.integrated.defaultProfile.linux": "/bin/bash",
+
+    "thunder-client.enableSaveOption": true,
+    "thunder-client.loadFromProject": true,
+  },
+
+  "extensions": [
+    "editorconfig.editorconfig",
+    "jetmartin.bats",
+    "golang.go",
+    "ms-azuretools.vscode-docker",
+    "dbaeumer.vscode-eslint",
+    "rangav.vscode-thunder-client",
+    "amazonwebservices.aws-toolkit-vscode"
+  ],
+
+  "remoteEnv": {
+    "HOST_HOME": "${localEnv:HOME}",
+    "WORKSPACE_FOLDER": "${containerWorkspaceFolder}",
+  },
+}
