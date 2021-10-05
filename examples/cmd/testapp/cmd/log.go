@@ -15,7 +15,7 @@ package cmd
  */
 
 import (
-	"github.com/rstudio/platform-go/pkg/logging"
+	"github.com/rstudio/platform-lib/pkg/logging"
 	"github.com/spf13/cobra"
 )
 

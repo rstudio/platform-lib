@@ -1,4 +1,4 @@
-module github.com/rstudio/platform-go
+module github.com/rstudio/platform-lib
 
 go 1.17
 

@@ -1,10 +1,10 @@
 {
-  "name": "Platform-Go-Focal-Amd64",
+  "name": "Platform-Lib-Focal-Amd64",
 
   "dockerComposeFile": "docker-compose-vscode.yml",
   "service": "vscode",
   "shutdownAction": "stopCompose",
-  "workspaceFolder": "/workspaces/platform-go",
+  "workspaceFolder": "/workspaces/platform-lib",
 
   "settings": {
     "terminal.integrated.defaultProfile.linux": "/bin/bash",

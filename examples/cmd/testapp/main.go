@@ -18,7 +18,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/rstudio/platform-go/examples/cmd/testapp/cmd"
+	"github.com/rstudio/platform-lib/examples/cmd/testapp/cmd"
 )
 
 func init() {
