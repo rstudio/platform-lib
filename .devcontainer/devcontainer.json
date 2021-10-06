@@ -7,7 +7,7 @@
   "workspaceFolder": "/workspaces/platform-lib",
 
   "settings": {
-    "terminal.integrated.defaultProfile.linux": "/bin/bash",
+    "terminal.integrated.defaultProfile.linux": "bash",
 
     "thunder-client.enableSaveOption": true,
     "thunder-client.loadFromProject": true,

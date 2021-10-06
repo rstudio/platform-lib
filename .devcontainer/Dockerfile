@@ -1,60 +1,40 @@
 FROM ubuntu:bionic
 
-ARG USERNAME=rstudio
-ARG USER_UID=1000
-ARG USER_GID=$USER_UID
-
 RUN apt-get update && \
     export DEBIAN_FRONTEND=noninteractive && \
     apt-get install -y \
+    bash-completion \
     build-essential \
-    clang \
-    cmake \
     curl \
+    dnsutils \
     docker.io \
-    expect \
-    fakeroot \
     gdebi-core \
     git \
     gnupg1 \
     iproute2 \
-    libacl1-dev \
-    libattr1-dev \
-    libbz2-dev \
-    libcap-dev \
     libcurl4-openssl-dev \
-    libegl1-mesa \
-    libfuse2 \
-    libgl1-mesa-dev \
-    libglib2.0-dev \
-    libgtk-3-0 \
-    libnss3 \
-    libssl-dev \
-    libuser1-dev \
     libxml2-dev \
-    libxslt1-dev \
     locales \
     lsof \
-    ninja-build \
-    p7zip-full \
-    pkg-config \
-    python \
+    python3 \
+    python3-pip \
+    python3-software-properties \
+    rsync \
     software-properties-common \
     sudo \
     unzip \
-    uuid \
-    uuid-dev \
-    valgrind \
     vim \
-    wget \
-    xvfb \
-    zlib1g-dev
+    wget && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN localedef -i en_US -f UTF-8 en_US.UTF-8
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Upgrade pip
+RUN pip3 install --upgrade pip
 
 # Install AWS CLI v2
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
@@ -77,24 +57,30 @@ RUN curl -fsSL "https://dl.google.com/go/go${GOLANG_VERSION}.linux-amd64.tar.gz"
     && tar -C /usr/local -xzf golang.tar.gz \
     && rm golang.tar.gz
 
-# Install Go tools: gotestcover, shadow, delve
-RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go get -v golang.org/x/tools/go/analysis/passes/shadow/cmd/shadow github.com/go-delve/delve/cmd/dlv
+# Install Go tools
+RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go get -u -v \
+    golang.org/x/tools/... \
+    github.com/go-delve/delve/cmd/dlv \
+    github.com/ramya-rao-a/go-outline \
+    github.com/fatih/gomodifytags \
+    github.com/josharian/impl \
+    github.com/haya14busa/goplay/cmd/goplay \
+    honnef.co/go/tools/cmd/staticcheck@latest \
+    github.com/uudashr/gopkgs/v2/cmd/gopkgs
+RUN GO111MODULE=on PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go get -v \
+    golang.org/x/tools/gopls@latest
+RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go install \
+    github.com/cweill/gotests/...
+RUN GO111MODULE=on PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools GOBIN=/tmp/ go get -v \
+    github.com/go-delve/delve/cmd/dlv@master && \
+    mv /tmp/dlv $GOPATH/bin/dlv-dap
 ENV PATH="$PATH:/usr/local/gotools/bin:/usr/local/go/bin"
 
-#TODO install these tools:
-#   gopkgs
-#   go-outline
-#   gotests
-#   gomodifytags
-#   impl
-#   goplay
-#   dlv-dap
-#   staticcheck
-#   gopls
+ARG JENKINS_GID=999
+ARG JENKINS_UID=999
 
-# Create the user
-RUN groupadd --gid $USER_GID $USERNAME \
-    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
-    && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
-    && chmod 0440 /etc/sudoers.d/$USERNAME \
-    && echo "$USERNAME:$USERNAME" | sudo chpasswd
+# give jenkins root(sudo) access
+# Create the jenkins user with the same id:gid as the jenkins-node
+RUN groupadd -g $JENKINS_GID jenkins && \
+    useradd -m -d /var/lib/jenkins -u $JENKINS_UID -g jenkins jenkins && \
+    echo "jenkins ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
