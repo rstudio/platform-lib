@@ -3,6 +3,7 @@ version: '3'
 services:
 
     vscode:
+        container_name: platform_lib_devcontainer
         build:
             context: ..
             dockerfile: .devcontainer/Dockerfile
