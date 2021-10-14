@@ -1,0 +1,20 @@
+name: Platform Lib Pipeline
+on: [push]
+jobs:
+  Build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v2
+      - name: Build
+        uses: ./.github/actions/build
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v2
+        with:
+          name: testapp
+          path: out/testapp
+          retention-days: 5
+      - name: 'Test Artifact'
+        uses: ./.github/actions/test
+        with:
+          workspace: ${{ github.workspace }}

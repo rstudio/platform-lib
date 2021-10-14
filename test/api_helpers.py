@@ -11,9 +11,10 @@ class LibEnv:
     LibEnv is a helper for interacting with processes
     """
 
-    def __init__(self, test_dir: str):
+    def __init__(self, test_dir: str, asset_dir: str):
 
         self.test_dir = test_dir
+        self.asset_dir = asset_dir
 
 
 class RunResources:

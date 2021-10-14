@@ -20,7 +20,8 @@
     "ms-azuretools.vscode-docker",
     "dbaeumer.vscode-eslint",
     "rangav.vscode-thunder-client",
-    "amazonwebservices.aws-toolkit-vscode"
+    "amazonwebservices.aws-toolkit-vscode",
+    "skellock.just",
   ],
 
   "remoteEnv": {
