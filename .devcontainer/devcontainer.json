@@ -22,6 +22,7 @@
     "rangav.vscode-thunder-client",
     "amazonwebservices.aws-toolkit-vscode",
     "skellock.just",
+    "ms-python.python",
   ],
 
   "remoteEnv": {
