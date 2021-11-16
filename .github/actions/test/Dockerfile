@@ -6,8 +6,8 @@ RUN echo "export LICENSING_DISTRO="$TEST_ENV_NAME>> /etc/environment
 
 RUN useradd -m rstudiotest
 
-RUN apt-get update -qq && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+RUN apt-get -qq update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -qq \
     curl \
     docker.io \
     git \
@@ -28,7 +28,7 @@ RUN apt-get update -qq && \
     sudo \
     vim \
     unzip \
-    zlib1g-dev && \
+    zlib1g-dev < /dev/null > /dev/null && \
     rm -rf /var/lib/apt/lists/*
 
 ARG JENKINS_GID=999
@@ -40,7 +40,7 @@ RUN groupadd -g $JENKINS_GID jenkins && \
 
 # AWS CLI
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
-    unzip awscliv2.zip && \
+    unzip -q awscliv2.zip && \
     ./aws/install && \
     rm awscliv2.zip
 
@@ -60,14 +60,6 @@ ENV PATH="/usr/local/pyenv/bin:${PATH}"
 RUN echo "export PYENV_ROOT=/usr/local/pyenv" >> /etc/environment && \
     echo "export PATH=$PATH" >> /etc/environment
 
-COPY test/e2e/.python-version /test/.python-version
-COPY test/e2e/requirements.txt /test/requirements.txt
-
-RUN cd /test && ls -lha && pyenv install && \
-    eval "$(pyenv init -)" && \
-    eval "$(pyenv virtualenv-init -)" && \
-    pip install -r requirements.txt
-
 # Install BATS test framework.
 RUN git clone https://github.com/bats-core/bats-core.git && \
     cd bats-core && \
@@ -78,4 +70,14 @@ RUN git clone https://github.com/bats-core/bats-core.git && \
 # Install just
 RUN curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin/
 
-WORKDIR /test
+# Install PyEnv
+RUN mkdir /pyenv
+COPY assets/.python-version /pyenv/.python-version
+COPY assets/requirements.txt /pyenv/requirements.txt
+RUN cd /pyenv && ls -lha && pyenv install && \
+    eval "$(pyenv init -)" && \
+    eval "$(pyenv virtualenv-init -)" && \
+    pip install -r requirements.txt
+
+COPY assets/test.sh /test.sh
+RUN chmod 755 /test.sh

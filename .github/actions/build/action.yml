@@ -1,0 +1,6 @@
+# build/action.yml
+name: 'Build Platform-Lib'
+description: 'Builds the project'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'

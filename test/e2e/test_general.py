@@ -35,6 +35,6 @@ def test_command(lib_env):
     with RunResources(lib_env) as res:
 
         # Run with an unknown command
-        args = [f"{lib_env.test_dir}/assets/testapp", "log", "--message", "expected output"]
+        args = [f"{lib_env.asset_dir}/testapp", "log", "--message", "expected output"]
         output = res.run_command(args)
         assert output == "expected output\n"
