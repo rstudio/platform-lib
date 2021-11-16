@@ -79,5 +79,3 @@ ENV PATH="$PATH:/usr/local/gotools/bin:/usr/local/go/bin"
 # Copy build script
 COPY build.sh /build.sh
 RUN chmod 755 /build.sh
-
-ENTRYPOINT [ "/build.sh" ]
