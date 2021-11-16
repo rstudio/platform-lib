@@ -6,7 +6,7 @@ export REMOTE_CONTAINERS := env_var_or_default('REMOTE_CONTAINERS', 'false')
 # but any directories we mount need to know the host's home directory.
 HOME_DIR := env_var_or_default('HOST_HOME', env_var('HOME'))
 
-HOSTNAME := env_var_or_default('HOSTNAME', env_var('HOSTNAME'))
+HOSTNAME := env_var_or_default('HOSTNAME', '')
 
 # Runs Go tests
 test:
@@ -20,9 +20,19 @@ vet:
 build:
     go build -o out/ ./...
 
+build-docker:
+    docker run -it --rm \
+        -v {{justfile_directory()}}/:/build \
+        -w /build \
+        rstudio/platform-lib:lib-build go build -o out/ ./...
+
 # Cleans Go build directory (out)
 clean:
     rm -rf out/
+
+# Build the docker image for building
+build-build-env:
+    docker build -t rstudio/platform-lib:lib-build -f .github/actions/build/Dockerfile .github/actions/build
 
 # Build the docker image for e2e testing
 build-e2e-env:

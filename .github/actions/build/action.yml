@@ -4,3 +4,4 @@ description: 'Builds the project'
 runs:
   using: 'docker'
   image: 'Dockerfile'
+  entrypoint: '/build.sh'
