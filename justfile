@@ -8,7 +8,7 @@ HOME_DIR := env_var_or_default('HOST_HOME', env_var('HOME'))
 
 HOSTNAME := env_var_or_default('HOSTNAME', '')
 
-# Runs Go tests
+# Runs Go unit tests
 test:
     go test ./...
 
@@ -16,10 +16,12 @@ test:
 vet:
     go vet ./...
 
-# Builds Go example applcations
+# Builds Go code natively.
 build:
     go build -o out/ ./...
 
+# Builds Go code using docker. Useful when using a MacOS or Windows native IDE. First,
+# run `just build-build-env' to create the docker image you'll need.
 build-docker:
     docker run -it --rm \
         -v {{justfile_directory()}}/:/build \
@@ -30,38 +32,45 @@ build-docker:
 clean:
     rm -rf out/
 
-# Build the docker image for building
+# Builds the docker image used for building Go code
 build-build-env:
     docker build -t rstudio/platform-lib:lib-build -f .github/actions/build/Dockerfile .github/actions/build
 
-# Build the docker image for e2e testing
+# Builds the docker image for e2e testing
 build-e2e-env:
     docker build --network host -t rstudio/platform-lib:lib-e2e -f .github/actions/test/Dockerfile .github/actions/test
 
 # Creates a container for e2e testing
-create-e2e-env:
+# * name - The container name
+# * args - Additional docker create args
+# * cmd - The command to run in the container
+create-e2e-env name args cmd:
     #!/usr/bin/env bash
     set -euxo pipefail
-    docker inspect platform-lib-e2e -f 'Found existing container' && docker rm platform-lib-e2e || echo "Created container"
-    docker create -it --privileged --rm \
+    docker inspect {{name}} -f 'Found existing container' && docker rm {{name}} || echo "Created container"
+    docker create {{args}} --rm \
         -v {{HOME_DIR}}/.aws:/root/.aws \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -e HOME_DIR={{HOME_DIR}} \
         -e REMOTE_CONTAINERS=${REMOTE_CONTAINERS} \
         -w /test \
-        --name platform-lib-e2e rstudio/platform-lib:lib-e2e /bin/bash
+        --name {{name}} rstudio/platform-lib:lib-e2e {{cmd}}
 
-# Copies test code to the e2e test container
-copy-e2e-env:
-    docker cp test/. platform-lib-e2e:/test/
-    docker cp out/. platform-lib-e2e:/test/assets/
-    docker cp .github/actions/test/assets/.python-version platform-lib-e2e:/test/e2e/
+# Copies test code to an e2e test container
+# * name - The container name
+copy-e2e-env name:
+    docker cp test/. {{name}}:/test/
+    docker cp out/. {{name}}:/test/assets/
+    docker cp .github/actions/test/assets/.python-version {{name}}:/test/e2e/
 
 # Start an interactive shell for e2e testing
-start-e2e-env: (create-e2e-env) (copy-e2e-env)
+start-e2e-env: (create-e2e-env "platform-lib-e2e-interactive" "-it" "/bin/bash") (copy-e2e-env "platform-lib-e2e-interactive")
+    docker start -i platform-lib-e2e-interactive
+
+# Run e2e tests (non-interactive)
+test-e2e: (create-e2e-env "platform-lib-e2e" "" '/bin/bash -c "just test"') (copy-e2e-env "platform-lib-e2e")
     docker start -i platform-lib-e2e
 
-# Stop a running container
+# Stop a running container. This is only needed if something goes wrong.
 stop-e2e-env:
-    docker kill platform-lib-e2e
-
+    docker kill platform-lib-e2e-interactive
