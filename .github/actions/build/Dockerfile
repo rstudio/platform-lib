@@ -60,13 +60,13 @@ RUN curl -fsSL "https://dl.google.com/go/go${GOLANG_VERSION}.linux-amd64.tar.gz"
 # Install Go tools
 RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go get -u \
     golang.org/x/tools/... \
-    github.com/go-delve/delve/cmd/dlv \
     github.com/ramya-rao-a/go-outline \
     github.com/fatih/gomodifytags \
     github.com/josharian/impl \
     github.com/haya14busa/goplay/cmd/goplay \
     honnef.co/go/tools/cmd/staticcheck@latest \
     github.com/uudashr/gopkgs/v2/cmd/gopkgs
+RUN PATH="$PATH:/usr/local/go/bin" go install github.com/go-delve/delve/cmd/dlv@latest
 RUN GO111MODULE=on PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go get \
     golang.org/x/tools/gopls@latest
 RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go install \
