@@ -44,6 +44,36 @@ Design and user documents (in addition to your godoc generated documentation).
 
 Examples for your applications and/or public libraries.
 
+## Testing
+
+Examples:
+
+```bash
+# Run all Go tests
+just test
+
+# Run all Go tests twice
+just test "-count 2"
+
+# Run all tests once (no cached results)
+just test "-count 1"
+
+# Run with verbose output
+just test "-v"
+
+# Run the "TestNewDebugLog" test twice with verbose output
+just test "-count 2 -testify.m TestNewDebugLog -v"
+
+# Run the end-to-end tests
+just build
+just test-e2e
+
+# Open an interactive container for end-to-end testing
+just start-e2e-env
+just test
+exit
+```
+
 ## Badges
 
 * [Go Report Card](https://goreportcard.com/) - It will scan your code with `gofmt`, `go vet`, `gocyclo`, `golint`, `ineffassign`, `license` and `misspell`. Replace `github.com/golang-standards/project-layout` with your project reference.
