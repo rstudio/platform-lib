@@ -9,8 +9,8 @@ HOME_DIR := env_var_or_default('HOST_HOME', env_var('HOME'))
 HOSTNAME := env_var_or_default('HOSTNAME', '')
 
 # Runs Go unit tests
-test:
-    go test ./...
+test args='':
+    go test ./... {{args}}
 
 # Checks Go code
 vet:
