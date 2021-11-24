@@ -12,6 +12,13 @@ var (
 )
 
 func init() {
+	logger.SetDefaultLogger(logger.NewLoggerImpl(logger.LoggerOptionsImpl{
+		Enabled:  true,
+		Output:   "STDOUT",
+		Format:   "JSON",
+		Level:    "INFO",
+		Filepath: "",
+	}, logger.NewOutputLogBuilder(logger.ServerLog)))
 	LogCmd.Example = `  rspm log --message=hello
 `
 	LogCmd.Flags().StringVar(&message, "message", "default message", "The message to log.")
@@ -24,8 +31,8 @@ var LogCmd = &cobra.Command{
 	Short:   "Command to log some information",
 	Example: "",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		logs := logger.DirectLogger
-		logs.Logf(message)
+		logs := logger.DefaultLogger()
+		logs.Infof(message)
 		return nil
 	},
 }
