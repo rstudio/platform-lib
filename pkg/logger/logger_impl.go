@@ -8,6 +8,17 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+func init() {
+	// Set a default logger on init. This is mainly to prevent test failures since
+	// the default logger would otherwise be unset.
+	defaultLogger = NewLoggerImpl(LoggerOptionsImpl{
+		Enabled: false,
+		Output:  "STDOUT",
+		Format:  "TEXT",
+		Level:   "DEBUG",
+	}, NewOutputLogBuilder(ServerLog))
+}
+
 type LoggerImpl struct {
 	*logrus.Logger
 }
