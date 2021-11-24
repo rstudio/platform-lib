@@ -5,14 +5,30 @@ package debug
 import (
 	"testing"
 
+	"github.com/rstudio/platform-lib/pkg/logger"
+	"github.com/rstudio/platform-lib/pkg/logger/loggertest"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
-
-	"github.com/rstudio/platform-lib/pkg/logger"
 )
 
 type DebugLoggerSuite struct {
 	suite.Suite
+
+	loggerMock *loggertest.LoggerMock
+}
+
+const (
+	Nothing = ProductRegion(iota)
+	Proxy
+	RProc
+	Router
+	LDAP
+	OAuth2
+	Session
+)
+
+func init() {
+	RegisterRegions(map[ProductRegion]string{})
 }
 
 func TestDebugLoggerSuite(t *testing.T) {
@@ -48,9 +64,8 @@ func (s *DebugLoggerSuite) TestInitLog() {
 
 func (s *DebugLoggerSuite) TestNewDebugLogger() {
 	s.Len(regionCallbacks, 0)
-	defer initRegions()
 
-	lgr := NewDebugLogger(Proxy)
+	lgr := NewDebugLogger(Proxy, logger.DiscardLogger)
 	s.Equal(lgr.Enabled(), false)
 	s.Len(regionCallbacks, 1)
 	s.Len(regionCallbacks[Proxy], 1)
@@ -71,7 +86,7 @@ func (s *DebugLoggerSuite) TestNewDebugLogger() {
 	s.Len(regionCallbacks[Proxy], 3)
 
 	// For a totally different region
-	another := NewDebugLogger(LDAP)
+	another := NewDebugLogger(LDAP, logger.DiscardLogger)
 	s.Equal(another.Enabled(), false)
 	s.Len(regionCallbacks, 2)
 	s.Len(regionCallbacks[LDAP], 1)
@@ -79,11 +94,9 @@ func (s *DebugLoggerSuite) TestNewDebugLogger() {
 }
 
 func (s *DebugLoggerSuite) TestUpdateToLevelAndCaller() {
-	defer initRegions()
-
-	base := &logger.RSCLoggerMock{}
+	base := &loggertest.LoggerMock{}
 	lgr := &debugLogger{
-		Entry:  base,
+		Logger: base,
 		lgr:    base,
 		region: OAuth2,
 	}
@@ -98,9 +111,9 @@ func (s *DebugLoggerSuite) TestUpdateToLevelAndCaller() {
 	base.AssertExpectations(s.T())
 
 	// Sub loggers
-	baseTwo := &logger.RSCLoggerMock{}
+	baseTwo := &loggertest.LoggerMock{}
 	lgr = &debugLogger{
-		Entry:  baseTwo,
+		Logger: baseTwo,
 		lgr:    baseTwo,
 		region: Session,
 	}
