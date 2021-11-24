@@ -1,13 +1,13 @@
 package logger
 
-// Copyright (C) 2021 by RStudio, PBC.
-
 import (
 	"errors"
 	"os"
 
 	"github.com/stretchr/testify/mock"
 )
+
+// Copyright (C) 2021 by RStudio, PBC.
 
 func (s *LoggerSuite) TestBuildStdout() {
 	builder := outputBuilder{

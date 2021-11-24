@@ -1,7 +1,5 @@
 package logger
 
-// Copyright (C) 2021 by RStudio, PBC.
-
 import (
 	"fmt"
 	"io"
@@ -9,6 +7,8 @@ import (
 	"os"
 	"strings"
 )
+
+// Copyright (C) 2021 by RStudio, PBC.
 
 const (
 	DefaultFileLoggingPath   = "/var/log/rstudio/rstudio-connect/rstudio-connect.log"
