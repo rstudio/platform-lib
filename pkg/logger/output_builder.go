@@ -1,20 +1,14 @@
 package logger
 
+// Copyright (C) 2021 by RStudio, PBC.
+
 import (
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
-)
-
-// Copyright (C) 2021 by RStudio, PBC.
-
-const (
-	DefaultFileLoggingPath   = "/var/log/rstudio/rstudio-connect/rstudio-connect.log"
-	DefaultFileAccessLogPath = "/var/log/rstudio/rstudio-connect/rstudio-connect.access.log"
-	DefaultFileAuditLogPath  = "/var/log/rstudio/rstudio-connect/rstudio-connect.audit.log"
-	DefaultLoggingDir        = "/var/log/rstudio/rstudio-connect"
 )
 
 type LogOutputType string
@@ -32,26 +26,9 @@ const (
 
 type LogCategory string
 
-const (
-	ServerLog LogCategory = "SERVER"
-	AccessLog LogCategory = "ACCESS"
-	AuditLog  LogCategory = "AUDIT"
-)
-
 func (c LogCategory) Text() string {
 	text := fmt.Sprintf("%v Logs", c)
 	return strings.Title(strings.ToLower(text))
-}
-
-func defaultFileByCategory(cty LogCategory) string {
-	switch cty {
-	case AccessLog:
-		return DefaultFileAccessLogPath
-	case AuditLog:
-		return DefaultFileAuditLogPath
-	default:
-		return DefaultFileLoggingPath
-	}
 }
 
 func (t *LogOutputType) UnmarshalText(text []byte) (err error) {
@@ -96,7 +73,7 @@ func (o osFileSystem) OpenFile(name string, flag int, perm os.FileMode) (*os.Fil
 }
 
 type OutputBuilder interface {
-	Build(output LogOutputType, filepath string) io.Writer
+	Build(output LogOutputType, logFilePath, defaultLogFilePath string) io.Writer
 }
 
 type outputBuilder struct {
@@ -111,7 +88,7 @@ func NewOutputLogBuilder(logCategory LogCategory) OutputBuilder {
 	}
 }
 
-func (b outputBuilder) Build(output LogOutputType, filepath string) io.Writer {
+func (b outputBuilder) Build(output LogOutputType, logFilePath, defaultLogFilePath string) io.Writer {
 	switch output {
 	case LogOutputDefault:
 		return os.Stdout
@@ -120,55 +97,51 @@ func (b outputBuilder) Build(output LogOutputType, filepath string) io.Writer {
 	case LogOutputStderr:
 		return os.Stderr
 	case LogOutputFile:
-		return b.createLogFile(filepath)
+		return b.createLogFile(logFilePath, defaultLogFilePath)
 	default:
-		log.Printf("The output %q provided for the [Logging] Output configuration field isn't supported.", output)
-		return b.fallbackOutput("")
+		log.Printf("The output %q provided for the logging output configuration field isn't supported.", output)
+		return b.fallbackOutput(defaultLogFilePath)
 	}
 }
 
-func (b outputBuilder) getDefaultLoggingPath() (io.Writer, error) {
-	defaultFilepath := defaultFileByCategory(b.logCategory)
-	return b.fileSystem.OpenFile(defaultFilepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-}
-
-func (b outputBuilder) createDefaultLoggingDir() {
-	if _, err := b.fileSystem.Stat(DefaultLoggingDir); os.IsNotExist(err) {
-		if err := b.fileSystem.MkdirAll(DefaultLoggingDir, 0777); err != nil {
-			log.Printf("Error when trying to create the default logging folder %q. %v", DefaultLoggingDir, err)
+func (b outputBuilder) createLoggingDir(logFilePath string) {
+	loggingDir := filepath.Dir(logFilePath)
+	if _, err := b.fileSystem.Stat(loggingDir); os.IsNotExist(err) {
+		if err := b.fileSystem.MkdirAll(loggingDir, 0777); err != nil {
+			log.Printf("Error when trying to create the default logging folder %q. %v", loggingDir, err)
 		}
 	} else if err != nil {
 		log.Printf("An error occurred trying to verify if the default logging folder exists. %v", err)
 	}
 }
 
-func (b outputBuilder) fallbackOutput(filepath string) io.Writer {
-	defaultFilepath := defaultFileByCategory(b.logCategory)
-	log.Printf("Connect will use default logging file %q", defaultFilepath)
-	writer, err := b.getDefaultLoggingPath()
+func (b outputBuilder) fallbackOutput(defaultLogFilePath string) io.Writer {
+	log.Printf("Attempting to use default logging file %q", defaultLogFilePath)
+	writer, err := b.fileSystem.OpenFile(defaultLogFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
-		log.Printf(`Not possible to open or create the default logging file %q. Error: %v. Connect will use "stdout" for logging.`, defaultFilepath, err)
+		log.Printf(`Not possible to open or create the default logging file %s. Using STDOUT for logging. Error: %v.`, defaultLogFilePath, err)
 		writer = os.Stdout
 	}
 	return writer
 }
 
-func (b outputBuilder) createLogFile(filepath string) io.Writer {
-	// we always create the default logging folder if it doesn´t exit yet
-	b.createDefaultLoggingDir()
-
-	if strings.TrimSpace(filepath) == "" {
-		log.Printf("Logging.Output is set to FILE, but Logging.Path is empty.")
-		return b.fallbackOutput(filepath)
+func (b outputBuilder) createLogFile(logFilePath, defaultLogFilePath string) io.Writer {
+	if strings.TrimSpace(logFilePath) == "" {
+		log.Printf("Logging output is set to FILE, but no path was provided.")
+		return b.fallbackOutput(defaultLogFilePath)
 	}
 
-	log.Printf("Using file %s to store %s.", filepath, b.logCategory.Text())
+	// we always create the default logging folder if it doesn't exit yet
+	b.createLoggingDir(logFilePath)
 
-	writer, err := b.fileSystem.OpenFile(filepath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	log.Printf("Using file %s to store %s.", logFilePath, b.logCategory.Text())
+
+	writer, err := b.fileSystem.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 
 	if err != nil {
-		log.Printf("Not possible to open or create the specified logging file %q. Error: %v.", filepath, err)
-		return b.fallbackOutput(filepath)
+		log.Printf("Not possible to open or create the specified logging file %q. Error: %v.", logFilePath, err)
+		b.createLoggingDir(defaultLogFilePath)
+		return b.fallbackOutput(defaultLogFilePath)
 	}
 
 	return writer

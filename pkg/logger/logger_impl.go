@@ -8,6 +8,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	ServerLog LogCategory = "SERVER"
+)
+
 func init() {
 	// Set a default logger on init. This is mainly to prevent test failures since
 	// the default logger would otherwise be unset.
@@ -36,7 +40,7 @@ func NewLoggerImpl(options LoggerOptionsImpl,
 ) *LoggerImpl {
 
 	l := logrus.New()
-	l.SetOutput(outputBuilder.Build(options.Output, options.Filepath))
+	l.SetOutput(outputBuilder.Build(options.Output, options.Filepath, options.Filepath))
 	l.SetFormatter(getFormatter(options.Format))
 	l.SetLevel(getLevel(options.Level))
 

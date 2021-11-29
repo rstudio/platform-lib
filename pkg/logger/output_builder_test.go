@@ -14,7 +14,7 @@ func (s *LoggerSuite) TestBuildStdout() {
 		fileSystem: &MockFileSystem{},
 	}
 
-	result := builder.Build(LogOutputStdout, "")
+	result := builder.Build(LogOutputStdout, "", "")
 
 	s.Equal(result, os.Stdout)
 }
@@ -28,15 +28,15 @@ func (s *LoggerSuite) TestBuildEmptyFile() {
 
 	defaultLogPath := new(os.File)
 
-	mockFileSystem.On("Stat", DefaultLoggingDir).Return(mockFileInfo{}, nil)
+	mockFileSystem.On("Stat", "/default/log/logfile.log").Return(mockFileInfo{}, nil)
 	mockFileSystem.On(
 		"OpenFile",
-		DefaultFileLoggingPath,
+		"/default/log/logfile.log",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		os.FileMode(0600),
 	).Return(defaultLogPath, nil)
 
-	result := builder.Build(LogOutputFile, "")
+	result := builder.Build(LogOutputFile, "", "/default/log/logfile.log")
 
 	s.Equal(result, defaultLogPath)
 }
@@ -48,23 +48,25 @@ func (s *LoggerSuite) TestBuildEmptyFileFallback() {
 		fileSystem: mockFileSystem,
 	}
 
-	file := new(os.File)
+	defaultLogPath := new(os.File)
 
-	mockFileSystem.On("Stat", DefaultLoggingDir).Return(mockFileInfo{}, nil)
+	mockFileSystem.On("Stat", "/default/log/logfile.log").Return(mockFileInfo{}, nil)
 
 	mockFileSystem.On(
 		"OpenFile",
-		DefaultFileLoggingPath,
+		"/default/log/logfile.log",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		os.FileMode(0600),
-	).Return(file, errors.New("Error"))
+	).Return(defaultLogPath, errors.New("Error"))
 
-	result := builder.Build(LogOutputFile, "")
+	result := builder.Build(LogOutputFile, "", "/default/log/logfile.log")
 
 	s.Equal(result, os.Stdout)
 }
 
 func (s *LoggerSuite) TestBuildAccessFileFallback() {
+
+	AccessLog := LogCategory("ACCESS")
 
 	mockFileSystem := new(MockFileSystem)
 	builder := outputBuilder{
@@ -72,23 +74,25 @@ func (s *LoggerSuite) TestBuildAccessFileFallback() {
 		fileSystem:  mockFileSystem,
 	}
 
-	file := new(os.File)
+	defaultLogPath := new(os.File)
 
-	mockFileSystem.On("Stat", DefaultLoggingDir).Return(mockFileInfo{}, nil)
+	mockFileSystem.On("Stat", "/default/log").Return(mockFileInfo{}, nil)
 
 	mockFileSystem.On(
 		"OpenFile",
-		DefaultFileAccessLogPath,
+		"/default/log/logfile.log",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		os.FileMode(0600),
-	).Return(file, nil)
+	).Return(defaultLogPath, nil)
 
-	result := builder.Build(LogOutputFile, "")
+	result := builder.Build(LogOutputFile, "", "/default/log/logfile.log")
 
-	s.Equal(result, file)
+	s.Equal(result, defaultLogPath)
 }
 
 func (s *LoggerSuite) TestBuildAuditFileFallback() {
+
+	AuditLog := LogCategory("AUDIT")
 
 	mockFileSystem := new(MockFileSystem)
 	builder := outputBuilder{
@@ -96,20 +100,20 @@ func (s *LoggerSuite) TestBuildAuditFileFallback() {
 		fileSystem:  mockFileSystem,
 	}
 
-	file := new(os.File)
+	defaultLogPath := new(os.File)
 
-	mockFileSystem.On("Stat", DefaultLoggingDir).Return(mockFileInfo{}, nil)
+	mockFileSystem.On("Stat", "/default/log").Return(mockFileInfo{}, nil)
 
 	mockFileSystem.On(
 		"OpenFile",
-		DefaultFileAuditLogPath,
+		"/default/log/logfile.log",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		os.FileMode(0600),
-	).Return(file, nil)
+	).Return(defaultLogPath, nil)
 
-	result := builder.Build(LogOutputFile, "")
+	result := builder.Build(LogOutputFile, "", "/default/log/logfile.log")
 
-	s.Equal(result, file)
+	s.Equal(result, defaultLogPath)
 }
 
 func (s *LoggerSuite) TestBuildOpenFileError() {
@@ -121,23 +125,24 @@ func (s *LoggerSuite) TestBuildOpenFileError() {
 
 	defaultLogPath := new(os.File)
 
-	mockFileSystem.On("Stat", DefaultLoggingDir).Return(mockFileInfo{}, nil)
+	mockFileSystem.On("Stat", "/custom").Return(mockFileInfo{}, nil)
+	mockFileSystem.On("Stat", "/default/log").Return(mockFileInfo{}, nil)
 
 	mockFileSystem.On(
 		"OpenFile",
-		"test.log",
+		"/custom/test.log",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		os.FileMode(0600),
 	).Return(new(os.File), errors.New("Error"))
 
 	mockFileSystem.On(
 		"OpenFile",
-		DefaultFileLoggingPath,
+		"/default/log/logfile.log",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		os.FileMode(0600),
 	).Return(defaultLogPath, nil)
 
-	result := builder.Build(LogOutputFile, "test.log")
+	result := builder.Build(LogOutputFile, "/custom/test.log", "/default/log/logfile.log")
 
 	s.Equal(result, defaultLogPath)
 }
@@ -149,65 +154,63 @@ func (s *LoggerSuite) TestConfigureLogFileOutput() {
 		fileSystem: mockFileSystem,
 	}
 
-	file := new(os.File)
+	defaultLogPath := new(os.File)
 
-	mockFileSystem.On("Stat", DefaultLoggingDir).Return(mockFileInfo{}, nil)
+	mockFileSystem.On("Stat", "/custom").Return(mockFileInfo{}, nil)
 
 	mockFileSystem.On(
 		"OpenFile",
-		"test.log",
+		"/custom/test.log",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		os.FileMode(0600),
-	).Return(file, nil)
+	).Return(defaultLogPath, nil)
 
-	result := builder.Build(LogOutputFile, "test.log")
+	result := builder.Build(LogOutputFile, "/custom/test.log", "/default/log/logfile.log")
 
-	s.Equal(result, file)
+	s.Equal(result, defaultLogPath)
 }
 
 func (s *LoggerSuite) TestConfigureLogDefaultLoggingExistingDirectory() {
-	filepath := DefaultFileLoggingPath
 	mockFileSystem := new(MockFileSystem)
 	builder := outputBuilder{
 		fileSystem: mockFileSystem,
 	}
 
-	expectedFile := new(os.File)
+	defaultLogPath := new(os.File)
 
-	mockFileSystem.On("Stat", DefaultLoggingDir).Return(mockFileInfo{}, nil)
+	mockFileSystem.On("Stat", "/custom").Return(mockFileInfo{}, nil)
 	mockFileSystem.On(
 		"OpenFile",
-		filepath,
+		"/custom/test.log",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		os.FileMode(0600),
-	).Return(expectedFile, nil)
+	).Return(defaultLogPath, nil)
 
-	result := builder.Build(LogOutputFile, filepath)
+	result := builder.Build(LogOutputFile, "/custom/test.log", "/default/log/logfile.log")
 
-	s.Equal(result, expectedFile)
+	s.Equal(result, defaultLogPath)
 }
 
 func (s *LoggerSuite) TestConfigureLogDefaultLoggingNonExistingDirectory() {
-	filepath := DefaultFileLoggingPath
 	mockFileSystem := new(MockFileSystem)
 	builder := outputBuilder{
 		fileSystem: mockFileSystem,
 	}
 
-	expectedFile := new(os.File)
+	defaultLogPath := new(os.File)
 
-	mockFileSystem.On("Stat", DefaultLoggingDir).Return(mockFileInfo{}, os.ErrNotExist)
-	mockFileSystem.On("MkdirAll", DefaultLoggingDir, os.FileMode(0777)).Return(nil)
+	mockFileSystem.On("Stat", "/custom").Return(mockFileInfo{}, os.ErrNotExist)
+	mockFileSystem.On("MkdirAll", "/custom", os.FileMode(0777)).Return(nil)
 	mockFileSystem.On(
 		"OpenFile",
-		filepath,
+		"/custom/test.log",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		os.FileMode(0600),
-	).Return(expectedFile, nil)
+	).Return(defaultLogPath, nil)
 
-	result := builder.Build(LogOutputFile, filepath)
+	result := builder.Build(LogOutputFile, "/custom/test.log", "/default/log/logfile.log")
 
-	s.Equal(result, expectedFile)
+	s.Equal(result, defaultLogPath)
 }
 
 func (s *LoggerSuite) TestConfigureLogStderr() {
@@ -216,9 +219,9 @@ func (s *LoggerSuite) TestConfigureLogStderr() {
 		fileSystem: mockFileSystem,
 	}
 
-	mockFileSystem.On("Stat", DefaultLoggingDir).Return(mockFileInfo{}, nil)
+	mockFileSystem.On("Stat", "/default/log").Return(mockFileInfo{}, nil)
 
-	result := builder.Build(LogOutputStderr, "")
+	result := builder.Build(LogOutputStderr, "", "/default/log/logfile.log")
 
 	s.Equal(result, os.Stderr)
 }
@@ -229,9 +232,9 @@ func (s *LoggerSuite) TestConfigureLogDefault() {
 		fileSystem: mockFileSystem,
 	}
 
-	mockFileSystem.On("Stat", DefaultLoggingDir).Return(mockFileInfo{}, nil)
+	mockFileSystem.On("Stat", "/default/log").Return(mockFileInfo{}, nil)
 
-	result := builder.Build(LogOutputDefault, "")
+	result := builder.Build(LogOutputDefault, "", "/default/log/logfile.log")
 
 	s.Equal(result, os.Stdout)
 }
