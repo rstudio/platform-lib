@@ -52,7 +52,7 @@ func RegionName(region ProductRegion) string {
 }
 
 // Register debug regions enabled.
-// This should be called as early as possible when starting up Connect.
+// This should be called as early as possible when starting an application.
 func InitLogs(regions []ProductRegion) {
 	// Reset enabled regions on each call.
 	regionsEnabled = make(map[ProductRegion]bool)
@@ -173,7 +173,7 @@ func (l *debugLogger) WithSubRegion(subregion string) DebugLogger {
 	return dbglgr
 }
 
-// Enable or disable this region debug logging instance across Connect
+// Enable or disable this region debug logging instance
 func (l *debugLogger) enable(enabled bool) {
 	if enabled {
 		l.lgr.SetLevel(logger.DebugLevel)

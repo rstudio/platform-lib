@@ -14,8 +14,8 @@ type OutputBuilderMock struct {
 	mock.Mock
 }
 
-func (m *OutputBuilderMock) Build(outputType logger.LogOutputType, path string) io.Writer {
-	args := m.Called(outputType, path)
+func (m *OutputBuilderMock) Build(output logger.LogOutputType, logFilePath, defaultLogFilePath string) io.Writer {
+	args := m.Called(output, logFilePath, defaultLogFilePath)
 	return args.Get(0).(io.Writer)
 }
 
