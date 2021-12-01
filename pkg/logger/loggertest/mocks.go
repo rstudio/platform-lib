@@ -117,8 +117,8 @@ func (m *LoggerMock) SetLevel(level logger.LogLevel) {
 	m.Called(level)
 }
 
-func (m *LoggerMock) SetOutput(output io.Writer) {
-	m.Called(output)
+func (m *LoggerMock) SetOutput(writers ...io.Writer) {
+	m.Called(writers)
 }
 
 func (m *LoggerMock) OnConfigReload(level logger.LogLevel) {

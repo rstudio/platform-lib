@@ -34,10 +34,10 @@ func (l discardLogger) Copy() Logger {
 	return l
 }
 
-func (discardLogger) SetLevel(level LogLevel)       {}
-func (discardLogger) SetOutput(output io.Writer)    {}
-func (discardLogger) OnConfigReload(level LogLevel) {}
-func (discardLogger) SetReportCaller(flag bool)     {}
+func (discardLogger) SetLevel(level LogLevel)        {}
+func (discardLogger) SetOutput(writers ...io.Writer) {}
+func (discardLogger) OnConfigReload(level LogLevel)  {}
+func (discardLogger) SetReportCaller(flag bool)      {}
 
 var DiscardLogger discardLogger = discardLogger{}
 

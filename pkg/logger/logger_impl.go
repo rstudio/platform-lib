@@ -111,7 +111,8 @@ func (l LoggerImpl) SetLevel(level LogLevel) {
 	l.Logger.SetLevel(logrusLevel)
 }
 
-func (l LoggerImpl) SetOutput(output io.Writer) {
+func (l LoggerImpl) SetOutput(writers ...io.Writer) {
+	output := io.MultiWriter(writers...)
 	l.Logger.SetOutput(output)
 }
 
@@ -147,8 +148,9 @@ func (l logrusEntryWrapper) SetLevel(level LogLevel) {
 	l.Entry.Logger.SetLevel(getLevel(level))
 }
 
-func (l logrusEntryWrapper) SetOutput(w io.Writer) {
-	l.Entry.Logger.SetOutput(w)
+func (l logrusEntryWrapper) SetOutput(writers ...io.Writer) {
+	output := io.MultiWriter(writers...)
+	l.Entry.Logger.SetOutput(output)
 }
 
 func (l logrusEntryWrapper) WithField(key string, value interface{}) Logger {
