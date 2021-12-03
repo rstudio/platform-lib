@@ -3,6 +3,7 @@ package loggertest
 // Copyright (C) 2021 by RStudio, PBC.
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -19,49 +20,63 @@ func TestLoggerImplSuite(t *testing.T) {
 	suite.Run(t, &LoggerImplTestSuite{})
 }
 
-func (s *LoggerImplTestSuite) TestNewRSCLoggerNewLoggingEnabled() {
+var outputDest = []logger.OutputDest{
+	{
+		Output:      logger.LogOutputFile,
+		Filepath:    "/custom/dir/server.log",
+		DefaultFile: "/var/log/rstudio/rstudio-xyz/rstudio-xyz.log",
+	},
+}
+
+func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 	outputMock := &OutputBuilderMock{}
+	outputMock.On("Build", logger.LogOutputFile, "/custom/dir/server.log").Return(IoWriterMock{}, nil)
 
-	expectedWriter := IoWriterMock{}
-	outputMock.On("Build", logger.LogOutputFile, "/path", "/path").Return(expectedWriter)
-
-	result := logger.NewLoggerImpl(
+	result, err := logger.NewLoggerImpl(
 		logger.LoggerOptionsImpl{
-			Enabled:  true,
-			Output:   logger.LogOutputFile,
-			Format:   logger.TextFormat,
-			Level:    logger.InfoLevel,
-			Filepath: "/path",
+			Output: outputDest,
+			Format: logger.TextFormat,
+			Level:  logger.InfoLevel,
 		},
 		outputMock,
 	)
-	s.Equal(result.Out, expectedWriter)
+	s.Nil(err)
+	s.NotNil(result.Out)
 	s.IsType(&logrus.TextFormatter{}, result.Formatter)
 
-	result = logger.NewLoggerImpl(
+	result, err = logger.NewLoggerImpl(
 		logger.LoggerOptionsImpl{
-			Enabled:  true,
-			Output:   logger.LogOutputFile,
-			Format:   logger.JSONFormat,
-			Level:    logger.InfoLevel,
-			Filepath: "/path",
+			Output: outputDest,
+			Format: logger.JSONFormat,
+			Level:  logger.InfoLevel,
 		},
 		outputMock,
 	)
+	s.Nil(err)
 	s.IsType(&logrus.JSONFormatter{}, result.Formatter)
 
-	result = logger.NewLoggerImpl(
+	result, err = logger.NewLoggerImpl(
 		logger.LoggerOptionsImpl{
-			Enabled:  true,
-			Output:   logger.LogOutputFile,
-			Format:   logger.OutputFormat("UnsupportedFormat"),
-			Level:    logger.InfoLevel,
-			Filepath: "/path",
+			Output: outputDest,
+			Format: logger.OutputFormat("UnsupportedFormat"),
+			Level:  logger.InfoLevel,
 		},
 		outputMock,
 	)
-
+	s.Nil(err)
 	s.IsType(&logrus.TextFormatter{}, result.Formatter)
+
+	errdBuildMock := &OutputBuilderMock{}
+	errdBuildMock.On("Build", logger.LogOutputFile, "/custom/dir/server.log").Return(IoWriterMock{}, fmt.Errorf("output build error"))
+	result, err = logger.NewLoggerImpl(
+		logger.LoggerOptionsImpl{
+			Output: outputDest,
+			Format: logger.JSONFormat,
+			Level:  logger.InfoLevel,
+		},
+		errdBuildMock,
+	)
+	s.NotNil(err)
 }
 
 func (s *LoggerImplTestSuite) TestSetDefaultLogger() {
@@ -119,6 +134,35 @@ func (s *LoggerImplTestSuite) TestSetDefaultLogger() {
 	s.Equal(logger.DefaultLogger(), lgr)
 }
 
+func (s *LoggerImplTestSuite) TestMultipleOutput() {
+	outputMock := &OutputBuilderMock{}
+	outputMock.On("Build", logger.LogOutputStdout, "").Return(IoWriterMock{}, nil)
+	outputMock.On("Build", logger.LogOutputFile, "/custom/dir/server.log").Return(IoWriterMock{}, nil)
+
+	multiOutput := []logger.OutputDest{
+		{
+			Output:      logger.LogOutputFile,
+			Filepath:    "/custom/dir/server.log",
+			DefaultFile: "/var/log/rstudio/rstudio-xyz/rstudio-xyz.log",
+		},
+		{
+			Output: logger.LogOutputStdout,
+		},
+	}
+
+	result, err := logger.NewLoggerImpl(
+		logger.LoggerOptionsImpl{
+			Output: multiOutput,
+			Format: logger.TextFormat,
+			Level:  logger.InfoLevel,
+		},
+		outputMock,
+	)
+	s.Nil(err)
+	s.NotNil(result.Out)
+	outputMock.AssertExpectations(s.T())
+}
+
 func (s *LoggerImplTestSuite) TestOutputFormatUnmarshalText() {
 	testCases := []struct {
 		TestName        string
@@ -165,7 +209,7 @@ func (s *LoggerImplTestSuite) TestOutputFormatUnmarshalText() {
 	}
 }
 
-func (s *LoggerImplTestSuite) TestNewRSCLoggerLevel() {
+func (s *LoggerImplTestSuite) TestNewLoggerImplLevel() {
 
 	cases := []struct {
 		TestName               string
@@ -173,27 +217,27 @@ func (s *LoggerImplTestSuite) TestNewRSCLoggerLevel() {
 		ExpectedLogrusLogLevel logrus.Level
 	}{
 		{
-			TestName:               "NewRSCLogger Trace level test",
+			TestName:               "NewLoggerImpl Trace level test",
 			LoggingLevel:           logger.TraceLevel,
 			ExpectedLogrusLogLevel: logrus.TraceLevel,
 		},
 		{
-			TestName:               "NewRSCLogger Debug level test",
+			TestName:               "NewLoggerImpl Debug level test",
 			LoggingLevel:           logger.DebugLevel,
 			ExpectedLogrusLogLevel: logrus.DebugLevel,
 		},
 		{
-			TestName:               "NewRSCLogger Info level test",
+			TestName:               "NewLoggerImpl Info level test",
 			LoggingLevel:           logger.InfoLevel,
 			ExpectedLogrusLogLevel: logrus.InfoLevel,
 		},
 		{
-			TestName:               "NewRSCLogger Warn level test",
+			TestName:               "NewLoggerImpl Warn level test",
 			LoggingLevel:           logger.WarningLevel,
 			ExpectedLogrusLogLevel: logrus.WarnLevel,
 		},
 		{
-			TestName:               "NewRSCLogger Error level test",
+			TestName:               "NewLoggerImpl Error level test",
 			LoggingLevel:           logger.ErrorLevel,
 			ExpectedLogrusLogLevel: logrus.ErrorLevel,
 		},
@@ -205,18 +249,17 @@ func (s *LoggerImplTestSuite) TestNewRSCLoggerLevel() {
 
 			outputMock := &OutputBuilderMock{}
 			expectedWriter := IoWriterMock{}
-			outputMock.On("Build", logger.LogOutputFile, "/path", "/path").Return(expectedWriter)
+			outputMock.On("Build", logger.LogOutputFile, "/custom/dir/server.log").Return(expectedWriter, nil)
 
-			lgr := logger.NewLoggerImpl(
+			lgr, err := logger.NewLoggerImpl(
 				logger.LoggerOptionsImpl{
-					Enabled:  true,
-					Output:   logger.LogOutputFile,
-					Format:   logger.TextFormat,
-					Level:    tc.LoggingLevel,
-					Filepath: "/path",
+					Output: outputDest,
+					Format: logger.TextFormat,
+					Level:  tc.LoggingLevel,
 				},
 				outputMock,
 			)
+			s.Nil(err)
 
 			logrusLogger := lgr.Logger
 
@@ -296,18 +339,17 @@ func (s *LoggerImplTestSuite) TestCopy() {
 	outputMock := &OutputBuilderMock{}
 	expectedWriter := IoWriterMock{}
 
-	outputMock.On("Build", logger.LogOutputFile, "/path", "/path").Return(expectedWriter)
+	outputMock.On("Build", logger.LogOutputFile, "/custom/dir/server.log").Return(expectedWriter, nil)
 
-	log := logger.NewLoggerImpl(
+	log, err := logger.NewLoggerImpl(
 		logger.LoggerOptionsImpl{
-			Enabled:  true,
-			Output:   logger.LogOutputFile,
-			Format:   logger.JSONFormat,
-			Level:    logger.InfoLevel,
-			Filepath: "/path",
+			Output: outputDest,
+			Format: logger.JSONFormat,
+			Level:  logger.InfoLevel,
 		},
 		outputMock,
 	)
+	s.Nil(err)
 
 	copy := log.Copy()
 
@@ -328,24 +370,23 @@ func (s *LoggerImplTestSuite) TestOnConfigReload() {
 	outputMock := &OutputBuilderMock{}
 	expectedWriter := IoWriterMock{}
 
-	outputMock.On("Build", logger.LogOutputFile, "/path", "/path").Return(expectedWriter)
+	outputMock.On("Build", logger.LogOutputFile, "/custom/dir/server.log").Return(expectedWriter, nil)
 
-	log := logger.NewLoggerImpl(
+	log, err := logger.NewLoggerImpl(
 		logger.LoggerOptionsImpl{
-			Enabled:  true,
-			Output:   logger.LogOutputFile,
-			Format:   logger.JSONFormat,
-			Level:    logger.InfoLevel,
-			Filepath: "/path",
+			Output: outputDest,
+			Format: logger.JSONFormat,
+			Level:  logger.InfoLevel,
 		},
 		outputMock,
 	)
+	s.Nil(err)
 
 	s.Equal(log.Level, logrus.InfoLevel)
 
 	log.OnConfigReload(logger.WarningLevel)
 
-	s.Equal(log.Out, expectedWriter)
+	s.NotNil(log.Out)
 	s.Equal(log.Level, logrus.WarnLevel)
 	s.IsType(&logrus.JSONFormatter{}, log.Formatter)
 }

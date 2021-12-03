@@ -17,7 +17,7 @@ type Logger interface {
 	Fatalf(msg string, args ...interface{})
 	Fatal(args ...interface{})
 
-	SetOutput(output io.Writer)
+	SetOutput(writers ...io.Writer)
 	Copy() Logger
 	WithField(key string, value interface{}) Logger
 	WithFields(fields Fields) Logger

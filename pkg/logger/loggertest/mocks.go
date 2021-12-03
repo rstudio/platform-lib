@@ -14,9 +14,9 @@ type OutputBuilderMock struct {
 	mock.Mock
 }
 
-func (m *OutputBuilderMock) Build(output logger.LogOutputType, logFilePath, defaultLogFilePath string) io.Writer {
-	args := m.Called(output, logFilePath, defaultLogFilePath)
-	return args.Get(0).(io.Writer)
+func (m *OutputBuilderMock) Build(output logger.LogOutputType, logFilePath string) (io.Writer, error) {
+	args := m.Called(output, logFilePath)
+	return args.Get(0).(io.Writer), args.Error(1)
 }
 
 type IoWriterMock struct {
@@ -117,8 +117,8 @@ func (m *LoggerMock) SetLevel(level logger.LogLevel) {
 	m.Called(level)
 }
 
-func (m *LoggerMock) SetOutput(output io.Writer) {
-	m.Called(output)
+func (m *LoggerMock) SetOutput(writers ...io.Writer) {
+	m.Called(writers)
 }
 
 func (m *LoggerMock) OnConfigReload(level logger.LogLevel) {

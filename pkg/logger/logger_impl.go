@@ -15,38 +15,57 @@ const (
 func init() {
 	// Set a default logger on init. This is mainly to prevent test failures since
 	// the default logger would otherwise be unset.
-	defaultLogger = NewLoggerImpl(LoggerOptionsImpl{
-		Enabled: false,
-		Output:  "STDOUT",
-		Format:  "TEXT",
-		Level:   "DEBUG",
-	}, NewOutputLogBuilder(ServerLog))
+	defaultLogger, _ = NewLoggerImpl(LoggerOptionsImpl{
+		Output: []OutputDest{
+			{
+				LogOutputStdout,
+				"",
+				"",
+			},
+		},
+		Format: TextFormat,
+		Level:  InfoLevel,
+	}, NewOutputLogBuilder(ServerLog, ""))
 }
 
 type LoggerImpl struct {
 	*logrus.Logger
 }
 
+type OutputDest struct {
+	Output      LogOutputType
+	Filepath    string
+	DefaultFile string
+}
+
 type LoggerOptionsImpl struct {
-	Enabled  bool
-	Output   LogOutputType
-	Format   OutputFormat
-	Level    LogLevel
-	Filepath string
+	Output []OutputDest
+	Level  LogLevel
+	Format OutputFormat
 }
 
 func NewLoggerImpl(options LoggerOptionsImpl,
 	outputBuilder OutputBuilder,
-) *LoggerImpl {
+) (*LoggerImpl, error) {
+	var output []io.Writer
 
 	l := logrus.New()
-	l.SetOutput(outputBuilder.Build(options.Output, options.Filepath, options.Filepath))
+
+	for _, out := range options.Output {
+		wrtr, err := outputBuilder.Build(out.Output, out.Filepath)
+		if err != nil {
+			return nil, err
+		}
+		output = append(output, wrtr)
+	}
+
+	l.SetOutput(io.MultiWriter(output...))
 	l.SetFormatter(getFormatter(options.Format))
 	l.SetLevel(getLevel(options.Level))
 
 	return &LoggerImpl{
 		Logger: l,
-	}
+	}, nil
 }
 
 func DefaultLogger() Logger {
@@ -111,7 +130,8 @@ func (l LoggerImpl) SetLevel(level LogLevel) {
 	l.Logger.SetLevel(logrusLevel)
 }
 
-func (l LoggerImpl) SetOutput(output io.Writer) {
+func (l LoggerImpl) SetOutput(writers ...io.Writer) {
+	output := io.MultiWriter(writers...)
 	l.Logger.SetOutput(output)
 }
 
@@ -147,8 +167,9 @@ func (l logrusEntryWrapper) SetLevel(level LogLevel) {
 	l.Entry.Logger.SetLevel(getLevel(level))
 }
 
-func (l logrusEntryWrapper) SetOutput(w io.Writer) {
-	l.Entry.Logger.SetOutput(w)
+func (l logrusEntryWrapper) SetOutput(writers ...io.Writer) {
+	output := io.MultiWriter(writers...)
+	l.Entry.Logger.SetOutput(output)
 }
 
 func (l logrusEntryWrapper) WithField(key string, value interface{}) Logger {
