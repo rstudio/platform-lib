@@ -25,7 +25,7 @@ func init() {
 	}, logger.NewOutputLogBuilder(logger.ServerLog, ""))
 
 	if err != nil {
-		log.Fatalf("%w", err)
+		log.Fatalf("%v", err)
 	}
 
 	logger.SetDefaultLogger(lgr)
