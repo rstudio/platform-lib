@@ -12,12 +12,6 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// type DebugLoggerSuite struct {
-// 	suite.Suite
-
-// 	loggerMock *loggertest.LoggerMock
-// }
-
 const (
 	Nothing = debug.ProductRegion(iota)
 	Proxy
