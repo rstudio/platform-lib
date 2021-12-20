@@ -24,7 +24,7 @@ type Logger interface {
 	SetLevel(level LogLevel)
 	SetReportCaller(bool)
 
-	// TODO: remove this interface when the Connect migration process to the new logging standard is complete.
+	// TODO: remove this interface when the migration process to the new logging standard is complete.
 	// It is being added just to help migrate packages that inject the Logger interface inside another packages.
 	DeprecatedLogger
 }

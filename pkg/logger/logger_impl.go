@@ -144,7 +144,7 @@ func (l LoggerImpl) OnConfigReload(level LogLevel) {
 	}
 }
 
-// TODO: remove this function when the Connect migration process to the new logging standard is complete.
+// TODO: remove this function when the migration process to the new logging standard is complete.
 func (l LoggerImpl) Logf(msg string, args ...interface{}) {
 	l.Infof(msg, args...)
 }
@@ -191,7 +191,7 @@ func (l logrusEntryWrapper) SetReportCaller(flag bool) {
 	l.Logger.SetReportCaller(flag)
 }
 
-// TODO: remove this function when the Connect migration process to the new logging standard is complete.
+// TODO: remove this function when the migration process to the new logging standard is complete.
 func (l logrusEntryWrapper) Logf(msg string, args ...interface{}) {
 	l.Infof(msg, args...)
 }
