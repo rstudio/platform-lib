@@ -1,4 +1,4 @@
-package debug
+package debug_test
 
 // Copyright (C) 2021 by RStudio, PBC.
 
@@ -6,19 +6,14 @@ import (
 	"testing"
 
 	"github.com/rstudio/platform-lib/pkg/logger"
+	"github.com/rstudio/platform-lib/pkg/logger/debug"
 	"github.com/rstudio/platform-lib/pkg/logger/loggertest"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
 
-type DebugLoggerSuite struct {
-	suite.Suite
-
-	loggerMock *loggertest.LoggerMock
-}
-
 const (
-	Nothing = ProductRegion(iota)
+	Nothing = debug.ProductRegion(iota)
 	Proxy
 	RProc
 	Router
@@ -28,7 +23,13 @@ const (
 )
 
 func init() {
-	RegisterRegions(map[ProductRegion]string{})
+	debug.RegisterRegions(map[debug.ProductRegion]string{})
+}
+
+type DebugLoggerSuite struct {
+	suite.Suite
+
+	loggerMock *loggertest.LoggerMock
 }
 
 func TestDebugLoggerSuite(t *testing.T) {
@@ -36,95 +37,69 @@ func TestDebugLoggerSuite(t *testing.T) {
 }
 
 func (s *DebugLoggerSuite) TestInitLog() {
-	// Nothing is enabled with an empty set.
-	InitLogs(nil)
-	s.Len(regionsEnabled, 0)
-
-	// Nothing is enabled with bogus input
-	InitLogs([]ProductRegion{Nothing})
-	s.Len(regionsEnabled, 0)
+	s.False(debug.Enabled(Proxy))
 
 	// Singular region enabled.
-	InitLogs([]ProductRegion{Proxy})
-	s.Equal(regionsEnabled, map[ProductRegion]bool{Proxy: true})
+	debug.InitLogs([]debug.ProductRegion{Proxy})
+	s.True(debug.Enabled(Proxy))
 
 	// multiple regions enabled (using translation and normalization)
-	InitLogs([]ProductRegion{Proxy, RProc, Router})
-	s.Equal(regionsEnabled,
-		map[ProductRegion]bool{
-			Proxy:  true,
-			RProc:  true,
-			Router: true,
-		})
+	debug.InitLogs([]debug.ProductRegion{
+		Proxy,
+		RProc,
+		Router,
+	})
+	s.True(debug.Enabled(Proxy))
+	s.True(debug.Enabled(RProc))
+	s.True(debug.Enabled(Router))
 
 	// calling InitLogs resets what is enabled.
-	InitLogs(nil)
-	s.Len(regionsEnabled, 0)
+	debug.InitLogs(nil)
+	s.False(debug.Enabled(Proxy))
+	s.False(debug.Enabled(RProc))
+	s.False(debug.Enabled(Router))
 }
 
 func (s *DebugLoggerSuite) TestNewDebugLogger() {
-	s.Len(regionCallbacks, 0)
-
-	lgr := NewDebugLogger(Proxy, logger.DiscardLogger)
+	lgr := debug.NewDebugLogger(Proxy, logger.DiscardLogger)
 	s.Equal(lgr.Enabled(), false)
-	s.Len(regionCallbacks, 1)
-	s.Len(regionCallbacks[Proxy], 1)
 
-	Enable(Proxy)
+	debug.Enable(Proxy)
 	s.Equal(lgr.Enabled(), true)
 
 	// Logger with fields should be under same region, new callback
 	fieldslgr := lgr.WithFields(logger.Fields{"id": "654-987"})
 	s.Equal(fieldslgr.Enabled(), true)
-	s.Len(regionCallbacks, 1)
-	s.Len(regionCallbacks[Proxy], 2)
 
 	// SubRegion Logger should be under same region, new callback
 	sublgr := lgr.WithSubRegion("balancer")
 	s.Equal(sublgr.Enabled(), true)
-	s.Len(regionCallbacks, 1)
-	s.Len(regionCallbacks[Proxy], 3)
 
 	// For a totally different region
-	another := NewDebugLogger(LDAP, logger.DiscardLogger)
+	another := debug.NewDebugLogger(LDAP, logger.DiscardLogger)
 	s.Equal(another.Enabled(), false)
-	s.Len(regionCallbacks, 2)
-	s.Len(regionCallbacks[LDAP], 1)
-	s.Len(regionCallbacks[Proxy], 3)
 }
 
 func (s *DebugLoggerSuite) TestUpdateToLevelAndCaller() {
 	base := &loggertest.LoggerMock{}
-	lgr := &debugLogger{
-		Logger: base,
-		lgr:    base,
-		region: OAuth2,
-	}
-
-	registerLoggerCb(OAuth2, lgr.enable)
-	s.Equal(Enabled(OAuth2), false)
+	lgr := debug.NewDebugLogger(OAuth2, logger.DiscardLogger)
+	lgr.Logger = base
 
 	base.On("SetLevel", logger.DebugLevel)
 	base.On("SetReportCaller", true)
-	Enable(OAuth2)
-	s.Equal(Enabled(OAuth2), true)
+	debug.Enable(OAuth2)
+	s.True(debug.Enabled(OAuth2))
 	base.AssertExpectations(s.T())
 
 	// Sub loggers
 	baseTwo := &loggertest.LoggerMock{}
-	lgr = &debugLogger{
-		Logger: baseTwo,
-		lgr:    baseTwo,
-		region: Session,
-	}
-
-	registerLoggerCb(Session, lgr.enable)
-	s.Equal(Enabled(Session), false)
+	lgr = debug.NewDebugLogger(Session, logger.DiscardLogger)
+	lgr.Logger = baseTwo
 
 	baseTwo.On("SetLevel", logger.DebugLevel)
 	baseTwo.On("SetReportCaller", true)
-	Enable(Session)
-	s.Equal(Enabled(Session), true)
+	debug.Enable(Session)
+	s.True(debug.Enabled(Session))
 	baseTwo.AssertExpectations(s.T())
 
 	baseTwo.On("WithFields", mock.Anything).Return(baseTwo)
@@ -132,8 +107,8 @@ func (s *DebugLoggerSuite) TestUpdateToLevelAndCaller() {
 
 	baseTwo.On("SetLevel", logger.ErrorLevel)
 	baseTwo.On("SetReportCaller", false)
-	Disable(Session)
-	s.Equal(Enabled(Session), false)
+	debug.Disable(Session)
+	s.False(debug.Enabled(Session))
 
 	// Should have called level AND report caller (2 calls)
 	// Should have called with fields for sub logger (3 calls)

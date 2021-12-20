@@ -110,13 +110,12 @@ type DebugLogger interface {
 
 type debugLogger struct {
 	logger.Logger
-	lgr    logger.Logger
 	region ProductRegion
 }
 
 // NewDebugLogger returns a new logger which includes
 // the name of the debug region at every message.
-func NewDebugLogger(region ProductRegion, lgrIn logger.Logger) DebugLogger {
+func NewDebugLogger(region ProductRegion, lgrIn logger.Logger) *debugLogger {
 	lgr := lgrIn.Copy()
 
 	if Enabled(region) {
@@ -130,7 +129,6 @@ func NewDebugLogger(region ProductRegion, lgrIn logger.Logger) DebugLogger {
 
 	dbglgr := &debugLogger{
 		Logger: entry,
-		lgr:    entry,
 		region: region,
 	}
 
@@ -150,10 +148,9 @@ func (l *debugLogger) Enabled() bool {
 
 // Set fields to be logged
 func (l *debugLogger) WithFields(fields logger.Fields) DebugLogger {
-	newLgr := l.lgr.WithFields(fields)
+	newLgr := l.Logger.WithFields(fields)
 	dbglgr := &debugLogger{
 		Logger: newLgr,
-		lgr:    newLgr,
 		region: l.region,
 	}
 	registerLoggerCb(l.region, dbglgr.enable)
@@ -163,10 +160,9 @@ func (l *debugLogger) WithFields(fields logger.Fields) DebugLogger {
 // WithSubRegion returns a debug logger with further specificity
 // via sub_region key:value. E.g "region": "LDAP", "sub_region": "membership scanner"
 func (l *debugLogger) WithSubRegion(subregion string) DebugLogger {
-	newLgr := l.lgr.WithField("sub_region", subregion)
+	newLgr := l.Logger.WithField("sub_region", subregion)
 	dbglgr := &debugLogger{
 		Logger: newLgr,
-		lgr:    newLgr,
 		region: l.region,
 	}
 	registerLoggerCb(l.region, dbglgr.enable)
@@ -176,9 +172,9 @@ func (l *debugLogger) WithSubRegion(subregion string) DebugLogger {
 // Enable or disable this region debug logging instance
 func (l *debugLogger) enable(enabled bool) {
 	if enabled {
-		l.lgr.SetLevel(logger.DebugLevel)
+		l.Logger.SetLevel(logger.DebugLevel)
 	} else {
-		l.lgr.SetLevel(logger.ErrorLevel)
+		l.Logger.SetLevel(logger.ErrorLevel)
 	}
-	l.lgr.SetReportCaller(enabled)
+	l.Logger.SetReportCaller(enabled)
 }

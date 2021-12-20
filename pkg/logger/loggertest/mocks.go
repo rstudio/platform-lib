@@ -5,8 +5,11 @@ package loggertest
 import (
 	"fmt"
 	"io"
+	"log"
+	"regexp"
 
 	"github.com/rstudio/platform-lib/pkg/logger"
+	"github.com/rstudio/platform-lib/pkg/logger/debug"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -59,6 +62,31 @@ func (m *LoggerMock) LastCall() string {
 	return calls[len(calls)-1]
 }
 
+// Determine if provided messages match with calls with no particular order
+func (m *LoggerMock) MessagesMatch(matchRgx []string) bool {
+	for _, rgx := range matchRgx {
+		entryResult := false
+		rxObj, err := regexp.Compile("^" + rgx + "$")
+		if err != nil {
+			log.Output(2, fmt.Sprintf("LoggerMock.MessagesMatch: Could not compile regex: %s", rgx))
+			return false
+		}
+
+		for i := range m.Calls {
+			msg := m.Call(i)
+			if entryResult = rxObj.MatchString(msg); entryResult {
+				break
+			}
+		}
+
+		if !entryResult {
+			log.Output(2, fmt.Sprintf("%s did not match any message", rgx))
+			return false
+		}
+	}
+	return true
+}
+
 func (m *LoggerMock) Debugf(msg string, args ...interface{}) {
 	m.stringCalls = append(m.stringCalls, fmt.Sprintf(msg, args...))
 	m.Called(msg, args)
@@ -89,6 +117,12 @@ func (m *LoggerMock) Fatal(args ...interface{}) {
 }
 
 func (m *LoggerMock) Fatalf(msg string, args ...interface{}) {
+	m.stringCalls = append(m.stringCalls, fmt.Sprintf(msg, args...))
+	m.Called(msg, args)
+}
+
+// TODO: remove this function when the Connect migration process to the new logging standard is complete.
+func (m *LoggerMock) Logf(msg string, args ...interface{}) {
 	m.stringCalls = append(m.stringCalls, fmt.Sprintf(msg, args...))
 	m.Called(msg, args)
 }
@@ -138,7 +172,12 @@ func (m *DebugLoggerMock) Enabled() bool {
 	return args.Get(0).(bool)
 }
 
-func (m *DebugLoggerMock) WithSubRegion(subregion string) *DebugLoggerMock {
+func (m *DebugLoggerMock) WithFields(fields logger.Fields) debug.DebugLogger {
+	args := m.Called(fields)
+	return args.Get(0).(debug.DebugLogger)
+}
+
+func (m *DebugLoggerMock) WithSubRegion(subregion string) debug.DebugLogger {
 	args := m.Called(subregion)
-	return args.Get(0).(*DebugLoggerMock)
+	return args.Get(0).(debug.DebugLogger)
 }
