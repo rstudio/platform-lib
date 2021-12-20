@@ -48,26 +48,31 @@ func (logger *CaptureOnlyLogger) Reset() {
 }
 
 func (logger *CaptureOnlyLogger) Debugf(msg string, args ...interface{}) {
-	logger.Messages = append(logger.Messages, msg)
+	logger.Messages = append(logger.Messages, fmt.Sprintf(msg, args...))
 }
 
 func (logger *CaptureOnlyLogger) Infof(msg string, args ...interface{}) {
-	logger.Messages = append(logger.Messages, msg)
+	logger.Messages = append(logger.Messages, fmt.Sprintf(msg, args...))
 }
 
 func (logger *CaptureOnlyLogger) Warnf(msg string, args ...interface{}) {
-	logger.Messages = append(logger.Messages, msg)
+	logger.Messages = append(logger.Messages, fmt.Sprintf(msg, args...))
 }
 
 func (logger *CaptureOnlyLogger) Errorf(msg string, args ...interface{}) {
-	logger.Messages = append(logger.Messages, msg)
+	logger.Messages = append(logger.Messages, fmt.Sprintf(msg, args...))
 }
 
 func (logger *CaptureOnlyLogger) Fatalf(msg string, args ...interface{}) {
-	logger.Messages = append(logger.Messages, msg)
+	logger.Messages = append(logger.Messages, fmt.Sprintf(msg, args...))
 }
 
 func (logger *CaptureOnlyLogger) Fatal(args ...interface{}) {
+	logger.Messages = append(logger.Messages, fmt.Sprint(args...))
+}
+
+func (logger *CaptureOnlyLogger) Panicf(msg string, args ...interface{}) {
+	logger.Messages = append(logger.Messages, fmt.Sprintf(msg, args...))
 }
 
 func (logger *CaptureOnlyLogger) WithField(key string, value interface{}) Logger {

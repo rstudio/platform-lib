@@ -16,6 +16,7 @@ type Logger interface {
 	Errorf(msg string, args ...interface{})
 	Fatalf(msg string, args ...interface{})
 	Fatal(args ...interface{})
+	Panicf(msg string, args ...interface{})
 
 	SetOutput(writers ...io.Writer)
 	Copy() Logger

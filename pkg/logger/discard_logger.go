@@ -14,6 +14,7 @@ func (discardLogger) Warnf(msg string, args ...interface{})  {}
 func (discardLogger) Errorf(msg string, args ...interface{}) {}
 func (discardLogger) Fatalf(msg string, args ...interface{}) {}
 func (discardLogger) Fatal(args ...interface{})              {}
+func (discardLogger) Panicf(msg string, v ...interface{})    {}
 
 // Doing nothing with the provided values. Just to implement the interface and be able to switch to old logging implementation
 func (l discardLogger) WithField(key string, value interface{}) Logger {
