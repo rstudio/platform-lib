@@ -226,6 +226,10 @@ func Fatalf(msg string, args ...interface{}) {
 	defaultLogger.Fatalf(msg, args...)
 }
 
+func Panicf(msg string, args ...interface{}) {
+	defaultLogger.Panicf(msg, args...)
+}
+
 func WithField(key string, value interface{}) Logger {
 	return defaultLogger.WithField(key, value)
 }

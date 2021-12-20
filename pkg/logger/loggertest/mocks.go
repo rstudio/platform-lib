@@ -127,6 +127,11 @@ func (m *LoggerMock) Logf(msg string, args ...interface{}) {
 	m.Called(msg, args)
 }
 
+func (m *LoggerMock) Panicf(msg string, args ...interface{}) {
+	m.stringCalls = append(m.stringCalls, fmt.Sprintf(msg, args...))
+	m.Called(msg, args)
+}
+
 func (m *LoggerMock) WithField(key string, value interface{}) logger.Logger {
 	args := m.Called(key, value)
 	return args.Get(0).(logger.Logger)
