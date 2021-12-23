@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rstudio/platform-lib/pkg/logger"
+	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 )
@@ -20,9 +20,9 @@ func TestLoggerImplSuite(t *testing.T) {
 	suite.Run(t, &LoggerImplTestSuite{})
 }
 
-var outputDest = []logger.OutputDest{
+var outputDest = []rslog.OutputDest{
 	{
-		Output:      logger.LogOutputFile,
+		Output:      rslog.LogOutputFile,
 		Filepath:    "/custom/dir/server.log",
 		DefaultFile: "/var/log/rstudio/rstudio-xyz/rstudio-xyz.log",
 	},
@@ -30,13 +30,13 @@ var outputDest = []logger.OutputDest{
 
 func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 	outputMock := &OutputBuilderMock{}
-	outputMock.On("Build", logger.LogOutputFile, "/custom/dir/server.log").Return(IoWriterMock{}, nil)
+	outputMock.On("Build", rslog.LogOutputFile, "/custom/dir/server.log").Return(IoWriterMock{}, nil)
 
-	result, err := logger.NewLoggerImpl(
-		logger.LoggerOptionsImpl{
+	result, err := rslog.NewLoggerImpl(
+		rslog.LoggerOptionsImpl{
 			Output: outputDest,
-			Format: logger.TextFormat,
-			Level:  logger.InfoLevel,
+			Format: rslog.TextFormat,
+			Level:  rslog.InfoLevel,
 		},
 		outputMock,
 	)
@@ -44,22 +44,22 @@ func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 	s.NotNil(result.Out)
 	s.IsType(&logrus.TextFormatter{}, result.Formatter)
 
-	result, err = logger.NewLoggerImpl(
-		logger.LoggerOptionsImpl{
+	result, err = rslog.NewLoggerImpl(
+		rslog.LoggerOptionsImpl{
 			Output: outputDest,
-			Format: logger.JSONFormat,
-			Level:  logger.InfoLevel,
+			Format: rslog.JSONFormat,
+			Level:  rslog.InfoLevel,
 		},
 		outputMock,
 	)
 	s.Nil(err)
 	s.IsType(&logrus.JSONFormatter{}, result.Formatter)
 
-	result, err = logger.NewLoggerImpl(
-		logger.LoggerOptionsImpl{
+	result, err = rslog.NewLoggerImpl(
+		rslog.LoggerOptionsImpl{
 			Output: outputDest,
-			Format: logger.OutputFormat("UnsupportedFormat"),
-			Level:  logger.InfoLevel,
+			Format: rslog.OutputFormat("UnsupportedFormat"),
+			Level:  rslog.InfoLevel,
 		},
 		outputMock,
 	)
@@ -67,12 +67,12 @@ func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 	s.IsType(&logrus.TextFormatter{}, result.Formatter)
 
 	errdBuildMock := &OutputBuilderMock{}
-	errdBuildMock.On("Build", logger.LogOutputFile, "/custom/dir/server.log").Return(IoWriterMock{}, fmt.Errorf("output build error"))
-	result, err = logger.NewLoggerImpl(
-		logger.LoggerOptionsImpl{
+	errdBuildMock.On("Build", rslog.LogOutputFile, "/custom/dir/server.log").Return(IoWriterMock{}, fmt.Errorf("output build error"))
+	result, err = rslog.NewLoggerImpl(
+		rslog.LoggerOptionsImpl{
 			Output: outputDest,
-			Format: logger.JSONFormat,
-			Level:  logger.InfoLevel,
+			Format: rslog.JSONFormat,
+			Level:  rslog.InfoLevel,
 		},
 		errdBuildMock,
 	)
@@ -80,12 +80,12 @@ func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 }
 
 func (s *LoggerImplTestSuite) TestSetDefaultLogger() {
-	lgr := logger.DefaultLogger()
+	lgr := rslog.DefaultLogger()
 	loggerMock := &LoggerMock{}
 
-	logger.SetDefaultLogger(loggerMock)
+	rslog.SetDefaultLogger(loggerMock)
 
-	s.Equal(logger.DefaultLogger(), loggerMock)
+	s.Equal(rslog.DefaultLogger(), loggerMock)
 
 	msg := "some message"
 	args := []interface{}{
@@ -94,67 +94,67 @@ func (s *LoggerImplTestSuite) TestSetDefaultLogger() {
 	}
 
 	loggerMock.On("Debugf", msg, args)
-	logger.Debugf(msg, args...)
+	rslog.Debugf(msg, args...)
 	loggerMock.AssertCalled(s.T(), "Debugf", msg, args)
 
 	loggerMock.On("Infof", msg, args)
-	logger.Infof(msg, args...)
+	rslog.Infof(msg, args...)
 	loggerMock.AssertCalled(s.T(), "Infof", msg, args)
 
 	loggerMock.On("Warnf", msg, args)
-	logger.Warnf(msg, args...)
+	rslog.Warnf(msg, args...)
 	loggerMock.AssertCalled(s.T(), "Warnf", msg, args)
 
 	loggerMock.On("Errorf", msg, args)
-	logger.Errorf(msg, args...)
+	rslog.Errorf(msg, args...)
 	loggerMock.AssertCalled(s.T(), "Errorf", msg, args)
 
 	loggerMock.On("Fatal", []interface{}{msg})
-	logger.Fatal(msg)
+	rslog.Fatal(msg)
 	loggerMock.AssertCalled(s.T(), "Fatal", []interface{}{msg})
 
 	loggerMock.On("Fatalf", msg, args)
-	logger.Fatalf(msg, args...)
+	rslog.Fatalf(msg, args...)
 	loggerMock.AssertCalled(s.T(), "Fatalf", msg, args)
 
 	eMock := EntryMock{}
 	loggerMock.On("WithField", "field", "value").Return(eMock)
-	entryResultWithField := logger.WithField("field", "value")
+	entryResultWithField := rslog.WithField("field", "value")
 	s.Equal(entryResultWithField, eMock)
 
-	f := logger.Fields{
+	f := rslog.Fields{
 		"field1": "value1",
 		"field2": "value2",
 	}
 	loggerMock.On("WithFields", f).Return(eMock)
-	entryResultWithFields := logger.WithFields(f)
+	entryResultWithFields := rslog.WithFields(f)
 	s.Equal(entryResultWithFields, eMock)
 
-	logger.SetDefaultLogger(lgr)
-	s.Equal(logger.DefaultLogger(), lgr)
+	rslog.SetDefaultLogger(lgr)
+	s.Equal(rslog.DefaultLogger(), lgr)
 }
 
 func (s *LoggerImplTestSuite) TestMultipleOutput() {
 	outputMock := &OutputBuilderMock{}
-	outputMock.On("Build", logger.LogOutputStdout, "").Return(IoWriterMock{}, nil)
-	outputMock.On("Build", logger.LogOutputFile, "/custom/dir/server.log").Return(IoWriterMock{}, nil)
+	outputMock.On("Build", rslog.LogOutputStdout, "").Return(IoWriterMock{}, nil)
+	outputMock.On("Build", rslog.LogOutputFile, "/custom/dir/server.log").Return(IoWriterMock{}, nil)
 
-	multiOutput := []logger.OutputDest{
+	multiOutput := []rslog.OutputDest{
 		{
-			Output:      logger.LogOutputFile,
+			Output:      rslog.LogOutputFile,
 			Filepath:    "/custom/dir/server.log",
 			DefaultFile: "/var/log/rstudio/rstudio-xyz/rstudio-xyz.log",
 		},
 		{
-			Output: logger.LogOutputStdout,
+			Output: rslog.LogOutputStdout,
 		},
 	}
 
-	result, err := logger.NewLoggerImpl(
-		logger.LoggerOptionsImpl{
+	result, err := rslog.NewLoggerImpl(
+		rslog.LoggerOptionsImpl{
 			Output: multiOutput,
-			Format: logger.TextFormat,
-			Level:  logger.InfoLevel,
+			Format: rslog.TextFormat,
+			Level:  rslog.InfoLevel,
 		},
 		outputMock,
 	)
@@ -167,19 +167,19 @@ func (s *LoggerImplTestSuite) TestOutputFormatUnmarshalText() {
 	testCases := []struct {
 		TestName        string
 		ValueToConvert  string
-		ExpectedValue   logger.OutputFormat
+		ExpectedValue   rslog.OutputFormat
 		ShouldHaveError bool
 	}{
 		{
 			TestName:        "Unmarshal TEXT OutputFormat value",
-			ValueToConvert:  string(logger.TextFormat),
-			ExpectedValue:   logger.TextFormat,
+			ValueToConvert:  string(rslog.TextFormat),
+			ExpectedValue:   rslog.TextFormat,
 			ShouldHaveError: false,
 		},
 		{
 			TestName:        "Unmarshal JSON OutputFormat value",
-			ValueToConvert:  string(logger.JSONFormat),
-			ExpectedValue:   logger.JSONFormat,
+			ValueToConvert:  string(rslog.JSONFormat),
+			ExpectedValue:   rslog.JSONFormat,
 			ShouldHaveError: false,
 		},
 		{
@@ -196,7 +196,7 @@ func (s *LoggerImplTestSuite) TestOutputFormatUnmarshalText() {
 
 	for _, tc := range testCases {
 		s.Run(tc.TestName, func() {
-			var result logger.OutputFormat
+			var result rslog.OutputFormat
 			err := result.UnmarshalText([]byte(tc.ValueToConvert))
 
 			if tc.ShouldHaveError {
@@ -213,32 +213,32 @@ func (s *LoggerImplTestSuite) TestNewLoggerImplLevel() {
 
 	cases := []struct {
 		TestName               string
-		LoggingLevel           logger.LogLevel
+		LoggingLevel           rslog.LogLevel
 		ExpectedLogrusLogLevel logrus.Level
 	}{
 		{
 			TestName:               "NewLoggerImpl Trace level test",
-			LoggingLevel:           logger.TraceLevel,
+			LoggingLevel:           rslog.TraceLevel,
 			ExpectedLogrusLogLevel: logrus.TraceLevel,
 		},
 		{
 			TestName:               "NewLoggerImpl Debug level test",
-			LoggingLevel:           logger.DebugLevel,
+			LoggingLevel:           rslog.DebugLevel,
 			ExpectedLogrusLogLevel: logrus.DebugLevel,
 		},
 		{
 			TestName:               "NewLoggerImpl Info level test",
-			LoggingLevel:           logger.InfoLevel,
+			LoggingLevel:           rslog.InfoLevel,
 			ExpectedLogrusLogLevel: logrus.InfoLevel,
 		},
 		{
 			TestName:               "NewLoggerImpl Warn level test",
-			LoggingLevel:           logger.WarningLevel,
+			LoggingLevel:           rslog.WarningLevel,
 			ExpectedLogrusLogLevel: logrus.WarnLevel,
 		},
 		{
 			TestName:               "NewLoggerImpl Error level test",
-			LoggingLevel:           logger.ErrorLevel,
+			LoggingLevel:           rslog.ErrorLevel,
 			ExpectedLogrusLogLevel: logrus.ErrorLevel,
 		},
 	}
@@ -249,12 +249,12 @@ func (s *LoggerImplTestSuite) TestNewLoggerImplLevel() {
 
 			outputMock := &OutputBuilderMock{}
 			expectedWriter := IoWriterMock{}
-			outputMock.On("Build", logger.LogOutputFile, "/custom/dir/server.log").Return(expectedWriter, nil)
+			outputMock.On("Build", rslog.LogOutputFile, "/custom/dir/server.log").Return(expectedWriter, nil)
 
-			lgr, err := logger.NewLoggerImpl(
-				logger.LoggerOptionsImpl{
+			lgr, err := rslog.NewLoggerImpl(
+				rslog.LoggerOptionsImpl{
 					Output: outputDest,
-					Format: logger.TextFormat,
+					Format: rslog.TextFormat,
 					Level:  tc.LoggingLevel,
 				},
 				outputMock,
@@ -273,37 +273,37 @@ func (s *LoggerImplTestSuite) TestLogLevelUnmarshalText() {
 	testCases := []struct {
 		TestName        string
 		ValueToConvert  string
-		ExpectedValue   logger.LogLevel
+		ExpectedValue   rslog.LogLevel
 		ShouldHaveError bool
 	}{
 		{
 			TestName:        "Unmarshal Trace LogLevel value",
-			ValueToConvert:  string(logger.TraceLevel),
-			ExpectedValue:   logger.TraceLevel,
+			ValueToConvert:  string(rslog.TraceLevel),
+			ExpectedValue:   rslog.TraceLevel,
 			ShouldHaveError: false,
 		},
 		{
 			TestName:        "Unmarshal Debug LogLevel value",
-			ValueToConvert:  string(logger.DebugLevel),
-			ExpectedValue:   logger.DebugLevel,
+			ValueToConvert:  string(rslog.DebugLevel),
+			ExpectedValue:   rslog.DebugLevel,
 			ShouldHaveError: false,
 		},
 		{
 			TestName:        "Unmarshal Info LogLevel value",
-			ValueToConvert:  string(logger.InfoLevel),
-			ExpectedValue:   logger.InfoLevel,
+			ValueToConvert:  string(rslog.InfoLevel),
+			ExpectedValue:   rslog.InfoLevel,
 			ShouldHaveError: false,
 		},
 		{
 			TestName:        "Unmarshal Warn LogLevel value",
-			ValueToConvert:  string(logger.WarningLevel),
-			ExpectedValue:   logger.WarningLevel,
+			ValueToConvert:  string(rslog.WarningLevel),
+			ExpectedValue:   rslog.WarningLevel,
 			ShouldHaveError: false,
 		},
 		{
 			TestName:        "Unmarshal Error LogLevel value",
-			ValueToConvert:  string(logger.ErrorLevel),
-			ExpectedValue:   logger.ErrorLevel,
+			ValueToConvert:  string(rslog.ErrorLevel),
+			ExpectedValue:   rslog.ErrorLevel,
 			ShouldHaveError: false,
 		},
 		{
@@ -320,7 +320,7 @@ func (s *LoggerImplTestSuite) TestLogLevelUnmarshalText() {
 
 	for _, tc := range testCases {
 		s.Run(tc.TestName, func() {
-			var result logger.LogLevel
+			var result rslog.LogLevel
 			err := result.UnmarshalText([]byte(tc.ValueToConvert))
 
 			if tc.ShouldHaveError {
@@ -339,13 +339,13 @@ func (s *LoggerImplTestSuite) TestCopy() {
 	outputMock := &OutputBuilderMock{}
 	expectedWriter := IoWriterMock{}
 
-	outputMock.On("Build", logger.LogOutputFile, "/custom/dir/server.log").Return(expectedWriter, nil)
+	outputMock.On("Build", rslog.LogOutputFile, "/custom/dir/server.log").Return(expectedWriter, nil)
 
-	log, err := logger.NewLoggerImpl(
-		logger.LoggerOptionsImpl{
+	log, err := rslog.NewLoggerImpl(
+		rslog.LoggerOptionsImpl{
 			Output: outputDest,
-			Format: logger.JSONFormat,
-			Level:  logger.InfoLevel,
+			Format: rslog.JSONFormat,
+			Level:  rslog.InfoLevel,
 		},
 		outputMock,
 	)
@@ -353,30 +353,30 @@ func (s *LoggerImplTestSuite) TestCopy() {
 
 	copy := log.Copy()
 
-	s.Equal(log.Out, copy.(logger.LoggerImpl).Out)
-	s.Equal(log.Level, copy.(logger.LoggerImpl).Level)
-	s.Equal(log.Formatter, copy.(logger.LoggerImpl).Formatter)
+	s.Equal(log.Out, copy.(rslog.LoggerImpl).Out)
+	s.Equal(log.Level, copy.(rslog.LoggerImpl).Level)
+	s.Equal(log.Formatter, copy.(rslog.LoggerImpl).Formatter)
 
 	log.Logger.SetLevel(logrus.DebugLevel)
 	log.SetFormatter(&logrus.TextFormatter{})
 	log.SetOutput(os.Stdout)
 
-	s.NotEqual(log.Level, copy.(logger.LoggerImpl).Level)
-	s.NotEqual(log.Formatter, copy.(logger.LoggerImpl).Formatter)
-	s.NotEqual(log.Out, copy.(logger.LoggerImpl).Out)
+	s.NotEqual(log.Level, copy.(rslog.LoggerImpl).Level)
+	s.NotEqual(log.Formatter, copy.(rslog.LoggerImpl).Formatter)
+	s.NotEqual(log.Out, copy.(rslog.LoggerImpl).Out)
 }
 
 func (s *LoggerImplTestSuite) TestOnConfigReload() {
 	outputMock := &OutputBuilderMock{}
 	expectedWriter := IoWriterMock{}
 
-	outputMock.On("Build", logger.LogOutputFile, "/custom/dir/server.log").Return(expectedWriter, nil)
+	outputMock.On("Build", rslog.LogOutputFile, "/custom/dir/server.log").Return(expectedWriter, nil)
 
-	log, err := logger.NewLoggerImpl(
-		logger.LoggerOptionsImpl{
+	log, err := rslog.NewLoggerImpl(
+		rslog.LoggerOptionsImpl{
 			Output: outputDest,
-			Format: logger.JSONFormat,
-			Level:  logger.InfoLevel,
+			Format: rslog.JSONFormat,
+			Level:  rslog.InfoLevel,
 		},
 		outputMock,
 	)
@@ -384,7 +384,7 @@ func (s *LoggerImplTestSuite) TestOnConfigReload() {
 
 	s.Equal(log.Level, logrus.InfoLevel)
 
-	log.OnConfigReload(logger.WarningLevel)
+	log.OnConfigReload(rslog.WarningLevel)
 
 	s.NotNil(log.Out)
 	s.Equal(log.Level, logrus.WarnLevel)

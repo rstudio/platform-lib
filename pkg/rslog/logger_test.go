@@ -1,4 +1,4 @@
-package logger
+package rslog
 
 // Copyright (C) 2021 by RStudio, PBC.
 

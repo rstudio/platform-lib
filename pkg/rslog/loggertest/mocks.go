@@ -8,8 +8,8 @@ import (
 	"log"
 	"regexp"
 
-	"github.com/rstudio/platform-lib/pkg/logger"
-	"github.com/rstudio/platform-lib/pkg/logger/debug"
+	"github.com/rstudio/platform-lib/pkg/rslog"
+	"github.com/rstudio/platform-lib/pkg/rslog/debug"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -17,7 +17,7 @@ type OutputBuilderMock struct {
 	mock.Mock
 }
 
-func (m *OutputBuilderMock) Build(output logger.LogOutputType, logFilePath string) (io.Writer, error) {
+func (m *OutputBuilderMock) Build(output rslog.LogOutputType, logFilePath string) (io.Writer, error) {
 	args := m.Called(output, logFilePath)
 	return args.Get(0).(io.Writer), args.Error(1)
 }
@@ -27,7 +27,7 @@ type IoWriterMock struct {
 }
 
 type EntryMock struct {
-	logger.Logger
+	rslog.Logger
 }
 
 // Useful to mock and test logging calls
@@ -132,27 +132,27 @@ func (m *LoggerMock) Panicf(msg string, args ...interface{}) {
 	m.Called(msg, args)
 }
 
-func (m *LoggerMock) WithField(key string, value interface{}) logger.Logger {
+func (m *LoggerMock) WithField(key string, value interface{}) rslog.Logger {
 	args := m.Called(key, value)
-	return args.Get(0).(logger.Logger)
+	return args.Get(0).(rslog.Logger)
 }
 
-func (m *LoggerMock) WithFields(fields logger.Fields) logger.Logger {
+func (m *LoggerMock) WithFields(fields rslog.Fields) rslog.Logger {
 	args := m.Called(fields)
-	return args.Get(0).(logger.Logger)
+	return args.Get(0).(rslog.Logger)
 }
 
-func (m *LoggerMock) WithCorrelationID(correlationID string) logger.Logger {
+func (m *LoggerMock) WithCorrelationID(correlationID string) rslog.Logger {
 	args := m.Called(correlationID)
-	return args.Get(0).(logger.Logger)
+	return args.Get(0).(rslog.Logger)
 }
 
-func (m *LoggerMock) Copy() logger.Logger {
+func (m *LoggerMock) Copy() rslog.Logger {
 	args := m.Called()
-	return args.Get(0).(logger.Logger)
+	return args.Get(0).(rslog.Logger)
 }
 
-func (m *LoggerMock) SetLevel(level logger.LogLevel) {
+func (m *LoggerMock) SetLevel(level rslog.LogLevel) {
 	m.Called(level)
 }
 
@@ -160,7 +160,7 @@ func (m *LoggerMock) SetOutput(writers ...io.Writer) {
 	m.Called(writers)
 }
 
-func (m *LoggerMock) OnConfigReload(level logger.LogLevel) {
+func (m *LoggerMock) OnConfigReload(level rslog.LogLevel) {
 	m.Called(level)
 }
 
@@ -177,7 +177,7 @@ func (m *DebugLoggerMock) Enabled() bool {
 	return args.Get(0).(bool)
 }
 
-func (m *DebugLoggerMock) WithFields(fields logger.Fields) debug.DebugLogger {
+func (m *DebugLoggerMock) WithFields(fields rslog.Fields) debug.DebugLogger {
 	args := m.Called(fields)
 	return args.Get(0).(debug.DebugLogger)
 }
