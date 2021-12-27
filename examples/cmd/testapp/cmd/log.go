@@ -5,7 +5,7 @@ package cmd
 import (
 	"log"
 
-	"github.com/rstudio/platform-lib/pkg/logger"
+	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/spf13/cobra"
 )
 
@@ -14,21 +14,21 @@ var (
 )
 
 func init() {
-	lgr, err := logger.NewLoggerImpl(logger.LoggerOptionsImpl{
-		Output: []logger.OutputDest{
+	lgr, err := rslog.NewLoggerImpl(rslog.LoggerOptionsImpl{
+		Output: []rslog.OutputDest{
 			{
-				Output: logger.LogOutputStdout,
+				Output: rslog.LogOutputStdout,
 			},
 		},
-		Format: logger.JSONFormat,
-		Level:  logger.DebugLevel,
-	}, logger.NewOutputLogBuilder(logger.ServerLog, ""))
+		Format: rslog.JSONFormat,
+		Level:  rslog.DebugLevel,
+	}, rslog.NewOutputLogBuilder(rslog.ServerLog, ""))
 
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
 
-	logger.SetDefaultLogger(lgr)
+	rslog.SetDefaultLogger(lgr)
 	LogCmd.Example = `  rspm log --message=hello
 `
 	LogCmd.Flags().StringVar(&message, "message", "default message", "The message to log.")
@@ -41,7 +41,7 @@ var LogCmd = &cobra.Command{
 	Short:   "Command to log some information",
 	Example: "",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		logs := logger.DefaultLogger()
+		logs := rslog.DefaultLogger()
 		logs.Infof(message)
 		return nil
 	},

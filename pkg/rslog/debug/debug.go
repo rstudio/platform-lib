@@ -3,7 +3,7 @@ package debug
 // Copyright (C) 2021 by RStudio, PBC.
 
 import (
-	"github.com/rstudio/platform-lib/pkg/logger"
+	"github.com/rstudio/platform-lib/pkg/rslog"
 )
 
 type ProductRegion int
@@ -104,26 +104,26 @@ func Enabled(region ProductRegion) bool {
 type DebugLogger interface {
 	Enabled() bool
 	Debugf(msg string, args ...interface{})
-	WithFields(fields logger.Fields) DebugLogger
+	WithFields(fields rslog.Fields) DebugLogger
 	WithSubRegion(subregion string) DebugLogger
 }
 
 type debugLogger struct {
-	logger.Logger
+	rslog.Logger
 	region ProductRegion
 }
 
 // NewDebugLogger returns a new logger which includes
 // the name of the debug region at every message.
-func NewDebugLogger(region ProductRegion, lgrIn logger.Logger) *debugLogger {
+func NewDebugLogger(region ProductRegion, lgrIn rslog.Logger) *debugLogger {
 	lgr := lgrIn.Copy()
 
 	if Enabled(region) {
-		lgr.SetLevel(logger.DebugLevel)
+		lgr.SetLevel(rslog.DebugLevel)
 		lgr.SetReportCaller(true)
 	}
 
-	entry := lgr.WithFields(logger.Fields{
+	entry := lgr.WithFields(rslog.Fields{
 		"region": regionNames[region],
 	})
 
@@ -141,13 +141,13 @@ func registerLoggerCb(region ProductRegion, cb func(bool)) {
 	regionCallbacks[region] = append(regionCallbacks[region], cb)
 }
 
-// Enabled returns true if debug logging is enabled for this logger.
+// Enabled returns true if debug logging is enabled for this rslog.
 func (l *debugLogger) Enabled() bool {
 	return Enabled(l.region)
 }
 
 // Set fields to be logged
-func (l *debugLogger) WithFields(fields logger.Fields) DebugLogger {
+func (l *debugLogger) WithFields(fields rslog.Fields) DebugLogger {
 	newLgr := l.Logger.WithFields(fields)
 	dbglgr := &debugLogger{
 		Logger: newLgr,
@@ -172,9 +172,9 @@ func (l *debugLogger) WithSubRegion(subregion string) DebugLogger {
 // Enable or disable this region debug logging instance
 func (l *debugLogger) enable(enabled bool) {
 	if enabled {
-		l.Logger.SetLevel(logger.DebugLevel)
+		l.Logger.SetLevel(rslog.DebugLevel)
 	} else {
-		l.Logger.SetLevel(logger.ErrorLevel)
+		l.Logger.SetLevel(rslog.ErrorLevel)
 	}
 	l.Logger.SetReportCaller(enabled)
 }
