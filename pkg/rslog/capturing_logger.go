@@ -51,6 +51,10 @@ func (logger *CaptureOnlyLogger) Debugf(msg string, args ...interface{}) {
 	logger.Messages = append(logger.Messages, fmt.Sprintf(msg, args...))
 }
 
+func (logger *CaptureOnlyLogger) Tracef(msg string, args ...interface{}) {
+	logger.Messages = append(logger.Messages, fmt.Sprintf(msg, args...))
+}
+
 func (logger *CaptureOnlyLogger) Infof(msg string, args ...interface{}) {
 	logger.Messages = append(logger.Messages, fmt.Sprintf(msg, args...))
 }
@@ -86,11 +90,7 @@ func (logger *CaptureOnlyLogger) WithFields(fields Fields) Logger {
 func (logger *CaptureOnlyLogger) SetLevel(_ LogLevel) {
 }
 
-func (logger *CaptureOnlyLogger) SetReportCaller(bool) {
-}
-
-func (logger *CaptureOnlyLogger) Copy() Logger {
-	return logger
+func (logger *CaptureOnlyLogger) SetFormatter(_ OutputFormat) {
 }
 
 func (logger *CaptureOnlyLogger) SetOutput(writers ...io.Writer) {

@@ -9,6 +9,7 @@ type discardLogger struct{}
 
 func (discardLogger) Logf(msg string, args ...interface{})   {}
 func (discardLogger) Debugf(msg string, args ...interface{}) {}
+func (discardLogger) Tracef(msg string, args ...interface{}) {}
 func (discardLogger) Infof(msg string, args ...interface{})  {}
 func (discardLogger) Warnf(msg string, args ...interface{})  {}
 func (discardLogger) Errorf(msg string, args ...interface{}) {}
@@ -31,15 +32,13 @@ func (l discardLogger) WithCorrelationID(correlationID string) Logger {
 	return l
 }
 
-func (l discardLogger) Copy() Logger {
-	return l
-}
-
 func (discardLogger) SetLevel(level LogLevel)        {}
 func (discardLogger) SetOutput(writers ...io.Writer) {}
+func (discardLogger) SetFormatter(_ OutputFormat)    {}
 func (discardLogger) OnConfigReload(level LogLevel)  {}
-func (discardLogger) SetReportCaller(flag bool)      {}
 
+// DiscardLogger for legacy usage.
+// TODO: Remove this.
 var DiscardLogger discardLogger = discardLogger{}
 
 type discardOutputter struct{}

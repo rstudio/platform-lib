@@ -17,17 +17,22 @@ type Logger interface {
 	Fatalf(msg string, args ...interface{})
 	Fatal(args ...interface{})
 	Panicf(msg string, args ...interface{})
+	Tracef(msg string, args ...interface{})
 
-	SetOutput(writers ...io.Writer)
-	Copy() Logger
 	WithField(key string, value interface{}) Logger
 	WithFields(fields Fields) Logger
-	SetLevel(level LogLevel)
-	SetReportCaller(bool)
 
-	// TODO: remove this interface when the migration process to the new logging standard is complete.
-	// It is being added just to help migrate packages that inject the Logger interface inside another packages.
+	SetOutput(writers ...io.Writer)
+	SetLevel(level LogLevel)
+	SetFormatter(formatter OutputFormat)
+
+	// DeprecatedLogger helps with migrating packages that inject the Logger interface into other packages.
+	// TODO: Remove this interface when the migration process to the new logging standard is complete.
 	DeprecatedLogger
+}
+
+type LoggerFactory interface {
+	DefaultLogger() Logger
 }
 
 type Fields map[string]interface{}
@@ -129,4 +134,6 @@ type OutputLogger interface {
 	Outputter
 }
 
+// DiscardOutputLogger for legacy usage.
+// TODO: Remove this.
 var DiscardOutputLogger = discardOutputLogger{}
