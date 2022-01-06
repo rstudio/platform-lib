@@ -7,7 +7,7 @@ import (
 
 	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/rstudio/platform-lib/pkg/rslog/debug"
-	"github.com/rstudio/platform-lib/pkg/rslog/loggertest"
+	"github.com/rstudio/platform-lib/pkg/rslog/rslogtest"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
@@ -29,7 +29,7 @@ func init() {
 type DebugLoggerSuite struct {
 	suite.Suite
 
-	loggerMock *loggertest.LoggerMock
+	loggerMock *rslogtest.LoggerMock
 }
 
 func TestDebugLoggerSuite(t *testing.T) {
@@ -82,7 +82,7 @@ func (s *DebugLoggerSuite) TestNewDebugLogger() {
 }
 
 func (s *DebugLoggerSuite) TestUpdateToLevelAndCaller() {
-	base := &loggertest.LoggerMock{}
+	base := &rslogtest.LoggerMock{}
 	lgr := debug.NewDebugLogger(OAuth2)
 	lgr.Logger = base
 
@@ -91,7 +91,7 @@ func (s *DebugLoggerSuite) TestUpdateToLevelAndCaller() {
 	base.AssertExpectations(s.T())
 
 	// Sub loggers
-	baseTwo := &loggertest.LoggerMock{}
+	baseTwo := &rslogtest.LoggerMock{}
 	lgr = debug.NewDebugLogger(Session)
 	lgr.Logger = baseTwo
 

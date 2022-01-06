@@ -214,6 +214,15 @@ func UpdateDefaultLogger(options LoggerOptionsImpl, outputBuilder OutputBuilder)
 	return nil
 }
 
+// ReplaceDefaultLogger replaces the default logger. This is not ideal, but was included
+// to support switching to a legacy logger.
+// TODO: Remove this when all applications have fully moved to the new logging standard.
+func ReplaceDefaultLogger(logger Logger) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	defaultLogger = logger
+}
+
 func DefaultLogger() Logger {
 	lock := ensureDefaultLoggerReadLock()
 	defer lock.RUnlock()
