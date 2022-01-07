@@ -102,6 +102,18 @@ func (o *LogLevel) UnmarshalText(text []byte) (err error) {
 	return fmt.Errorf("invalid Log Level value '%s'. Allowed values are %v", text, values)
 }
 
+func (o *LogLevel) Compare(level LogLevel) int {
+	a := getLevel(*o)
+	b := getLevel(level)
+	if a < b {
+		return -1
+	}
+	if a == b {
+		return 0
+	}
+	return 1
+}
+
 // for testing.
 var _log_printf = log.Printf
 
