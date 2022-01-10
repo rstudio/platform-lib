@@ -74,3 +74,15 @@ test-e2e: (create-e2e-env "platform-lib-e2e" "" '/bin/bash -c "just test"') (cop
 # Stop a running container. This is only needed if something goes wrong.
 stop-e2e-env:
     docker kill platform-lib-e2e-interactive
+
+# generate Go dependencies' licenses file
+licenses:
+    go mod vendor
+    cat go.mod \
+    | awk '/\t/{ print $0 }' \
+    | grep -E -v '(rstudio|indirect)' \
+    | awk '{ print $1 }' \
+    | sort -u \
+    | ./scripts/go-licenses.py \
+    > NOTICE.md
+    rm -rf vendor
