@@ -16,12 +16,6 @@ You can optionally add a bit of extra structure to your internal packages to sep
 
 Library code that's ok to use by external applications (e.g., `/pkg/mypubliclib`). Other projects will import these libraries expecting them to work, so think twice before you put something here.
 
-### `/vendor`
-
-Application dependencies managed by [`Go Modules`](https://github.com/golang/go/wiki/Modules) feature). The `go mod vendor` command will create the `/vendor` directory for you.
-
-Don't commit your application dependencies if you are building a library.
-
 ## Common Application Directories
 
 ### `/scripts`
@@ -72,6 +66,21 @@ just test-e2e
 just start-e2e-env
 just test
 exit
+```
+
+## Licenses
+
+To update `NOTICE.md` with a list of licenses from third-party Go modules,
+use the `just licenses` target. This requires Python 3.
+
+## Versioning
+
+Follow semantic versioning guidelines. To release a new version, we simply
+create and push a tag.
+
+```shell
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 ## Badges
