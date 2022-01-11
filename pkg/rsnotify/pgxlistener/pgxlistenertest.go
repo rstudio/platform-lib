@@ -1,6 +1,6 @@
-package pglistener
+package pgxlistener
 
-/* pglistenertest.go
+/* pgxlistenertest.go
  *
  * Copyright (C) 2021 by RStudio, PBC
  * All Rights Reserved.
@@ -14,8 +14,8 @@ package pglistener
  * prior written permission is obtained.
  */
 
-func NewPostgresListenerWithIP(ip string) *PostgresListener {
-	return &PostgresListener{
+func NewPgxListenerWithIP(ip string) *PgxListener {
+	return &PgxListener{
 		ip: ip,
 	}
 }

@@ -22,7 +22,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/pglistener"
+	"github.com/rstudio/platform-lib/pkg/rsnotify/pgxlistener"
 )
 
 type BroadcasterSuite struct{}
@@ -44,6 +44,10 @@ func (f *FakeListener) Listen() (items chan listener.Notification, errs chan err
 func (f *FakeListener) Stop() {
 	close(f.items)
 	close(f.errs)
+}
+
+func (f *FakeListener) IP() string {
+	return ""
 }
 
 func (s *BroadcasterSuite) TestNewNotificationBroadcaster(c *check.C) {
@@ -218,6 +222,6 @@ func (s *BroadcasterSuite) TestBroadcasterIP(c *check.C) {
 	b.listener = &FakeListener{}
 	c.Assert(b.IP(), check.Equals, "")
 
-	b.listener = pglistener.NewPostgresListenerWithIP("192.168.1.11")
+	b.listener = pgxlistener.NewPgxListenerWithIP("192.168.1.11")
 	c.Assert(b.IP(), check.Equals, "192.168.1.11")
 }

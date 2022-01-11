@@ -1,6 +1,6 @@
-package pglistener
+package pgxlistener
 
-/* pglistener.go
+/* pgxlistener.go
  *
  * Copyright (C) 2021 by RStudio, PBC
  * All Rights Reserved.
@@ -31,7 +31,7 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
 )
 
-type PostgresListener struct {
+type PgxListener struct {
 	name          string
 	pool          *pgxpool.Pool
 	conn          *pgxpool.Conn
@@ -44,8 +44,8 @@ type PostgresListener struct {
 }
 
 // Only intended to be called from listenerfactory.go's `New` method.
-func NewPostgresListener(name string, i listener.Notification, pool *pgxpool.Pool, unmarshallers map[uint8]listener.Unmarshaller, debugLogger listener.DebugLogger) *PostgresListener {
-	return &PostgresListener{
+func NewPgxListener(name string, i listener.Notification, pool *pgxpool.Pool, unmarshallers map[uint8]listener.Unmarshaller, debugLogger listener.DebugLogger) *PgxListener {
+	return &PgxListener{
 		name:          name,
 		pool:          pool,
 		t:             i,
@@ -54,11 +54,11 @@ func NewPostgresListener(name string, i listener.Notification, pool *pgxpool.Poo
 	}
 }
 
-func (l *PostgresListener) IP() string {
+func (l *PgxListener) IP() string {
 	return l.ip
 }
 
-func (l *PostgresListener) Listen() (items chan listener.Notification, errs chan error, err error) {
+func (l *PgxListener) Listen() (items chan listener.Notification, errs chan error, err error) {
 	items = make(chan listener.Notification, listener.MaxChannelSize)
 	errs = make(chan error)
 	ready := make(chan struct{})
@@ -101,7 +101,7 @@ func needExit(ctx context.Context) bool {
 	return false
 }
 
-func (l *PostgresListener) wait(ctx context.Context, items chan listener.Notification, errs chan error, ready chan struct{}) (err error) {
+func (l *PgxListener) wait(ctx context.Context, items chan listener.Notification, errs chan error, ready chan struct{}) (err error) {
 	// Set up the connection
 	err = l.acquire(ready)
 	if err != nil {
@@ -129,7 +129,7 @@ func (l *PostgresListener) wait(ctx context.Context, items chan listener.Notific
 	}
 }
 
-func (l *PostgresListener) acquire(ready chan struct{}) (err error) {
+func (l *PgxListener) acquire(ready chan struct{}) (err error) {
 	if l.conn != nil {
 		l.conn.Exec(context.Background(), fmt.Sprintf("UNLISTEN \"%s\"", l.name))
 		l.conn.Release()
@@ -176,13 +176,13 @@ func (l *PostgresListener) acquire(ready chan struct{}) (err error) {
 	return
 }
 
-func (l *PostgresListener) Debugf(msg string, args ...interface{}) {
+func (l *PgxListener) Debugf(msg string, args ...interface{}) {
 	if l.debugLogger != nil {
 		l.debugLogger.Debugf(msg, args...)
 	}
 }
 
-func (l *PostgresListener) notify(n *pgconn.Notification, i interface{}, errs chan error, items chan listener.Notification) {
+func (l *PgxListener) notify(n *pgconn.Notification, i interface{}, errs chan error, items chan listener.Notification) {
 	// A notification was received! Unmarshal it into the correct type and send it.
 	var input listener.Notification
 	input = reflect.New(reflect.ValueOf(i).Elem().Type()).Interface().(listener.Notification)
@@ -203,7 +203,7 @@ func (l *PostgresListener) notify(n *pgconn.Notification, i interface{}, errs ch
 	items <- input
 }
 
-func (l *PostgresListener) Stop() {
+func (l *PgxListener) Stop() {
 	l.Debugf("Signaling context to cancel listener %s", l.name)
 	l.cancel()
 	// Wait for stop

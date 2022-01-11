@@ -52,6 +52,7 @@ type Notification interface {
 type Listener interface {
 	Listen() (items chan Notification, errs chan error, err error)
 	Stop()
+	IP() string
 }
 
 type Logger interface {

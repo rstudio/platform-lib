@@ -1,6 +1,6 @@
-package pglistener
+package pgxlistener
 
-/* pglistener_test.go
+/* pgxlistener_test.go
  *
  * Copyright (C) 2021 by RStudio, PBC
  * All Rights Reserved.
@@ -25,37 +25,37 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
 )
 
-type NotifySuite struct {
+type PgxNotifySuite struct {
 	pool *pgxpool.Pool
 }
 
-var _ = check.Suite(&NotifySuite{})
+var _ = check.Suite(&PgxNotifySuite{})
 
 func TestPackage(t *testing.T) { check.TestingT(t) }
 
-func (s *NotifySuite) SetUpSuite(c *check.C) {
+func (s *PgxNotifySuite) SetUpSuite(c *check.C) {
 	if testing.Short() {
-		c.Skip("skipping postgres notification tests because -short was provided")
+		c.Skip("skipping pgx notification tests because -short was provided")
 	}
 
 	var err error
-	s.pool, err = EphemeralPostgresPool("postgres")
+	s.pool, err = EphemeralPgxPool("postgres")
 	c.Assert(err, check.IsNil)
 }
 
-func (s *NotifySuite) TearDownSuite(c *check.C) {
+func (s *PgxNotifySuite) TearDownSuite(c *check.C) {
 	if testing.Short() {
-		c.Skip("skipping postgres notification tests because -short was provided")
+		c.Skip("skipping pgx notification tests because -short was provided")
 	}
 
 	s.pool.Close()
 }
 
-func (s *NotifySuite) TestNewPostgresListener(c *check.C) {
+func (s *PgxNotifySuite) TestNewPgxListener(c *check.C) {
 	unmarshallers := make(map[uint8]listener.Unmarshaller)
 	lgr := &listener.TestLogger{}
-	l := NewPostgresListener("test-a", &testNotification{}, s.pool, unmarshallers, lgr)
-	c.Check(l, check.DeepEquals, &PostgresListener{
+	l := NewPgxListener("test-a", &testNotification{}, s.pool, unmarshallers, lgr)
+	c.Check(l, check.DeepEquals, &PgxListener{
 		name:          "test-a",
 		pool:          s.pool,
 		t:             &testNotification{},
@@ -69,12 +69,12 @@ type testNotification struct {
 	Val string
 }
 
-func (s *NotifySuite) notify(channel string, n *testNotification, c *check.C) {
+func (s *PgxNotifySuite) notify(channel string, n *testNotification, c *check.C) {
 	err := Notify(channel, n, s.pool)
 	c.Assert(err, check.IsNil)
 }
 
-func (s *NotifySuite) TestNotificationsNormal(c *check.C) {
+func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	defer leaktest.Check(c)()
 
 	tn := testNotification{
@@ -83,7 +83,7 @@ func (s *NotifySuite) TestNotificationsNormal(c *check.C) {
 
 	unmarshallers := make(map[uint8]listener.Unmarshaller)
 
-	l := NewPostgresListener("test-a", &tn, s.pool, unmarshallers, nil)
+	l := NewPgxListener("test-a", &tn, s.pool, unmarshallers, nil)
 
 	// Listen for notifications
 	data, errs, err := l.Listen()
@@ -162,7 +162,7 @@ func (s *NotifySuite) TestNotificationsNormal(c *check.C) {
 	l.Stop()
 }
 
-func (s *NotifySuite) TestNotificationsBlock(c *check.C) {
+func (s *PgxNotifySuite) TestNotificationsBlock(c *check.C) {
 	defer leaktest.Check(c)()
 
 	tn := testNotification{
@@ -171,7 +171,7 @@ func (s *NotifySuite) TestNotificationsBlock(c *check.C) {
 
 	unmarshallers := make(map[uint8]listener.Unmarshaller)
 
-	l := NewPostgresListener("test-a", &tn, s.pool, unmarshallers, nil)
+	l := NewPgxListener("test-a", &tn, s.pool, unmarshallers, nil)
 
 	// Listen for notifications
 	data, errs, err := l.Listen()

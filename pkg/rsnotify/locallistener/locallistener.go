@@ -73,6 +73,10 @@ func (l *LocalListenerFactory) New(name string) *LocalListener {
 var ErrNotInFactory = errors.New("a local listener must be created with the LocalListenerFactory.New method")
 var ErrNotNotificationType = errors.New("a notification must be of type listener.Notification")
 
+func (l *LocalListener) IP() string {
+	return ""
+}
+
 func (l *LocalListener) Listen() (chan listener.Notification, chan error, error) {
 	if l.factory == nil {
 		return nil, nil, ErrNotInFactory

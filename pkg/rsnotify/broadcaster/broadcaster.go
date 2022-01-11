@@ -18,7 +18,6 @@ import (
 	"log"
 
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/pglistener"
 )
 
 type Matcher func(notification listener.Notification) bool
@@ -62,10 +61,7 @@ func (b *NotificationBroadcaster) IP() string {
 	if b.listener == nil {
 		return ""
 	}
-	if l, ok := b.listener.(*pglistener.PostgresListener); ok {
-		return l.IP()
-	}
-	return ""
+	return b.listener.IP()
 }
 
 func (b *NotificationBroadcaster) broadcast() {

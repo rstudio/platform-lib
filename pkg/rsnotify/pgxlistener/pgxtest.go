@@ -1,6 +1,6 @@
-package pglistener
+package pgxlistener
 
-/* pgtest.go
+/* pgxtest.go
  *
  * Copyright (C) 2021 by RStudio, PBC
  * All Rights Reserved.
@@ -22,7 +22,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 
-func EphemeralPostgresPool(dbname string) (pool *pgxpool.Pool, err error) {
+func EphemeralPgxPool(dbname string) (pool *pgxpool.Pool, err error) {
 	connectionString := fmt.Sprintf("postgres://admin:password@postgres/%s?sslmode=disable", dbname)
 	config, err := pgxpool.ParseConfig(connectionString)
 	if err != nil {

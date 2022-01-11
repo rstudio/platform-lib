@@ -22,7 +22,7 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listenerutils"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/locallistener"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/pglistener"
+	"github.com/rstudio/platform-lib/pkg/rsnotify/pgxlistener"
 )
 
 type ListenerFactory interface {
@@ -41,11 +41,11 @@ type LocalListenerFactory struct {
 	llf *locallistener.LocalListenerFactory
 }
 
-type PostgresListenerFactory struct {
+type PgxListenerFactory struct {
 	commonListenerFactory
 	pool        *pgxpool.Pool
 	debugLogger listener.DebugLogger
-	listeners   []*pglistener.PostgresListener
+	listeners   []*pgxlistener.PgxListener
 }
 
 func NewLocalListenerFactory(llf *locallistener.LocalListenerFactory) *LocalListenerFactory {
@@ -63,8 +63,8 @@ func (l *LocalListenerFactory) New(channelName string, dataType listener.Notific
 	return l.llf.New(channelName)
 }
 
-func NewPostgresListenerFactory(pool *pgxpool.Pool, debugLogger listener.DebugLogger) *PostgresListenerFactory {
-	return &PostgresListenerFactory{
+func NewPgxListenerFactory(pool *pgxpool.Pool, debugLogger listener.DebugLogger) *PgxListenerFactory {
+	return &PgxListenerFactory{
 		pool:        pool,
 		debugLogger: debugLogger,
 		commonListenerFactory: commonListenerFactory{
@@ -73,17 +73,17 @@ func NewPostgresListenerFactory(pool *pgxpool.Pool, debugLogger listener.DebugLo
 	}
 }
 
-func (l *PostgresListenerFactory) Shutdown() {
+func (l *PgxListenerFactory) Shutdown() {
 	for _, listener := range l.listeners {
 		listener.Stop()
 	}
 }
 
-func (l *PostgresListenerFactory) New(channelName string, dataType listener.Notification) listener.Listener {
+func (l *PgxListenerFactory) New(channelName string, dataType listener.Notification) listener.Listener {
 	// Ensure that the channel name is safe for PostgreSQL
 	channelName = listenerutils.SafeChannelName(channelName)
 
-	listener := pglistener.NewPostgresListener(channelName, dataType, l.pool, l.unmarshallers, l.debugLogger)
+	listener := pgxlistener.NewPgxListener(channelName, dataType, l.pool, l.unmarshallers, l.debugLogger)
 	l.listeners = append(l.listeners, listener)
 	return listener
 }

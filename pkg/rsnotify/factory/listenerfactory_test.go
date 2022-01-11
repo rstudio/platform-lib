@@ -52,8 +52,8 @@ func (s *ListenerFactorySuite) TestNewListener(c *check.C) {
 		},
 	})
 	lgr := &listener.TestLogger{}
-	l2 := NewPostgresListenerFactory(pool, lgr)
-	c.Check(l2, check.DeepEquals, &PostgresListenerFactory{
+	l2 := NewPgxListenerFactory(pool, lgr)
+	c.Check(l2, check.DeepEquals, &PgxListenerFactory{
 		pool:        pool,
 		debugLogger: lgr,
 		commonListenerFactory: commonListenerFactory{
