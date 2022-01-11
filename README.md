@@ -75,13 +75,20 @@ use the `just licenses` target. This requires Python 3.
 
 ## Versioning
 
-Follow semantic versioning guidelines. To release a new version, we simply
+Follow [semantic versioning](https://go.dev/doc/modules/version-numbers) guidelines. To release a new version, we simply
 create and push a tag.
 
 ```shell
 git tag v0.1.2
 git push origin v0.1.2
 ```
+
+## Release Checklist
+
+- [ ] Ensure build passes on `main` branch.
+- [ ] Update `README.md` as necessary.
+- [ ] Update `NOTICE.md`. See [Licenses](#licenses).
+- [ ] Tag the new version. See [Versioning](#versioning)
 
 ## Badges
 
