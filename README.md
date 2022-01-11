@@ -47,16 +47,22 @@ Examples:
 just test
 
 # Run all Go tests twice
-just test "-count 2"
+just test -count 2 ./...
 
 # Run all tests once (no cached results)
-just test "-count 1"
+just test -count 1 ./...
 
 # Run with verbose output
-just test "-v"
+just test -v ./...
 
 # Run the "TestNewDebugLog" test twice with verbose output
-just test "-count 2 -testify.m TestNewDebugLog -v"
+just test -v -count 2 github.com/rstudio/platform-lib/pkg/rslog/debug -testify.m=TestNewDebugLog
+
+# Run the LocalNotifySuite suite tests with verbose output
+just test -v github.com/rstudio/platform-lib/pkg/rsnotify/locallistener -check.f=LocalNotifySuite
+
+# Run the PgxNotifySuite suite tests with docker-compose
+just test-integration -v github.com/rstudio/platform-lib/pkg/rsnotify/pgxlistener -check.f=PgxNotifySuite
 
 # Run the end-to-end tests
 just build

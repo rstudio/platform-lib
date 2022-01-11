@@ -62,6 +62,7 @@ func (s *DebugLoggerSuite) TestInitLog() {
 
 func (s *DebugLoggerSuite) TestNewDebugLogger() {
 	lgr := debug.NewDebugLogger(Proxy, rslog.DiscardLogger)
+	defer debug.Disable(Proxy)
 	s.Equal(lgr.Enabled(), false)
 
 	debug.Enable(Proxy)
