@@ -51,6 +51,11 @@ vet:
 build:
     go build -o out/ ./...
 
+# run linters
+lint:
+    ./scripts/fmt-check.sh
+    ./scripts/test-wiring.sh
+
 # Builds Go code using docker. Useful when using a MacOS or Windows native IDE. First,
 # run `just build-build-env' to create the docker image you'll need.
 build-docker:
