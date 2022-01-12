@@ -104,32 +104,30 @@ func Enabled(region ProductRegion) bool {
 type DebugLogger interface {
 	Enabled() bool
 	Debugf(msg string, args ...interface{})
+	Tracef(msg string, args ...interface{})
 	WithFields(fields rslog.Fields) DebugLogger
 	WithSubRegion(subregion string) DebugLogger
 }
 
 type debugLogger struct {
 	rslog.Logger
-	region ProductRegion
+	region  ProductRegion
+	enabled bool
 }
 
 // NewDebugLogger returns a new logger which includes
 // the name of the debug region at every message.
-func NewDebugLogger(region ProductRegion, lgrIn rslog.Logger) *debugLogger {
-	lgr := lgrIn.Copy()
-
-	if Enabled(region) {
-		lgr.SetLevel(rslog.DebugLevel)
-		lgr.SetReportCaller(true)
-	}
+func NewDebugLogger(region ProductRegion) *debugLogger {
+	lgr := rslog.DefaultLogger()
 
 	entry := lgr.WithFields(rslog.Fields{
 		"region": regionNames[region],
 	})
 
 	dbglgr := &debugLogger{
-		Logger: entry,
-		region: region,
+		Logger:  entry,
+		region:  region,
+		enabled: Enabled(region),
 	}
 
 	registerLoggerCb(region, dbglgr.enable)
@@ -144,6 +142,18 @@ func registerLoggerCb(region ProductRegion, cb func(bool)) {
 // Enabled returns true if debug logging is enabled for this rslog.
 func (l *debugLogger) Enabled() bool {
 	return Enabled(l.region)
+}
+
+func (l *debugLogger) Debugf(message string, args ...interface{}) {
+	if l.enabled {
+		l.Logger.Debugf(message, args...)
+	}
+}
+
+func (l *debugLogger) Tracef(message string, args ...interface{}) {
+	if l.enabled {
+		l.Logger.Tracef(message, args...)
+	}
 }
 
 // Set fields to be logged
@@ -171,10 +181,5 @@ func (l *debugLogger) WithSubRegion(subregion string) DebugLogger {
 
 // Enable or disable this region debug logging instance
 func (l *debugLogger) enable(enabled bool) {
-	if enabled {
-		l.Logger.SetLevel(rslog.DebugLevel)
-	} else {
-		l.Logger.SetLevel(rslog.ErrorLevel)
-	}
-	l.Logger.SetReportCaller(enabled)
+	l.enabled = enabled
 }

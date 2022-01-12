@@ -7,7 +7,7 @@ import (
 
 	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/rstudio/platform-lib/pkg/rslog/debug"
-	"github.com/rstudio/platform-lib/pkg/rslog/loggertest"
+	"github.com/rstudio/platform-lib/pkg/rslog/rslogtest"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
@@ -29,7 +29,7 @@ func init() {
 type DebugLoggerSuite struct {
 	suite.Suite
 
-	loggerMock *loggertest.LoggerMock
+	loggerMock *rslogtest.LoggerMock
 }
 
 func TestDebugLoggerSuite(t *testing.T) {
@@ -61,7 +61,7 @@ func (s *DebugLoggerSuite) TestInitLog() {
 }
 
 func (s *DebugLoggerSuite) TestNewDebugLogger() {
-	lgr := debug.NewDebugLogger(Proxy, rslog.DiscardLogger)
+	lgr := debug.NewDebugLogger(Proxy)
 	defer debug.Disable(Proxy)
 	s.Equal(lgr.Enabled(), false)
 
@@ -77,28 +77,24 @@ func (s *DebugLoggerSuite) TestNewDebugLogger() {
 	s.Equal(sublgr.Enabled(), true)
 
 	// For a totally different region
-	another := debug.NewDebugLogger(LDAP, rslog.DiscardLogger)
+	another := debug.NewDebugLogger(LDAP)
 	s.Equal(another.Enabled(), false)
 }
 
 func (s *DebugLoggerSuite) TestUpdateToLevelAndCaller() {
-	base := &loggertest.LoggerMock{}
-	lgr := debug.NewDebugLogger(OAuth2, rslog.DiscardLogger)
+	base := &rslogtest.LoggerMock{}
+	lgr := debug.NewDebugLogger(OAuth2)
 	lgr.Logger = base
 
-	base.On("SetLevel", rslog.DebugLevel)
-	base.On("SetReportCaller", true)
 	debug.Enable(OAuth2)
 	s.True(debug.Enabled(OAuth2))
 	base.AssertExpectations(s.T())
 
 	// Sub loggers
-	baseTwo := &loggertest.LoggerMock{}
-	lgr = debug.NewDebugLogger(Session, rslog.DiscardLogger)
+	baseTwo := &rslogtest.LoggerMock{}
+	lgr = debug.NewDebugLogger(Session)
 	lgr.Logger = baseTwo
 
-	baseTwo.On("SetLevel", rslog.DebugLevel)
-	baseTwo.On("SetReportCaller", true)
 	debug.Enable(Session)
 	s.True(debug.Enabled(Session))
 	baseTwo.AssertExpectations(s.T())
@@ -106,14 +102,10 @@ func (s *DebugLoggerSuite) TestUpdateToLevelAndCaller() {
 	baseTwo.On("WithFields", mock.Anything).Return(baseTwo)
 	lgr.WithFields(rslog.Fields{"sub": "logger"})
 
-	baseTwo.On("SetLevel", rslog.ErrorLevel)
-	baseTwo.On("SetReportCaller", false)
 	debug.Disable(Session)
 	s.False(debug.Enabled(Session))
 
-	// Should have called level AND report caller (2 calls)
-	// Should have called with fields for sub logger (3 calls)
-	// Should have called level AND report caller for both parent and sub loggers (7 calls)
-	s.Len(baseTwo.Calls, 7)
+	// Should have called with fields for sub logger (1 call)
+	s.Len(baseTwo.Calls, 1)
 	baseTwo.AssertExpectations(s.T())
 }

@@ -230,3 +230,16 @@ func (s *LoggerSuite) TestBuildPreamble() {
 		s.Equal(BuildPreamble(each.args...), each.expected, check.Commentf(each.description))
 	}
 }
+
+func toPtr(level LogLevel) *LogLevel {
+	return &level
+}
+
+func (s *LoggerSuite) TesteCompareLevels() {
+	s.Equal(toPtr(TraceLevel).Compare(TraceLevel), 0)
+	s.Equal(toPtr(ErrorLevel).Compare(ErrorLevel), 0)
+	s.Equal(toPtr(TraceLevel).Compare(DebugLevel), 1)
+	s.Equal(toPtr(TraceLevel).Compare(ErrorLevel), 1)
+	s.Equal(toPtr(ErrorLevel).Compare(TraceLevel), -1)
+	s.Equal(toPtr(ErrorLevel).Compare(WarningLevel), -1)
+}

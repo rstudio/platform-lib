@@ -1,4 +1,4 @@
-package loggertest
+package rslogtest
 
 // Copyright (C) 2021 by RStudio, PBC.
 
@@ -92,6 +92,11 @@ func (m *LoggerMock) Debugf(msg string, args ...interface{}) {
 	m.Called(msg, args)
 }
 
+func (m *LoggerMock) Tracef(msg string, args ...interface{}) {
+	m.stringCalls = append(m.stringCalls, fmt.Sprintf(msg, args...))
+	m.Called(msg, args)
+}
+
 func (m *LoggerMock) Info(msg string) {
 	m.stringCalls = append(m.stringCalls, msg)
 	m.Called(msg, []interface{}(nil))
@@ -147,13 +152,12 @@ func (m *LoggerMock) WithCorrelationID(correlationID string) rslog.Logger {
 	return args.Get(0).(rslog.Logger)
 }
 
-func (m *LoggerMock) Copy() rslog.Logger {
-	args := m.Called()
-	return args.Get(0).(rslog.Logger)
-}
-
 func (m *LoggerMock) SetLevel(level rslog.LogLevel) {
 	m.Called(level)
+}
+
+func (m *LoggerMock) SetFormatter(format rslog.OutputFormat) {
+	m.Called(format)
 }
 
 func (m *LoggerMock) SetOutput(writers ...io.Writer) {
@@ -162,10 +166,6 @@ func (m *LoggerMock) SetOutput(writers ...io.Writer) {
 
 func (m *LoggerMock) OnConfigReload(level rslog.LogLevel) {
 	m.Called(level)
-}
-
-func (m *LoggerMock) SetReportCaller(flag bool) {
-	m.Called(flag)
 }
 
 type DebugLoggerMock struct {

@@ -9,4 +9,6 @@ func (logger directLogger) Logf(msg string, args ...interface{}) {
 	_log_printf(msg, args...)
 }
 
+// DirectLogger for legacy usage.
+// TODO: Remove this.
 var DirectLogger directLogger = directLogger{}

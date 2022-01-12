@@ -1,10 +1,9 @@
-package loggertest
+package rslogtest
 
 // Copyright (C) 2021 by RStudio, PBC.
 
 import (
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/rstudio/platform-lib/pkg/rslog"
@@ -79,13 +78,18 @@ func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 	s.NotNil(err)
 }
 
+type mockFactory struct {
+	logger rslog.Logger
+}
+
+func (f *mockFactory) DefaultLogger() rslog.Logger {
+	return f.logger
+}
+
 func (s *LoggerImplTestSuite) TestSetDefaultLogger() {
-	lgr := rslog.DefaultLogger()
 	loggerMock := &LoggerMock{}
-
-	rslog.SetDefaultLogger(loggerMock)
-
-	s.Equal(rslog.DefaultLogger(), loggerMock)
+	rslog.DefaultLoggerFactory = &mockFactory{logger: loggerMock}
+	lgr := rslog.DefaultLogger()
 
 	msg := "some message"
 	args := []interface{}{
@@ -130,7 +134,6 @@ func (s *LoggerImplTestSuite) TestSetDefaultLogger() {
 	entryResultWithFields := rslog.WithFields(f)
 	s.Equal(entryResultWithFields, eMock)
 
-	rslog.SetDefaultLogger(lgr)
 	s.Equal(rslog.DefaultLogger(), lgr)
 }
 
@@ -332,38 +335,6 @@ func (s *LoggerImplTestSuite) TestLogLevelUnmarshalText() {
 		})
 	}
 
-}
-
-func (s *LoggerImplTestSuite) TestCopy() {
-
-	outputMock := &OutputBuilderMock{}
-	expectedWriter := IoWriterMock{}
-
-	outputMock.On("Build", rslog.LogOutputFile, "/custom/dir/server.log").Return(expectedWriter, nil)
-
-	log, err := rslog.NewLoggerImpl(
-		rslog.LoggerOptionsImpl{
-			Output: outputDest,
-			Format: rslog.JSONFormat,
-			Level:  rslog.InfoLevel,
-		},
-		outputMock,
-	)
-	s.Nil(err)
-
-	copy := log.Copy()
-
-	s.Equal(log.Out, copy.(rslog.LoggerImpl).Out)
-	s.Equal(log.Level, copy.(rslog.LoggerImpl).Level)
-	s.Equal(log.Formatter, copy.(rslog.LoggerImpl).Formatter)
-
-	log.Logger.SetLevel(logrus.DebugLevel)
-	log.SetFormatter(&logrus.TextFormatter{})
-	log.SetOutput(os.Stdout)
-
-	s.NotEqual(log.Level, copy.(rslog.LoggerImpl).Level)
-	s.NotEqual(log.Formatter, copy.(rslog.LoggerImpl).Formatter)
-	s.NotEqual(log.Out, copy.(rslog.LoggerImpl).Out)
 }
 
 func (s *LoggerImplTestSuite) TestOnConfigReload() {

@@ -4,6 +4,7 @@ package rslog
 
 import (
 	"io"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
@@ -12,10 +13,12 @@ const (
 	ServerLog LogCategory = "SERVER"
 )
 
-func init() {
-	// Set a default logger on init. This is mainly to prevent test failures since
-	// the default logger would otherwise be unset.
-	defaultLogger, _ = NewLoggerImpl(LoggerOptionsImpl{
+var DefaultLoggerFactory LoggerFactory
+
+type LoggerFactoryImpl struct{}
+
+func (f *LoggerFactoryImpl) DefaultLogger() Logger {
+	lgr, _ := NewLoggerImpl(LoggerOptionsImpl{
 		Output: []OutputDest{
 			{
 				LogOutputStdout,
@@ -26,6 +29,7 @@ func init() {
 		Format: TextFormat,
 		Level:  InfoLevel,
 	}, NewOutputLogBuilder(ServerLog, ""))
+	return lgr
 }
 
 type LoggerImpl struct {
@@ -68,10 +72,6 @@ func NewLoggerImpl(options LoggerOptionsImpl,
 	}, nil
 }
 
-func DefaultLogger() Logger {
-	return defaultLogger
-}
-
 func getFormatter(outputFormat OutputFormat) logrus.Formatter {
 	switch outputFormat {
 	case JSONFormat:
@@ -112,22 +112,13 @@ func (l LoggerImpl) WithFields(fields Fields) Logger {
 	return logrusEntryWrapper{Entry: e}
 }
 
-func (l LoggerImpl) Copy() Logger {
-
-	logrusCopy := logrus.New()
-	logrusCopy.SetOutput(l.Out)
-
-	logrusCopy.SetFormatter(l.Formatter)
-	logrusCopy.SetLevel(l.GetLevel())
-
-	return LoggerImpl{
-		Logger: logrusCopy,
-	}
-}
-
 func (l LoggerImpl) SetLevel(level LogLevel) {
 	logrusLevel := getLevel(level)
 	l.Logger.SetLevel(logrusLevel)
+}
+
+func (l LoggerImpl) SetFormatter(format OutputFormat) {
+	l.Logger.SetFormatter(getFormatter(format))
 }
 
 func (l LoggerImpl) SetOutput(writers ...io.Writer) {
@@ -149,23 +140,8 @@ func (l LoggerImpl) Logf(msg string, args ...interface{}) {
 	l.Infof(msg, args...)
 }
 
-func (l LoggerImpl) SetReportCaller(flag bool) {
-	l.Logger.SetReportCaller(flag)
-}
-
 type logrusEntryWrapper struct {
 	*logrus.Entry
-}
-
-func (l logrusEntryWrapper) Copy() Logger {
-
-	entryCopy := logrus.NewEntry(l.Logger)
-	entryCopy.Data = l.Data
-	entryCopy.Context = l.Context
-
-	return logrusEntryWrapper{
-		Entry: entryCopy,
-	}
 }
 
 func (l logrusEntryWrapper) SetLevel(level LogLevel) {
@@ -175,6 +151,10 @@ func (l logrusEntryWrapper) SetLevel(level LogLevel) {
 func (l logrusEntryWrapper) SetOutput(writers ...io.Writer) {
 	output := io.MultiWriter(writers...)
 	l.Entry.Logger.SetOutput(output)
+}
+
+func (l logrusEntryWrapper) SetFormatter(format OutputFormat) {
+	l.Entry.Logger.SetFormatter(getFormatter(format))
 }
 
 func (l logrusEntryWrapper) WithField(key string, value interface{}) Logger {
@@ -187,53 +167,124 @@ func (l logrusEntryWrapper) WithFields(fields Fields) Logger {
 	return logrusEntryWrapper{Entry: e}
 }
 
-func (l logrusEntryWrapper) SetReportCaller(flag bool) {
-	l.Logger.SetReportCaller(flag)
-}
-
 // TODO: remove this function when the migration process to the new logging standard is complete.
 func (l logrusEntryWrapper) Logf(msg string, args ...interface{}) {
 	l.Infof(msg, args...)
 }
 
 var defaultLogger Logger
+var once = &sync.Once{}
+var mutex sync.RWMutex
 
-func SetDefaultLogger(logger Logger) {
+func ensureDefaultLoggerReadLock() *sync.RWMutex {
+	// Set the default logger only once.
+	once.Do(func() {
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		// Create default factory if not already set
+		if DefaultLoggerFactory == nil {
+			DefaultLoggerFactory = &LoggerFactoryImpl{}
+		}
+
+		// Set default logger
+		defaultLogger = DefaultLoggerFactory.DefaultLogger()
+	})
+
+	mutex.RLock()
+	return &mutex
+}
+
+// UpdateDefaultLogger should be the only way to update the default logger.
+func UpdateDefaultLogger(options LoggerOptionsImpl, outputBuilder OutputBuilder) error {
+	var output []io.Writer
+	for _, out := range options.Output {
+		w, err := outputBuilder.Build(out.Output, out.Filepath)
+		if err != nil {
+			return err
+		}
+		output = append(output, w)
+	}
+
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
+	defaultLogger.SetOutput(io.MultiWriter(output...))
+	defaultLogger.SetFormatter(options.Format)
+	defaultLogger.SetLevel(options.Level)
+	return nil
+}
+
+// ReplaceDefaultLogger replaces the default logger. This is not ideal, but was included
+// to support switching to a legacy logger.
+// TODO: Remove this when all applications have fully moved to the new logging standard.
+func ReplaceDefaultLogger(logger Logger) {
+	mutex.Lock()
+	defer mutex.Unlock()
 	defaultLogger = logger
 }
 
+func DefaultLogger() Logger {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
+	return defaultLogger
+}
+
 func Debugf(msg string, args ...interface{}) {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
 	defaultLogger.Debugf(msg, args...)
 }
 
+func Tracef(msg string, args ...interface{}) {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
+	defaultLogger.Tracef(msg, args...)
+}
+
 func Infof(msg string, args ...interface{}) {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
 	defaultLogger.Infof(msg, args...)
 }
 
 func Warnf(msg string, args ...interface{}) {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
 	defaultLogger.Warnf(msg, args...)
 }
 
 func Errorf(msg string, args ...interface{}) {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
 	defaultLogger.Errorf(msg, args...)
 }
 
 func Fatal(msg string) {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
 	defaultLogger.Fatal(msg)
 }
 
 func Fatalf(msg string, args ...interface{}) {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
 	defaultLogger.Fatalf(msg, args...)
 }
 
 func Panicf(msg string, args ...interface{}) {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
 	defaultLogger.Panicf(msg, args...)
 }
 
 func WithField(key string, value interface{}) Logger {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
 	return defaultLogger.WithField(key, value)
 }
 
 func WithFields(fields Fields) Logger {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
 	return defaultLogger.WithFields(fields)
 }
