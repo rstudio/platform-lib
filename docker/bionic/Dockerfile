@@ -75,7 +75,3 @@ RUN GO111MODULE=on PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools GOBI
     github.com/go-delve/delve/cmd/dlv@master && \
     mv /tmp/dlv $GOPATH/bin/dlv-dap
 ENV PATH="$PATH:/usr/local/gotools/bin:/usr/local/go/bin"
-
-# Copy build script
-COPY build.sh /build.sh
-RUN chmod 755 /build.sh

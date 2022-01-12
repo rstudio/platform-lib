@@ -1,0 +1,33 @@
+version: '2.1'
+
+services:
+  lib:
+    image: rstudio/platform-lib:lib-build
+    build:
+      context: bionic
+      dockerfile: Dockerfile
+    links:
+      - postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    privileged: true
+    volumes:
+      - ..:/platform-lib
+    environment:
+      GO111MODULE: auto
+    working_dir: /platform-lib
+
+  postgres:
+    image: postgres:9.6
+    ports:
+      - "5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: test
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5

@@ -4,16 +4,28 @@ jobs:
   Build:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository code
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v2
+      - uses: extractions/setup-just@v1
+
+      - name: Lint
+        run: just lint
+
+      - name: Image
+        run: just build-build-env
+
       - name: Build
-        uses: ./.github/actions/build
+        run: just build-docker
+
+      - name: Test
+        run: just test-integration
+
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v2
         with:
           name: testapp
           path: out/testapp
           retention-days: 5
+
       - name: 'Test Artifact'
         uses: ./.github/actions/test
         with:

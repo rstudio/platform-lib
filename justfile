@@ -8,9 +8,37 @@ HOME_DIR := env_var_or_default('HOST_HOME', env_var('HOME'))
 
 HOSTNAME := env_var_or_default('HOSTNAME', '')
 
+# are we attached to a terminal?
+interactive := `tty -s && echo "-it" || echo ""`
+
 # Runs Go unit tests
-test args='':
-    go test ./... {{args}}
+test *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    test_args="{{ args }}"
+    test_args=${test_args:-./...}
+    go test -short ${test_args[*]}
+
+# Runs Go unit tests with docker-compose
+test-integration *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # use a randomized project name to allow simultaneous test runs
+    project="platform-lib-it-$(openssl rand -hex 4)"
+    dc="docker-compose -f docker/docker-compose.test.yml -p ${project}"
+
+    function cleanup() {
+        ${dc} logs --no-color > test-integration-${project}.log
+        ${dc} down -v --remove-orphans
+    }
+    trap cleanup EXIT
+
+    test_args="{{ args }}"
+    test_args=${test_args:-./...}
+    ${dc} run lib \
+        go test -v ${test_args[*]}
 
 # Checks Go code
 vet:
@@ -20,10 +48,15 @@ vet:
 build:
     go build -o out/ ./...
 
+# run linters
+lint:
+    ./scripts/fmt-check.sh
+    ./scripts/test-wiring.sh
+
 # Builds Go code using docker. Useful when using a MacOS or Windows native IDE. First,
 # run `just build-build-env' to create the docker image you'll need.
 build-docker:
-    docker run -it --rm \
+    docker run {{ interactive }} --rm \
         -v {{justfile_directory()}}/:/build \
         -w /build \
         rstudio/platform-lib:lib-build go build -o out/ ./...
@@ -34,7 +67,7 @@ clean:
 
 # Builds the docker image used for building Go code
 build-build-env:
-    docker build -t rstudio/platform-lib:lib-build -f .github/actions/build/Dockerfile .github/actions/build
+    docker build -t rstudio/platform-lib:lib-build -f docker/bionic/Dockerfile docker/bionic
 
 # Builds the docker image for e2e testing
 build-e2e-env:
@@ -74,3 +107,15 @@ test-e2e: (create-e2e-env "platform-lib-e2e" "" '/bin/bash -c "just test"') (cop
 # Stop a running container. This is only needed if something goes wrong.
 stop-e2e-env:
     docker kill platform-lib-e2e-interactive
+
+# generate Go dependencies' licenses file
+licenses:
+    go mod vendor
+    cat go.mod \
+    | awk '/\t/{ print $0 }' \
+    | grep -E -v '(rstudio|indirect)' \
+    | awk '{ print $1 }' \
+    | sort -u \
+    | ./scripts/go-licenses.py \
+    > NOTICE.md
+    rm -rf vendor

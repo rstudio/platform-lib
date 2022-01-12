@@ -16,12 +16,6 @@ You can optionally add a bit of extra structure to your internal packages to sep
 
 Library code that's ok to use by external applications (e.g., `/pkg/mypubliclib`). Other projects will import these libraries expecting them to work, so think twice before you put something here.
 
-### `/vendor`
-
-Application dependencies managed by [`Go Modules`](https://github.com/golang/go/wiki/Modules) feature). The `go mod vendor` command will create the `/vendor` directory for you.
-
-Don't commit your application dependencies if you are building a library.
-
 ## Common Application Directories
 
 ### `/scripts`
@@ -53,16 +47,22 @@ Examples:
 just test
 
 # Run all Go tests twice
-just test "-count 2"
+just test -count 2 ./...
 
 # Run all tests once (no cached results)
-just test "-count 1"
+just test -count 1 ./...
 
 # Run with verbose output
-just test "-v"
+just test -v ./...
 
 # Run the "TestNewDebugLog" test twice with verbose output
-just test "-count 2 -testify.m TestNewDebugLog -v"
+just test -v -count 2 github.com/rstudio/platform-lib/pkg/rslog/debug -testify.m=TestNewDebugLog
+
+# Run the LocalNotifySuite suite tests with verbose output
+just test -v github.com/rstudio/platform-lib/pkg/rsnotify/locallistener -check.f=LocalNotifySuite
+
+# Run the PgxNotifySuite suite tests with docker-compose
+just test-integration -v github.com/rstudio/platform-lib/pkg/rsnotify/pgxlistener -check.f=PgxNotifySuite
 
 # Run the end-to-end tests
 just build
@@ -72,6 +72,21 @@ just test-e2e
 just start-e2e-env
 just test
 exit
+```
+
+## Licenses
+
+To update `NOTICE.md` with a list of licenses from third-party Go modules,
+use the `just licenses` target. This requires Python 3.
+
+## Versioning
+
+Follow semantic versioning guidelines. To release a new version, we simply
+create and push a tag.
+
+```shell
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 ## Badges
