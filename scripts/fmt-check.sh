@@ -20,11 +20,7 @@ for MODULE in "." ; do
     # Collect a list of go package directories ('go list' skips vendor packages).
     PACKAGES=$(go list -f '{{.Dir}}' ./...)
     for pkg in ${PACKAGES}; do
-        # echo "checking package $pkg"
-
         # If gofmt changes anything, tell the user
-        # shellcheck disable=SC2091
-        # shellcheck disable=SC2034
         if $(gofmt -d -s "${pkg}"/*.go | read -r SCRATCH); then
             echo "Go source in package ${pkg} needs formatting"
             gofmt -d -s "${pkg}"/*.go

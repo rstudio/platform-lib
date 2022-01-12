@@ -25,9 +25,6 @@ test-integration *args:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    # When run in GitHub Actions, the following is set to 1
-    export AD_CI=${AD_CI:-0}
-
     # use a randomized project name to allow simultaneous test runs
     project="platform-lib-it-$(openssl rand -hex 4)"
     dc="docker-compose -f docker/docker-compose.test.yml -p ${project}"

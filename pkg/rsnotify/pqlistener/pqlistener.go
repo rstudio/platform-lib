@@ -125,7 +125,7 @@ func (l *PqListener) acquire(ready chan struct{}) (err error) {
 	// Get the connection's IP
 	l.ip, err = l.factory.IP()
 	if err != nil {
-		return
+		return fmt.Errorf("error determining listener IP address: %s", err)
 	}
 
 	err = l.conn.Listen(l.name)
