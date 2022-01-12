@@ -27,14 +27,14 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
 )
 
-type PqListenerFactory interface {
+type PqRetrieveListenerFactory interface {
 	NewListener() (*pq.Listener, error)
 	IP() (string, error)
 }
 
 type PqListener struct {
 	name          string
-	factory       PqListenerFactory
+	factory       PqRetrieveListenerFactory
 	conn          *pq.Listener
 	t             listener.Notification
 	cancel        context.CancelFunc
@@ -45,7 +45,7 @@ type PqListener struct {
 }
 
 // Only intended to be called from listenerfactory.go's `New` method.
-func NewPqListener(name string, i listener.Notification, factory PqListenerFactory, unmarshallers map[uint8]listener.Unmarshaller, debugLogger listener.DebugLogger) *PqListener {
+func NewPqListener(name string, i listener.Notification, factory PqRetrieveListenerFactory, unmarshallers map[uint8]listener.Unmarshaller, debugLogger listener.DebugLogger) *PqListener {
 	return &PqListener{
 		name:          name,
 		factory:       factory,

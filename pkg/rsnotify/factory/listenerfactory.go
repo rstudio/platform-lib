@@ -23,6 +23,7 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listenerutils"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/locallistener"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/pgxlistener"
+	"github.com/rstudio/platform-lib/pkg/rsnotify/pqlistener"
 )
 
 type ListenerFactory interface {
@@ -46,6 +47,13 @@ type PgxListenerFactory struct {
 	pool        *pgxpool.Pool
 	debugLogger listener.DebugLogger
 	listeners   []*pgxlistener.PgxListener
+}
+
+type PqListenerFactory struct {
+	commonListenerFactory
+	factory     pqlistener.PqRetrieveListenerFactory
+	debugLogger listener.DebugLogger
+	listeners   []*pqlistener.PqListener
 }
 
 func NewLocalListenerFactory(llf *locallistener.LocalListenerFactory) *LocalListenerFactory {
@@ -84,6 +92,31 @@ func (l *PgxListenerFactory) New(channelName string, dataType listener.Notificat
 	channelName = listenerutils.SafeChannelName(channelName)
 
 	listener := pgxlistener.NewPgxListener(channelName, dataType, l.pool, l.unmarshallers, l.debugLogger)
+	l.listeners = append(l.listeners, listener)
+	return listener
+}
+
+func NewPqListenerFactory(factory pqlistener.PqRetrieveListenerFactory, debugLogger listener.DebugLogger) *PqListenerFactory {
+	return &PqListenerFactory{
+		factory:     factory,
+		debugLogger: debugLogger,
+		commonListenerFactory: commonListenerFactory{
+			unmarshallers: make(map[uint8]listener.Unmarshaller),
+		},
+	}
+}
+
+func (l *PqListenerFactory) Shutdown() {
+	for _, listener := range l.listeners {
+		listener.Stop()
+	}
+}
+
+func (l *PqListenerFactory) New(channelName string, dataType listener.Notification) listener.Listener {
+	// Ensure that the channel name is safe for PostgreSQL
+	channelName = listenerutils.SafeChannelName(channelName)
+
+	listener := pqlistener.NewPqListener(channelName, dataType, l.factory, l.unmarshallers, l.debugLogger)
 	l.listeners = append(l.listeners, listener)
 	return listener
 }
