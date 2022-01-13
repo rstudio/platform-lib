@@ -148,6 +148,9 @@ func (h *captureMessageHook) Messages() []string {
 }
 
 func (h *captureMessageHook) Clear() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
 	h.messages = make([]string, 0)
 }
 
