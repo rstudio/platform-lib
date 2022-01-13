@@ -39,34 +39,37 @@ func (l *CompositeLogger) Infof(msg string, args ...interface{}) {
 		logger.Infof(msg, args...)
 	}
 }
+
 func (l *CompositeLogger) Warnf(msg string, args ...interface{}) {
 	for _, logger := range l.loggers {
 		logger.Warnf(msg, args...)
 	}
 }
+
 func (l *CompositeLogger) Errorf(msg string, args ...interface{}) {
 	for _, logger := range l.loggers {
 		logger.Errorf(msg, args...)
 	}
 }
+
 func (l *CompositeLogger) Fatalf(msg string, args ...interface{}) {
 	for _, logger := range l.loggers {
 		logger.Fatalf(msg, args...)
 	}
 }
+
 func (l *CompositeLogger) Fatal(args ...interface{}) {
 	for _, logger := range l.loggers {
 		logger.Fatal(args...)
 	}
 }
+
 func (l *CompositeLogger) Panicf(msg string, args ...interface{}) {
 	for _, logger := range l.loggers {
 		logger.Panicf(msg, args...)
 	}
-
 }
 
-// Doing nothing with the provided values. Just to implement the interface and be able to switch to old logging implementation
 func (l *CompositeLogger) WithField(key string, value interface{}) Logger {
 	newComposite := new(CompositeLogger)
 
@@ -77,7 +80,6 @@ func (l *CompositeLogger) WithField(key string, value interface{}) Logger {
 	return newComposite
 }
 
-// Doing nothing with the provided values. Just to implement the interface and be able to switch to old logging implementation
 func (l *CompositeLogger) WithFields(fields Fields) Logger {
 	newComposite := new(CompositeLogger)
 

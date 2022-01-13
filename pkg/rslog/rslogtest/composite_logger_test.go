@@ -6,8 +6,9 @@ import (
 	"io"
 	"testing"
 
-	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/rstudio/platform-lib/pkg/rslog"
 )
 
 func (s *LoggerImplTestSuite) TestNewCompositeLogger() {
