@@ -10,6 +10,9 @@ jobs:
       - name: Lint
         run: just lint
 
+      - name: Vet
+        run: just vet
+
       - name: Image
         run: just build-build-env
 
