@@ -10,13 +10,15 @@ import (
 )
 
 var (
-	message string
+	message      string
+	withMetadata bool
 )
 
 func init() {
 	LogCmd.Example = `  rspm log --message=hello --level=INFO
 `
 	LogCmd.Flags().StringVar(&message, "message", "default message", "The message to log.")
+	CaptureLogCmd.Flags().BoolVar(&withMetadata, "withMetadata", false, "The option to turn on or off the metadata in the capturing logger")
 
 	RootCmd.AddCommand(LogCmd, CaptureLogCmd, CompositeLogCmd)
 }
@@ -40,11 +42,11 @@ var CaptureLogCmd = &cobra.Command{
 		logs := rslog.NewCapturingLogger(
 			rslog.CapturingLoggerOptions{
 				Level:        rslog.InfoLevel,
-				WithMetadata: false,
+				WithMetadata: withMetadata,
 			},
 		)
 		logs.Infof(message)
-		logs.Infof("Second Message, with argument: %d", 35)
+		logs.WithField("field", "value").Infof("Second Message, with argument: %d", 35)
 
 		log.Printf("%v", logs.Messages())
 		return nil
