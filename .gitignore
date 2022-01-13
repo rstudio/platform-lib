@@ -19,3 +19,8 @@
 
 # Output binaries
 out/
+
+# We don't vendor in this lib
+**/vendor
+# Directory used while generating NOTICE.md
+tempvendor

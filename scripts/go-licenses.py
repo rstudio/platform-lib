@@ -11,8 +11,8 @@ import sys
 
 # Identify all the vendor directories immediately beneath "src/*".
 VENDORS = []
-if os.path.exists("./vendor"):
-    VENDORS.append("./vendor")
+if os.path.exists("./tmpvendor"):
+    VENDORS.append("./tmpvendor")
 
 LICENSE_NAMES = ["License", "LICENSE", "LICENSE.md", "LICENSE.txt"]
 
