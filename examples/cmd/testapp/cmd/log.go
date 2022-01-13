@@ -55,13 +55,13 @@ var CaptureLogCmd = &cobra.Command{
 
 var CompositeLogCmd = &cobra.Command{
 	Use:     "composite",
-	Short:   "Command to use the Capture logger",
+	Short:   "Command to use the Composite logger",
 	Example: "",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		defualtLogger := rslog.DefaultLogger().WithField("Logger", "DefaultLogger")
+		defaultLogger := rslog.DefaultLogger().WithField("Logger", "DefaultLogger")
 		anotherLogger := rslog.DefaultLogger().WithField("Logger", "AnotherLogger")
 
-		log := rslog.NewCompositeLogger([]rslog.Logger{defualtLogger, anotherLogger})
+		log := rslog.NewCompositeLogger([]rslog.Logger{defaultLogger, anotherLogger})
 
 		log.Infof(message)
 		return nil
