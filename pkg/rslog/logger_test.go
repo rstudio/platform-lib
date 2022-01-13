@@ -58,7 +58,7 @@ func (s *LoggerSuite) TestLoggers() {
 		s.ElementsMatch(v, vin)
 	}
 
-	var rec RecordingLogger
+	var rec DeprecatedRecordingLogger
 	rec.Logf(fin, vin...)
 	s.Equal(rec.Called, true)
 	s.Equal(rec.Format, fin)
@@ -66,7 +66,7 @@ func (s *LoggerSuite) TestLoggers() {
 	s.Equal(rec.Message, "here we 42 are now; entertain us")
 
 	rec.Reset()
-	s.True(reflect.DeepEqual(rec, RecordingLogger{}))
+	s.True(reflect.DeepEqual(rec, DeprecatedRecordingLogger{}))
 
 	var cap DeprecatedCapturingLogger
 	var capm string

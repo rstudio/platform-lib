@@ -4,9 +4,9 @@ package rslog
 
 import "fmt"
 
-// RecordingLogger is a direct logger that remembers its last Logf call and
+// DeprecatedRecordingLogger is a direct logger that remembers its last Logf call and
 // its rendered result. Useful for tests.
-type RecordingLogger struct {
+type DeprecatedRecordingLogger struct {
 	directLogger
 	Called  bool
 	Format  string
@@ -15,14 +15,14 @@ type RecordingLogger struct {
 }
 
 // Reset clears any previously recorded state.
-func (logger *RecordingLogger) Reset() {
+func (logger *DeprecatedRecordingLogger) Reset() {
 	logger.Called = false
 	logger.Format = ""
 	logger.Args = nil
 	logger.Message = ""
 }
 
-func (logger *RecordingLogger) Logf(msg string, args ...interface{}) {
+func (logger *DeprecatedRecordingLogger) Logf(msg string, args ...interface{}) {
 	logger.Called = true
 	logger.Format = msg
 	logger.Args = args
