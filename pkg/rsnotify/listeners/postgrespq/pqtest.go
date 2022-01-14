@@ -1,4 +1,4 @@
-package pqlistener
+package postgrespq
 
 // Copyright (C) 2022 by RStudio, PBC.
 

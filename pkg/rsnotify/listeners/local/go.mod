@@ -1,11 +1,15 @@
-module github.com/rstudio/platform-lib/pkg/rsnotify
+module github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local
 
 go 1.17
 
 require (
 	github.com/fortytw2/leaktest v1.3.0
+	github.com/google/uuid v1.1.2
+	github.com/rstudio/platform-lib/pkg/rsnotify v0.1.8
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 )
+
+replace github.com/rstudio/platform-lib/pkg/rsnotify => ../../
 
 require (
 	github.com/kr/text v0.1.0 // indirect
