@@ -3,7 +3,6 @@ package rslog
 // Copyright (C) 2021 by RStudio, PBC.
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -59,7 +58,7 @@ func (s *LoggerSuite) TestLoggers() {
 		s.ElementsMatch(v, vin)
 	}
 
-	var rec RecordingLogger
+	var rec DeprecatedRecordingLogger
 	rec.Logf(fin, vin...)
 	s.Equal(rec.Called, true)
 	s.Equal(rec.Format, fin)
@@ -67,9 +66,9 @@ func (s *LoggerSuite) TestLoggers() {
 	s.Equal(rec.Message, "here we 42 are now; entertain us")
 
 	rec.Reset()
-	s.True(reflect.DeepEqual(rec, RecordingLogger{}))
+	s.True(reflect.DeepEqual(rec, DeprecatedRecordingLogger{}))
 
-	var cap CapturingLogger
+	var cap DeprecatedCapturingLogger
 	var capm string
 	var capa []interface{}
 	_log_printf = func(f string, v ...interface{}) {
@@ -89,9 +88,9 @@ func (s *LoggerSuite) TestLoggers() {
 	})
 
 	cap.Reset()
-	s.True(reflect.DeepEqual(cap, CapturingLogger{}))
+	s.True(reflect.DeepEqual(cap, DeprecatedCapturingLogger{}))
 
-	var capOnly CaptureOnlyLogger
+	var capOnly DeprecatedCaptureOnlyLogger
 	var capMsg string
 	var capArg []interface{}
 	_log_printf = func(f string, v ...interface{}) {
@@ -111,38 +110,12 @@ func (s *LoggerSuite) TestLoggers() {
 	})
 
 	capOnly.Reset()
-	s.True(reflect.DeepEqual(capOnly, CaptureOnlyLogger{}))
+	s.True(reflect.DeepEqual(capOnly, DeprecatedCaptureOnlyLogger{}))
 
-	parent := directLogger{}
-	passthrough := NewCapturingPassthroughLogger(parent)
 	_log_printf = func(f string, v ...interface{}) {
 		s.Equal(f, capMsg)
 		s.ElementsMatch(v, capArg)
 	}
-
-	capMsg = "this is the %s that never %s"
-	capArg = []interface{}{"song", "ends"}
-	passthrough.Logf(capMsg, capArg...)
-	capMsg = "it just goes %s and %s my %s"
-	capArg = []interface{}{"on", "on", "friends"}
-	passthrough.Logf(capMsg, capArg...)
-
-	capMsg = "hi there"
-	_log_printf = func(f string, v ...interface{}) {
-		result := fmt.Sprintf(f, v...)
-		s.Equal(result, capMsg)
-	}
-	passthrough.Output(capMsg)
-
-	expected := []string{
-		"this is the song that never ends",
-		"it just goes on and on my friends",
-		"hi there",
-	}
-	s.ElementsMatch(passthrough.Messages, expected)
-
-	passthrough.Reset()
-	s.ElementsMatch(passthrough.Messages, []string(nil))
 }
 
 func (s *LoggerSuite) TestBuildPreamble() {

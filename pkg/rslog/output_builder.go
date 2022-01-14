@@ -150,3 +150,9 @@ func (b outputBuilder) createLogFile(logFilePath string) (io.Writer, error) {
 
 	return writer, nil
 }
+
+type discardOutputBuilder struct{}
+
+func (b discardOutputBuilder) Build(_ LogOutputType, _ string) (io.Writer, error) {
+	return io.Discard, nil
+}
