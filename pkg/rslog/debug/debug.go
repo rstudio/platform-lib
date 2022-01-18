@@ -3,6 +3,8 @@ package debug
 // Copyright (C) 2021 by RStudio, PBC.
 
 import (
+	"sync"
+
 	"github.com/rstudio/platform-lib/pkg/rslog"
 )
 
@@ -17,6 +19,7 @@ type callbacksArr []func(flag bool)
 
 var regionCallbacks = map[ProductRegion]callbacksArr{}
 var regionsEnabled = map[ProductRegion]bool{}
+var mutex sync.RWMutex
 
 func RegisterRegions(regions map[ProductRegion]string) {
 	regionNames = regions
@@ -54,6 +57,9 @@ func RegionName(region ProductRegion) string {
 // Register debug regions enabled.
 // This should be called as early as possible when starting an application.
 func InitLogs(regions []ProductRegion) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	// Reset enabled regions on each call.
 	regionsEnabled = make(map[ProductRegion]bool)
 
@@ -76,6 +82,9 @@ func InitLogs(regions []ProductRegion) {
 
 // Enable turns on logging for a named region. Useful in test.
 func Enable(region ProductRegion) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	regionsEnabled[region] = true
 	_, ok := regionCallbacks[region]
 	if ok {
@@ -87,6 +96,9 @@ func Enable(region ProductRegion) {
 
 // Disable turns on logging for a named region. Useful in test.
 func Disable(region ProductRegion) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	regionsEnabled[region] = false
 	_, ok := regionCallbacks[region]
 	if ok {
@@ -98,6 +110,8 @@ func Disable(region ProductRegion) {
 
 // Enabled returns true if debug logging is configured for this region.
 func Enabled(region ProductRegion) bool {
+	mutex.RLock()
+	defer mutex.RUnlock()
 	return regionsEnabled[region]
 }
 
@@ -145,12 +159,18 @@ func (l *debugLogger) Enabled() bool {
 }
 
 func (l *debugLogger) Debugf(message string, args ...interface{}) {
+	mutex.RLock()
+	defer mutex.RUnlock()
+
 	if l.enabled {
 		l.Logger.Debugf(message, args...)
 	}
 }
 
 func (l *debugLogger) Tracef(message string, args ...interface{}) {
+	mutex.RLock()
+	defer mutex.RUnlock()
+
 	if l.enabled {
 		l.Logger.Tracef(message, args...)
 	}
