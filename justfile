@@ -18,7 +18,8 @@ test *args:
 
     test_args="{{ args }}"
     test_args=${test_args:-./...}
-    go test -short ${test_args[*]}
+
+    TEST_ARGS="$test_args" ./scripts/test.sh
 
 # Runs Go unit tests with docker-compose
 test-integration *args:
@@ -37,16 +38,20 @@ test-integration *args:
 
     test_args="{{ args }}"
     test_args=${test_args:-./...}
-    ${dc} run lib \
-        go test -v ${test_args[*]}
+    ${dc} run \
+        -e TEST_ARGS="$test_args" \
+        -e DEF_TEST_ARGS="-v" \
+        -e MODULE=${MODULE:-""} \
+        lib ./scripts/test.sh
 
 # Checks Go code
 vet:
-    go vet ./...
+    ./scripts/go-vet.sh
 
 # Builds Go code natively.
 build:
-    go build -o out/ ./...
+    cd examples && \
+    go build -o ../out/ ./...
 
 # run linters
 lint:
@@ -59,7 +64,7 @@ build-docker:
     docker run {{ interactive }} --rm \
         -v {{justfile_directory()}}/:/build \
         -w /build \
-        rstudio/platform-lib:lib-build go build -o out/ ./...
+        rstudio/platform-lib:lib-build just build
 
 # Cleans Go build directory (out)
 clean:
@@ -110,12 +115,4 @@ stop-e2e-env:
 
 # generate Go dependencies' licenses file
 licenses:
-    go mod vendor
-    cat go.mod \
-    | awk '/\t/{ print $0 }' \
-    | grep -E -v '(rstudio|indirect)' \
-    | awk '{ print $1 }' \
-    | sort -u \
-    | ./scripts/go-licenses.py \
-    > NOTICE.md
-    rm -rf vendor
+    ./scripts/go-licenses.sh

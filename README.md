@@ -40,6 +40,9 @@ Examples for your applications and/or public libraries.
 
 ## Testing
 
+We test multiple modules by default. Therefore, if you wish to test a specific
+package, you must specify the `MODULE` env variable. See the examples below. 
+
 Examples:
 
 ```bash
@@ -56,13 +59,13 @@ just test -count 1 ./...
 just test -v ./...
 
 # Run the "TestNewDebugLog" test twice with verbose output
-just test -v -count 2 github.com/rstudio/platform-lib/pkg/rslog/debug -testify.m=TestNewDebugLog
+MODULE=pkg/rslog just test -v -count 2 github.com/rstudio/platform-lib/pkg/rslog/debug -testify.m=TestNewDebugLog
 
 # Run the LocalNotifySuite suite tests with verbose output
-just test -v github.com/rstudio/platform-lib/pkg/rsnotify/locallistener -check.f=LocalNotifySuite
+MODULE=pkg/rsnotify just test -v github.com/rstudio/platform-lib/pkg/rsnotify/locallistener -check.f=LocalNotifySuite
 
 # Run the PgxNotifySuite suite tests with docker-compose
-just test-integration -v github.com/rstudio/platform-lib/pkg/rsnotify/pgxlistener -check.f=PgxNotifySuite
+MODULE=pkg/rsnotify just test-integration -v github.com/rstudio/platform-lib/pkg/rsnotify/pgxlistener -check.f=PgxNotifySuite
 
 # Run the end-to-end tests
 just build

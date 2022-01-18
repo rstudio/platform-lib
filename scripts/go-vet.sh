@@ -6,7 +6,7 @@ __EXITCODE=0
 CURDIR=$(pwd)
 
 for MODULE in $(find . -name go.mod | xargs dirname); do
-    echo "Checking fmt for module ${MODULE}"
+    echo "Vetting module ${MODULE}"
     if [ ! -f "${MODULE}/go.mod" ] ; then
         echo "Skipping module ${MODULE}, as it does not contain go.mod."
         continue
@@ -19,16 +19,12 @@ for MODULE in $(find . -name go.mod | xargs dirname); do
 
     cd "${MODULE}"
 
-    # Collect a list of go package directories ('go list' skips vendor packages).
-    PACKAGES=$(go list -f '{{.Dir}}' ./...)
-    for pkg in ${PACKAGES}; do
-        # If gofmt changes anything, tell the user
-        if $(gofmt -d -s "${pkg}"/*.go | read -r SCRATCH); then
-            echo "Go source in package ${pkg} needs formatting"
-            gofmt -d -s "${pkg}"/*.go
-            __EXITCODE=1
-        fi
-    done
+    # Vet
+    go vet ./...
+    result=$?
+    if [[ $result -ne 0 ]]; then
+      __EXITCODE=$result
+    fi
 
     cd ${CURDIR}
 done

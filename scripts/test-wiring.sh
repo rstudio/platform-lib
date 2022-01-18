@@ -64,8 +64,9 @@ testing_enabled() {
     fi
 }
 
+CURDIR=$(pwd)
 
-for MODULE in "." ; do
+for MODULE in $(find . -name go.mod | xargs dirname); do
     echo "Checking test wiring for module ${MODULE}"
     if [ ! -f "${MODULE}/go.mod" ] ; then
         echo "Skipping module ${MODULE}, as it does not contain go.mod."
@@ -86,7 +87,7 @@ for MODULE in "." ; do
         unplugged_suites $pkg
         testing_enabled $pkg
     done
-    cd ..
+    cd ${CURDIR}
 done
 
 
