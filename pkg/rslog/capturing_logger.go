@@ -82,6 +82,10 @@ func (logger *DeprecatedCaptureOnlyLogger) Panicf(msg string, args ...interface{
 	logger.Messages = append(logger.Messages, fmt.Sprintf(msg, args...))
 }
 
+func (logger *DeprecatedCaptureOnlyLogger) Writer() *io.PipeWriter {
+	return &io.PipeWriter{}
+}
+
 func (logger *DeprecatedCaptureOnlyLogger) WithField(key string, value interface{}) Logger {
 	return logger
 }
