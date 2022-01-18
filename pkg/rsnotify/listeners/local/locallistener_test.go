@@ -1,4 +1,4 @@
-package locallistener
+package local
 
 // Copyright (C) 2022 by RStudio, PBC.
 
@@ -22,20 +22,20 @@ var _ = check.Suite(&LocalNotifySuite{})
 func TestPackage(t *testing.T) { check.TestingT(t) }
 
 func (s *LocalNotifySuite) TestNewLocalListener(c *check.C) {
-	f := NewLocalListenerFactory()
+	f := NewListenerProvider()
 	l := f.New("test-a")
 	c.Check(l.guid, check.HasLen, 36)
 	l.guid = ""
-	c.Check(l, check.DeepEquals, &LocalListener{
-		name:    "test-a",
-		factory: f,
+	c.Check(l, check.DeepEquals, &Listener{
+		name:     "test-a",
+		provider: f,
 	})
 }
 
 func (s *LocalNotifySuite) TestNotifications(c *check.C) {
 	defer leaktest.Check(c)()
 
-	f := NewLocalListenerFactory()
+	f := NewListenerProvider()
 	l := f.New("test-a")
 
 	tn := listener.TestNotification{
@@ -159,7 +159,7 @@ func (s *LocalNotifySuite) TestNotifications(c *check.C) {
 func (s *LocalNotifySuite) TestNotificationsBlock(c *check.C) {
 	defer leaktest.Check(c)()
 
-	f := NewLocalListenerFactory()
+	f := NewListenerProvider()
 	l := f.New("test-a")
 
 	tn := listener.TestNotification{
@@ -222,7 +222,7 @@ func (s *LocalNotifySuite) TestNotificationsBlock(c *check.C) {
 func (s *LocalNotifySuite) TestNotificationsErrs(c *check.C) {
 	defer leaktest.Check(c)()
 
-	f := NewLocalListenerFactory()
+	f := NewListenerProvider()
 	l := f.New("test-a")
 
 	tn := listener.TestNotification{
@@ -294,7 +294,7 @@ func (s *LocalNotifySuite) TestNotificationsDeadlockOnClose(c *check.C) {
 	// we stop listening, a deadlock can occur. This test was introduced to
 	// catch the deadlock and ensure that we don't regress.
 
-	f := NewLocalListenerFactory()
+	f := NewListenerProvider()
 	// Shorten timeout
 	f.notifyTimeout = 50 * time.Millisecond
 	l := f.New("test-deadlock")

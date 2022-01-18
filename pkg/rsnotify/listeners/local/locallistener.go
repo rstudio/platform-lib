@@ -1,4 +1,4 @@
-package locallistener
+package local
 
 // Copyright (C) 2022 by RStudio, PBC.
 
@@ -13,34 +13,34 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
 )
 
-type LocalListener struct {
-	name    string
-	stop    chan bool
-	items   chan interface{}
-	guid    string
-	factory *LocalListenerFactory
+type Listener struct {
+	name     string
+	stop     chan bool
+	items    chan interface{}
+	guid     string
+	provider *ListenerProvider
 
 	// If this channel is non-nil, listening is deferred until this channel
 	// is signaled or closed. Currently used in test only.
 	deferredStart chan struct{}
 }
 
-type LocalListenerFactory struct {
+type ListenerProvider struct {
 	mutex     *sync.RWMutex
-	listeners map[string]*LocalListener
+	listeners map[string]*Listener
 
 	debugLogger listener.DebugLogger
 
 	notifyTimeout time.Duration
 }
 
-func NewLocalListenerFactory() *LocalListenerFactory {
-	return NewLocalListenerFactoryWithLogger(nil)
+func NewListenerProvider() *ListenerProvider {
+	return NewListenerProviderWithLogger(nil)
 }
 
-func NewLocalListenerFactoryWithLogger(debugLogger listener.DebugLogger) *LocalListenerFactory {
-	return &LocalListenerFactory{
-		listeners: make(map[string]*LocalListener),
+func NewListenerProviderWithLogger(debugLogger listener.DebugLogger) *ListenerProvider {
+	return &ListenerProvider{
+		listeners: make(map[string]*Listener),
 		mutex:     &sync.RWMutex{},
 
 		notifyTimeout: 500 * time.Millisecond,
@@ -50,29 +50,29 @@ func NewLocalListenerFactoryWithLogger(debugLogger listener.DebugLogger) *LocalL
 }
 
 // Only intended to be called from listenerfactory.go's `New` method.
-func (l *LocalListenerFactory) New(name string) *LocalListener {
-	return &LocalListener{
-		name:    name,
-		guid:    uuid.New().String(),
-		factory: l,
+func (l *ListenerProvider) New(name string) *Listener {
+	return &Listener{
+		name:     name,
+		guid:     uuid.New().String(),
+		provider: l,
 	}
 }
 
-var ErrNotInFactory = errors.New("a local listener must be created with the LocalListenerFactory.New method")
+var ErrNotInProvider = errors.New("a local listener must be created with the ListenerProvider.New method")
 var ErrNotNotificationType = errors.New("a notification must be of type listener.Notification")
 
-func (l *LocalListener) IP() string {
+func (l *Listener) IP() string {
 	return ""
 }
 
-func (l *LocalListener) Listen() (chan listener.Notification, chan error, error) {
-	if l.factory == nil {
-		return nil, nil, ErrNotInFactory
+func (l *Listener) Listen() (chan listener.Notification, chan error, error) {
+	if l.provider == nil {
+		return nil, nil, ErrNotInProvider
 	}
 
-	l.factory.mutex.Lock()
-	l.factory.listeners[l.guid] = l
-	l.factory.mutex.Unlock()
+	l.provider.mutex.Lock()
+	l.provider.listeners[l.guid] = l
+	l.provider.mutex.Unlock()
 
 	l.stop = make(chan bool)
 	l.items = make(chan interface{})
@@ -84,19 +84,19 @@ func (l *LocalListener) Listen() (chan listener.Notification, chan error, error)
 	return msgs, errs, nil
 }
 
-func (l *LocalListener) listen(msgs chan listener.Notification, errs chan error) {
+func (l *Listener) listen(msgs chan listener.Notification, errs chan error) {
 	defer func() {
-		l.factory.Debugf("Stopping listener...")
+		l.provider.Debugf("Stopping listener...")
 		l.items = nil
 		close(l.stop)
-		l.factory.Debugf("Stopped.")
+		l.provider.Debugf("Stopped.")
 	}()
 
 	l.wait(msgs, errs, l.stop)
 }
 
 // The `start` parameter is for test only
-func (l *LocalListener) wait(msgs chan listener.Notification, errs chan error, stop chan bool) {
+func (l *Listener) wait(msgs chan listener.Notification, errs chan error, stop chan bool) {
 	// If the `deferredStart` channel is set, we wait to listen until the
 	// channel is signaled or closed.
 	//
@@ -117,11 +117,11 @@ func (l *LocalListener) wait(msgs chan listener.Notification, errs chan error, s
 	for {
 		select {
 		case <-stop:
-			l.factory.Debugf("Stopping wait")
+			l.provider.Debugf("Stopping wait")
 			return
 		case i := <-l.items:
 			if msg, ok := i.(listener.Notification); ok {
-				l.factory.Debugf("Received message: %s. Sending to buffered channel with current size %d", msg.Guid(), len(msgs))
+				l.provider.Debugf("Received message: %s. Sending to buffered channel with current size %d", msg.Guid(), len(msgs))
 				msgs <- msg
 			} else {
 				errs <- ErrNotNotificationType
@@ -130,26 +130,26 @@ func (l *LocalListener) wait(msgs chan listener.Notification, errs chan error, s
 	}
 }
 
-func (l *LocalListener) Stop() {
+func (l *Listener) Stop() {
 	if l.stop != nil {
 		// Signal to stop
-		l.factory.Debugf("Signaling stop channel to stop...")
+		l.provider.Debugf("Signaling stop channel to stop...")
 		l.stop <- true
 
 		// Wait for stop
-		l.factory.Debugf("Waiting for stop channel to close...")
+		l.provider.Debugf("Waiting for stop channel to close...")
 		<-l.stop
-		l.factory.Debugf("Stop channel for %s closed.", l.guid)
+		l.provider.Debugf("Stop channel for %s closed.", l.guid)
 		l.stop = nil
 
-		// Remove from factory
-		l.factory.mutex.Lock()
-		defer l.factory.mutex.Unlock()
-		delete(l.factory.listeners, l.guid)
+		// Remove from provider
+		l.provider.mutex.Lock()
+		defer l.provider.mutex.Unlock()
+		delete(l.provider.listeners, l.guid)
 	}
 }
 
-func (l *LocalListenerFactory) Debugf(msg string, args ...interface{}) {
+func (l *ListenerProvider) Debugf(msg string, args ...interface{}) {
 	if l.debugLogger != nil {
 		l.debugLogger.Debugf(msg, args...)
 	}
@@ -157,12 +157,12 @@ func (l *LocalListenerFactory) Debugf(msg string, args ...interface{}) {
 
 // Only intended to be called from the store conn_base.go's `Notify` method. Please
 // use the store method and don't call this directly.
-func (l *LocalListenerFactory) Notify(channel string, n interface{}) {
+func (l *ListenerProvider) Notify(channel string, n interface{}) {
 	// Send Notifications
 	l.notify(channel, n, nil)
 }
 
-func (l *LocalListenerFactory) notify(channel string, n interface{}, prevMissedItems map[string]string) {
+func (l *ListenerProvider) notify(channel string, n interface{}, prevMissedItems map[string]string) {
 	l.mutex.RLock()
 
 	// Map that contains a `true` value keyed by the listener GUID for
@@ -217,9 +217,9 @@ func (l *LocalListenerFactory) notify(channel string, n interface{}, prevMissedI
 	l.mutex.RUnlock()
 
 	// Recurse if there were missed items. Note that since the mutex is now unlocked, any
-	// listeners that are in the process of closing can be removed from the factory and
+	// listeners that are in the process of closing can be removed from the provider and
 	// no further notifications will be attempted for them. Listeners that remain in the
-	// factory after the mutex is again locked by the recursive call to `notify` will be
+	// provider after the mutex is again locked by the recursive call to `notify` will be
 	// attempted again as needed.
 	if len(missed) > 0 {
 		l.Debugf("calling l.notify for %+v with guid %s for %d missed items on channel %s", n, notifyGuid, len(missed), channel)
