@@ -43,7 +43,7 @@ func init() {
   testnotify notify --driver=pq
   testnotify notify --message="hello from pq" --driver=pq --conn-str=postgres://admin:password@localhost/postgres?sslmode=disable
 `
-	NotifyCmd.Flags().StringVar(&message, "message", "HELO from <driver>", "The message to send.")
+	NotifyCmd.Flags().StringVar(&message, "message", "Hello from <driver>", "The message to send.")
 	NotifyCmd.Flags().StringVar(&driver, "driver", "local", "The driver to use. Either 'local', 'pgx', or 'pq'.")
 	NotifyCmd.Flags().StringVar(&connstr, "conn-str", defaultPgConnStr, "The postgres connection string to use.")
 	NotifyCmd.Flags().StringVar(&filter, "filter", "", "Filter for messages matching a pattern.")
@@ -56,8 +56,8 @@ var NotifyCmd = &cobra.Command{
 	Short:   "Command to test notifications",
 	Example: "",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if message == "HELO from <driver>" {
-			message = fmt.Sprintf("HELO from %s", driver)
+		if message == "Hello from <driver>" {
+			message = fmt.Sprintf("Hello from %s", driver)
 		}
 		var rFilter *regexp.Regexp
 		var err error
