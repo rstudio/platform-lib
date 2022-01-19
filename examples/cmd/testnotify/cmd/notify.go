@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
 	"time"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jmoiron/sqlx"
+	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
 	"github.com/spf13/cobra"
 
 	// Must import github.com/jackc/pgx/v4/stdlib for sqlx support.
@@ -31,6 +33,7 @@ var (
 	message string
 	driver  string
 	connstr string
+	filter  string
 )
 
 func init() {
@@ -43,6 +46,7 @@ func init() {
 	NotifyCmd.Flags().StringVar(&message, "message", "HELO from <driver>", "The message to send.")
 	NotifyCmd.Flags().StringVar(&driver, "driver", "local", "The driver to use. Either 'local', 'pgx', or 'pq'.")
 	NotifyCmd.Flags().StringVar(&connstr, "conn-str", defaultPgConnStr, "The postgres connection string to use.")
+	NotifyCmd.Flags().StringVar(&filter, "filter", "", "Filter for messages matching a pattern.")
 
 	RootCmd.AddCommand(NotifyCmd)
 }
@@ -55,64 +59,111 @@ var NotifyCmd = &cobra.Command{
 		if message == "HELO from <driver>" {
 			message = fmt.Sprintf("HELO from %s", driver)
 		}
-		return notify(message)
+		var rFilter *regexp.Regexp
+		var err error
+		if filter != "" {
+			rFilter, err = regexp.Compile(filter)
+			if err != nil {
+				return fmt.Errorf("Error parsing filter expression: %s", err)
+			}
+		}
+		drv, fact, prov, err := setup(driver)
+		if err != nil {
+			return err
+		}
+		stop := make(chan bool)
+		defer close(stop)
+		go notify(drv, message, prov, stop)
+		return listen(fact, rFilter)
 	},
 }
 
-func notify(msg string) error {
+func setup(drv string) (string, listenerfactory.ListenerFactory, *local.ListenerProvider, error) {
 	var fact listenerfactory.ListenerFactory
-	n := &testNotification{Message: msg}
-	switch driver {
+	var prov *local.ListenerProvider
+	switch drv {
 	case "local":
-		lp := local.NewListenerProvider()
-		fact = local.NewListenerFactory(lp)
-		go localNotify("main", lp, n)
+		prov = local.NewListenerProvider()
+		fact = local.NewListenerFactory(prov)
 	case "pgx":
 		pool, err := pgxpool.Connect(context.Background(), connstr)
 		if err != nil {
-			return fmt.Errorf("error connecting to pool: %s", err)
+			return drv, nil, nil, fmt.Errorf("error connecting to pool: %s", err)
 		}
 		fact = postgrespgx.NewPgxListenerFactory(pool, debugLogger)
-		go pgNotify("main", "pgx", n)
 	case "pq":
+		drv = "postgres"
 		pqListenerFactory := &pqlistener{ConnStr: connstr}
 		fact = postgrespq.NewPqListenerFactory(pqListenerFactory, debugLogger)
-		go pgNotify("main", "postgres", n)
 	default:
-		return fmt.Errorf("invalid --driver argument value")
+		return drv, nil, nil, fmt.Errorf("invalid --driver argument value")
 	}
+	return drv, fact, prov, nil
+}
 
+func notify(drv string, msg string, prov *local.ListenerProvider, stop chan bool) {
+	n := &testNotification{Message: msg}
+	switch drv {
+	case "local":
+		localNotify("main", prov, n, stop)
+	case "pgx", "postgres":
+		pgNotify("main", drv, n, stop)
+	}
+}
+
+func listen(fact listenerfactory.ListenerFactory, rFilter *regexp.Regexp) error {
 	stop := make(chan bool)
 	bc, err := broadcaster.NewNotificationBroadcaster(fact.New("main", &testNotification{}), stop)
 	if err != nil {
 		return fmt.Errorf("error connecting to pool: %s", err)
 	}
 
-	ch := bc.Subscribe((&testNotification{}).Type())
+	var ch <-chan listener.Notification
+	var listenOnce bool
+	if rFilter != nil {
+		listenOnce = true
+		ch = bc.SubscribeOne((&testNotification{}).Type(), func(n listener.Notification) bool {
+			var result bool
+			if tn, ok := n.(*testNotification); ok {
+				result = rFilter.MatchString(tn.Message)
+			}
+			return result
+		})
+	} else {
+		ch = bc.Subscribe((&testNotification{}).Type())
+	}
 	for {
 		select {
 		case n := <-ch:
 			if tn, ok := n.(*testNotification); ok {
 				log.Printf("Received notification: %s", tn.Message)
+				if listenOnce {
+					log.Printf("Exiting since expected notification was received.")
+					return nil
+				}
 			}
 		}
 	}
 }
 
 // localNotify sends one notification per second with the provided local ListenerProvider.
-func localNotify(channelName string, lp *local.ListenerProvider, message *testNotification) {
+func localNotify(channelName string, lp *local.ListenerProvider, message *testNotification, stop chan bool) {
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	for {
-		<-tick.C
-		lp.Notify(channelName, message)
+		select {
+		case <-stop:
+			return
+		case <-tick.C:
+			lp.Notify(channelName, message)
+		}
 	}
 }
 
 // pgNotify sends one notification per second with the provided Postgres driver.
 // For lib/pq, provide `driverName = postgres`. For `jackc/pgx`, provide
 // `driverName = pgx`.
-func pgNotify(channelName, driverName string, message *testNotification) {
+func pgNotify(channelName, driverName string, message *testNotification, stop chan bool) {
 	// Ensure that the channel name is safe for PostgreSQL
 	channelName = listenerutils.SafeChannelName(channelName)
 
@@ -131,11 +182,15 @@ func pgNotify(channelName, driverName string, message *testNotification) {
 	defer conn.Close()
 	defer tick.Stop()
 	for {
-		<-tick.C
-		query := fmt.Sprintf("select pg_notify('%s', $1)", channelName)
-		_, err = conn.ExecContext(context.Background(), query, msg)
-		if err != nil {
-			log.Fatalf("error sending notification: %s", err)
+		select {
+		case <-stop:
+			return
+		case <-tick.C:
+			query := fmt.Sprintf("select pg_notify('%s', $1)", channelName)
+			_, err = conn.ExecContext(context.Background(), query, msg)
+			if err != nil {
+				log.Fatalf("error sending notification: %s", err)
+			}
 		}
 	}
 }
