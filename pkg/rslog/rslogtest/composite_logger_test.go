@@ -17,7 +17,7 @@ func (s *LoggerImplTestSuite) TestNewCompositeLogger() {
 	mock2 := &LoggerMock{}
 	mocks := []*LoggerMock{mock1, mock2}
 
-	logger := rslog.NewCompositeLogger([]rslog.Logger{mock1, mock2})
+	logger := rslog.ComposeLoggers(mock1, mock2)
 
 	// Test common signature log functions
 	testCases := []struct {
@@ -101,7 +101,7 @@ func (s *LoggerImplTestSuite) TestNewCompositeLogger() {
 		m.AssertExpectations(s.T())
 	}
 
-	s.EqualValues(newComposite, rslog.NewCompositeLogger([]rslog.Logger{newMock1, newMock2}))
+	s.EqualValues(newComposite, rslog.ComposeLoggers(newMock1, newMock2))
 
 	//Test WithFields function
 
@@ -114,7 +114,7 @@ func (s *LoggerImplTestSuite) TestNewCompositeLogger() {
 		m.AssertExpectations(s.T())
 	}
 
-	s.EqualValues(newComposite, rslog.NewCompositeLogger([]rslog.Logger{newMock1, newMock2}))
+	s.EqualValues(newComposite, rslog.ComposeLoggers(newMock1, newMock2))
 
 	// Test SetLevel function
 

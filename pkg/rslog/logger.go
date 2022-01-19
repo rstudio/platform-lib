@@ -25,7 +25,7 @@ type Logger interface {
 	SetOutput(writers ...io.Writer)
 	SetLevel(level LogLevel)
 	SetFormatter(formatter OutputFormat)
-	Writer() *io.PipeWriter
+	Writer() io.WriteCloser
 
 	// DeprecatedLogger helps with migrating packages that inject the Logger interface into other packages.
 	// TODO: Remove this interface when the migration process to the new logging standard is complete.

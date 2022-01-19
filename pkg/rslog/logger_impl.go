@@ -102,7 +102,7 @@ func getLevel(level LogLevel) logrus.Level {
 	}
 }
 
-func (l LoggerImpl) Writer() *io.PipeWriter {
+func (l LoggerImpl) Writer() io.WriteCloser {
 	return l.Logger.Writer()
 }
 
@@ -169,6 +169,10 @@ func (l logrusEntryWrapper) WithField(key string, value interface{}) Logger {
 func (l logrusEntryWrapper) WithFields(fields Fields) Logger {
 	e := l.Entry.WithFields(logrus.Fields(fields))
 	return logrusEntryWrapper{Entry: e}
+}
+
+func (l logrusEntryWrapper) Writer() io.WriteCloser {
+	return l.Logger.Writer()
 }
 
 // TODO: remove this function when the migration process to the new logging standard is complete.

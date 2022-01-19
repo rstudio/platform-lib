@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/rstudio/platform-lib/pkg/rslog"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +21,7 @@ func init() {
 	LogCmd.Flags().StringVar(&message, "message", "default message", "The message to log.")
 	CaptureLogCmd.Flags().BoolVar(&withMetadata, "withMetadata", false, "The option to turn on or off the metadata in the capturing logger")
 
-	RootCmd.AddCommand(LogCmd, CaptureLogCmd, CompositeLogCmd)
+	RootCmd.AddCommand(LogCmd, CaptureLogCmd, CompositeLogCmd, TestCompositeWriter)
 }
 
 var LogCmd = &cobra.Command{
@@ -61,9 +62,46 @@ var CompositeLogCmd = &cobra.Command{
 		defaultLogger := rslog.DefaultLogger().WithField("Logger", "DefaultLogger")
 		anotherLogger := rslog.DefaultLogger().WithField("Logger", "AnotherLogger")
 
-		log := rslog.NewCompositeLogger([]rslog.Logger{defaultLogger, anotherLogger})
+		log := rslog.ComposeLoggers(defaultLogger, anotherLogger)
 
 		log.Infof(message)
+		return nil
+	},
+}
+
+var TestCompositeWriter = &cobra.Command{
+	Use:     "test-composite",
+	Short:   "Command to test the Writer function from Composite logger",
+	Example: "",
+	RunE: func(cmd *cobra.Command, args []string) error {
+
+		dest := rslog.OutputDest{
+			Output:      rslog.LogOutputFile,
+			Filepath:    "file",
+			DefaultFile: "file",
+		}
+
+		anotherLogger, _ := rslog.NewLoggerImpl(rslog.LoggerOptionsImpl{
+			Output: []rslog.OutputDest{dest},
+			Level:  rslog.InfoLevel,
+			Format: rslog.JSONFormat,
+		}, rslog.NewOutputLogBuilder(rslog.ServerLog, "file"))
+
+		log := rslog.ComposeLoggers(rslog.DefaultLogger(), anotherLogger)
+
+		w := log.Writer()
+
+		logr := logrus.New()
+		logr.Out = w
+		finalLogger := rslog.LoggerImpl{
+			Logger: logr,
+		}
+
+		finalLogger.Infof("Testing multiwriter message 1")
+		finalLogger.Infof("Testing multiwriter message 2")
+		finalLogger.Infof("Testing multiwriter message 3")
+
+		w.Close()
 		return nil
 	},
 }

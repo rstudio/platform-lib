@@ -10,7 +10,8 @@ type CompositeLogger struct {
 
 var _ Logger = &CompositeLogger{}
 
-func NewCompositeLogger(loggers []Logger) *CompositeLogger {
+// ComposeLoggers composes multiples loggers in just one.
+func ComposeLoggers(loggers ...Logger) *CompositeLogger {
 	return &CompositeLogger{
 		loggers: loggers,
 	}
@@ -70,10 +71,17 @@ func (l *CompositeLogger) Panicf(msg string, args ...interface{}) {
 	}
 }
 
-// Method just to comply with the Logger interface.
-// Composite logger nature can't return a single writer.
-func (l *CompositeLogger) Writer() *io.PipeWriter {
-	return &io.PipeWriter{}
+// Writer returns an io.WriteCloser, that contains multiple writers inside it.
+// It makes possible to see the multiple writers being returned as just one.
+func (l *CompositeLogger) Writer() io.WriteCloser {
+
+	writers := make([]io.WriteCloser, 0, len(l.loggers))
+
+	for _, logger := range l.loggers {
+		writers = append(writers, logger.Writer())
+	}
+
+	return NewMultiWriteCloser(writers...)
 }
 
 func (l *CompositeLogger) WithField(key string, value interface{}) Logger {
@@ -112,4 +120,42 @@ func (l *CompositeLogger) SetFormatter(formatter OutputFormat) {
 	for _, logger := range l.loggers {
 		logger.SetFormatter(formatter)
 	}
+}
+
+func NewMultiWriteCloser(writers ...io.WriteCloser) io.WriteCloser {
+	allWriters := make([]io.WriteCloser, 0, len(writers))
+	for _, w := range writers {
+		if mw, ok := w.(*multiWriteCloser); ok {
+			allWriters = append(allWriters, mw.writeClosers...)
+		} else {
+			allWriters = append(allWriters, w)
+		}
+	}
+	return &multiWriteCloser{allWriters}
+}
+
+type multiWriteCloser struct {
+	writeClosers []io.WriteCloser
+}
+
+func (mw *multiWriteCloser) Close() error {
+	var err error = nil
+	for _, c := range mw.writeClosers {
+		err = c.Close()
+	}
+	return err
+}
+
+func (mw *multiWriteCloser) Write(p []byte) (n int, err error) {
+	for _, w := range mw.writeClosers {
+		n, err = w.Write(p)
+		if err != nil {
+			return
+		}
+		if n != len(p) {
+			err = io.ErrShortWrite
+			return
+		}
+	}
+	return len(p), nil
 }

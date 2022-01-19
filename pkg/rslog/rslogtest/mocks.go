@@ -137,9 +137,9 @@ func (m *LoggerMock) Panicf(msg string, args ...interface{}) {
 	m.Called(msg, args)
 }
 
-func (m *LoggerMock) Writer() *io.PipeWriter {
+func (m *LoggerMock) Writer() io.WriteCloser {
 	args := m.Called()
-	return args.Get(0).(*io.PipeWriter)
+	return args.Get(0).(io.WriteCloser)
 }
 
 func (m *LoggerMock) WithField(key string, value interface{}) rslog.Logger {

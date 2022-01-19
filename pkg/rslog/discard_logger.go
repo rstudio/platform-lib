@@ -18,7 +18,7 @@ func (discardLogger) Fatal(args ...interface{})              {}
 func (discardLogger) Panicf(msg string, v ...interface{})    {}
 
 // Doing nothing with this method. Just to implement the interface and be able to switch to old logging implementation
-func (l discardLogger) Writer() *io.PipeWriter {
+func (l discardLogger) Writer() io.WriteCloser {
 	return &io.PipeWriter{}
 }
 
