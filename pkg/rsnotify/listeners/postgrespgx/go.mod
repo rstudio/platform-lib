@@ -1,4 +1,4 @@
-module github.com/rstudio/platform-lib/pkg/rsnotify/listeners/pgx
+module github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespgx
 
 go 1.17
 

@@ -1,4 +1,4 @@
-module github.com/rstudio/platform-lib/pkg/rsnotify/listeners/pq
+module github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespq
 
 go 1.17
 
