@@ -102,10 +102,6 @@ func getLevel(level LogLevel) logrus.Level {
 	}
 }
 
-func (l LoggerImpl) Writer() *io.PipeWriter {
-	return l.Logger.Writer()
-}
-
 func (l LoggerImpl) WithField(key string, value interface{}) Logger {
 	e := l.Logger.WithField(key, value)
 	return logrusEntryWrapper{Entry: e}

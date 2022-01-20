@@ -70,12 +70,6 @@ func (l *CompositeLogger) Panicf(msg string, args ...interface{}) {
 	}
 }
 
-// Method just to comply with the Logger interface.
-// Composite logger nature can't return a single writer.
-func (l *CompositeLogger) Writer() *io.PipeWriter {
-	return &io.PipeWriter{}
-}
-
 func (l *CompositeLogger) WithField(key string, value interface{}) Logger {
 	newComposite := new(CompositeLogger)
 
