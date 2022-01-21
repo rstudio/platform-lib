@@ -10,7 +10,7 @@ type CompositeLogger struct {
 
 var _ Logger = &CompositeLogger{}
 
-func NewCompositeLogger(loggers []Logger) *CompositeLogger {
+func ComposeLoggers(loggers ...Logger) *CompositeLogger {
 	return &CompositeLogger{
 		loggers: loggers,
 	}

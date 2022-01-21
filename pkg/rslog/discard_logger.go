@@ -50,3 +50,8 @@ type discardOutputLogger struct {
 	discardLogger
 	discardOutputter
 }
+
+func NewDiscardingLogger() Logger {
+	l, _ := NewLoggerImpl(LoggerOptionsImpl{}, discardOutputBuilder{})
+	return l
+}

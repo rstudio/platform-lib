@@ -61,7 +61,7 @@ var CompositeLogCmd = &cobra.Command{
 		defaultLogger := rslog.DefaultLogger().WithField("Logger", "DefaultLogger")
 		anotherLogger := rslog.DefaultLogger().WithField("Logger", "AnotherLogger")
 
-		log := rslog.NewCompositeLogger([]rslog.Logger{defaultLogger, anotherLogger})
+		log := rslog.ComposeLoggers(defaultLogger, anotherLogger)
 
 		log.Infof(message)
 		return nil
