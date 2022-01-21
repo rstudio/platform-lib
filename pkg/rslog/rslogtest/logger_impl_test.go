@@ -361,3 +361,11 @@ func (s *LoggerImplTestSuite) TestOnConfigReload() {
 	s.Equal(log.Level, logrus.WarnLevel)
 	s.IsType(&logrus.JSONFormatter{}, log.Formatter)
 }
+
+func (s *LoggerImplTestSuite) TestNewDiscardingLogger() {
+
+	// Ensure that the discarding logger doesn't panic
+	discardingLogger := rslog.NewDiscardingLogger()
+
+	s.NotNil(discardingLogger)
+}
