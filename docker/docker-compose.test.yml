@@ -8,14 +8,20 @@ services:
       dockerfile: Dockerfile
     links:
       - postgres
+      - minio
     depends_on:
       postgres:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     privileged: true
     volumes:
       - ..:/platform-lib
     environment:
       GO111MODULE: auto
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: miniokey
+      AWS_DEFAULT_REGION: us-east-1
     working_dir: /platform-lib
 
   postgres:
@@ -31,3 +37,17 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  minio:
+    image: minio/minio
+    expose:
+      - "9000"
+    environment:
+      MINIO_ACCESS_KEY: minio
+      MINIO_SECRET_KEY: miniokey
+    command: minio server /data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
