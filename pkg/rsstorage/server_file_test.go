@@ -1,4 +1,4 @@
-package storage
+package rsstorage
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -16,7 +16,7 @@ import (
 	"github.com/c2h5oh/datasize"
 	"gopkg.in/check.v1"
 
-	"rspm/storage/types"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
 type FakeReadCloser struct {

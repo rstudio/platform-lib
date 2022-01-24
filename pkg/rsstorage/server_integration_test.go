@@ -1,4 +1,4 @@
-package storage
+package rsstorage
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -26,8 +26,8 @@ import (
 )
 
 // This suite will be skipped when running tests with SQLite only. To test, use
-// the `make test-integration` target. To run these tests only, use:
-// `make test-integration TEST=rspm/storage TEST_ARGS="-v -check.f=StorageIntegrationSuite"`
+// the `test-integration` target. To run these tests only, use:
+// `MODULE=pkg/rsstorage just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage -check.f=StorageIntegrationSuite`
 type StorageIntegrationSuite struct {
 	pool          *pgxpool.Pool
 	tempdirhelper TempDirHelper
@@ -309,11 +309,11 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 // resolver failures.
 //
 // Run with (against local MinIO instance):
-//   make test-integration TEST=rspm/storage TEST_ARGS="-v -check.f=S3IntegrationSuite.TestPopulateServerSetHang"
+//  `MODULE=pkg/rsstorage just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage -check.f=S3IntegrationSuite`
 //
 // To run against your own AWS S3 bucket:
 //   First, customize the variables in the test below as noted. Then, run:
-//   make test-with-aws TEST=rspm/storage TEST_ARGS="-v -check.f=S3IntegrationSuite.TestPopulateServerSetHang"
+//     `MODULE=pkg/rsstorage just test -v github.com/rstudio/platform-lib/pkg/rsstorage -check.f=S3IntegrationSuite`
 type S3IntegrationSuite struct{}
 
 var _ = check.Suite(&S3IntegrationSuite{})
@@ -333,7 +333,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	// Customize these as needed for your environment
 	//endpoint := awsEndpoint // AWS
 	endpoint := minioEndpoint // MinIO
-	bucket := "rspm-minio-test"
+	bucket := "rsstorage-minio-test"
 	profile := ""
 	region := ""
 
@@ -458,7 +458,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 	// Customize these as needed for your environment
 	//endpoint := awsEndpoint // AWS
 	endpoint := minioEndpoint // MinIO
-	bucket := "rspm-minio-test"
+	bucket := "rsstorage-minio-test"
 	profile := ""
 	region := ""
 

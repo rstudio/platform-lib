@@ -1,4 +1,4 @@
-package storage
+package rsstorage
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -18,7 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/google/uuid"
 
-	"rspm/storage/types"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
 type moveOrCopyFn func(bucket, key, newBucket, newKey string) (*s3.CopyObjectOutput, error)

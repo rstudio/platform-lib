@@ -1,4 +1,4 @@
-package storage
+package rsstorage
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -17,7 +17,7 @@ import (
 	"github.com/c2h5oh/datasize"
 	"github.com/minio/minio/pkg/disk"
 
-	"rspm/storage/types"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
 type FileStorageServer struct {

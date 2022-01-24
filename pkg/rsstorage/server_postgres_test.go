@@ -1,4 +1,4 @@
-package storage
+package rsstorage
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -13,12 +13,12 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"gopkg.in/check.v1"
 
-	"rspm/storage/types"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
 // This suite will be skipped when running tests with SQLite only. To test, use
 // the `make test-integration` target. To run these tests only, use
-// `make test-integration TEST=rspm/storage TEST_ARGS=-check.f=PgCacheServerSuite`
+// `MODULE=pkg/rsstorage just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage -check.f=PgCacheServerSuite`
 type PgCacheServerSuite struct {
 	pool *pgxpool.Pool
 }

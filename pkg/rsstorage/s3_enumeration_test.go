@@ -1,4 +1,4 @@
-package storage
+package rsstorage
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -15,8 +15,6 @@ import (
 type MetaTestSuite struct{}
 
 var _ = check.Suite(&MetaTestSuite{})
-
-func (s *MetaTestSuite) TestRSPMCommands(c *check.C) {}
 
 func (s *MetaTestSuite) TestNewAwsOps(c *check.C) {
 	sess, err := session.NewSession(&aws.Config{

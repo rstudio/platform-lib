@@ -1,4 +1,4 @@
-package storage
+package rsstorage
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/jackc/pgx/v4/pgxpool"
 
-	"rspm/storage/types"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
 // Resolver - A function type that populates the cache with some item. This function
@@ -210,9 +210,7 @@ func getS3Options(configInput *ConfigS3) session.Options {
 	// By default decide whether to use shared config (e.g., `~/.aws/config`) from the
 	// environment. If the environment contains a truthy value for AWS_SDK_LOAD_CONFIG,
 	// then we'll use the shared config automatically. However, if
-	// `SharedConfigEnable == true`, then we forcefully enable it. This eliminates
-	// the requirement to introduce an env var in order to correctly configure
-	// RSPM.
+	// `SharedConfigEnable == true`, then we forcefully enable it.
 	sharedConfig := session.SharedConfigStateFromEnv
 	if configInput.EnableSharedConfig {
 		sharedConfig = session.SharedConfigEnable

@@ -40,8 +40,8 @@ func (u Usage) ScaleUsed(unit datasize.ByteSize) datasize.ByteSize {
 	return datasize.ByteSize(u.UsedBytes) / unit
 }
 
-// A notification that indicates a new chunk is ready. While downloading
-// chunked assets, RSPM notifies when each chunk is completed.
+// ChunkNotification that indicates a new chunk is ready. Used for notifying of
+// new chunk availability while downloading chunked assets.
 type ChunkNotification struct {
 	Address string
 	Chunk   uint64

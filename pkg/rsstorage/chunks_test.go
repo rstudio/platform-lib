@@ -1,4 +1,4 @@
-package storage
+package rsstorage
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -20,7 +20,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"gopkg.in/check.v1"
 
-	"rspm/storage/types"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
 var testDESC = `Encoding: UTF-8
@@ -159,9 +159,9 @@ func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) 
 	}
 }
 
-// This test will only validate File storage when using without Postgres and MinIO. To test
+// This test will only validate File storage when used without Postgres and MinIO. To test
 // all services, use the `make test-integration` target. To run these tests only, use:
-// `make test-integration TEST=rspm/storage TEST_ARGS="-v -check.f=ChunksIntegrationSuite"`
+// `MODULE=pkg/rsstorage just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage -check.f=ChunksIntegrationSuite`
 func (s *ChunksIntegrationSuite) TestWriteChunked(c *check.C) {
 	serverSet := s.NewServerSet(c, "chunks", "")
 	for key, server := range serverSet {

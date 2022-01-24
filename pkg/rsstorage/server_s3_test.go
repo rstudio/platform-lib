@@ -1,4 +1,4 @@
-package storage
+package rsstorage
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -17,7 +17,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	"gopkg.in/check.v1"
 
-	"rspm/storage/types"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
 type S3PersistentStorageServerSuite struct{}
