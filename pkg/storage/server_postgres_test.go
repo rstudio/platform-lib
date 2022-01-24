@@ -1,0 +1,717 @@
+package storage
+
+// Copyright (C) 2022 by RStudio, PBC
+
+import (
+	"bytes"
+	"errors"
+	"io"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v4/pgxpool"
+	"gopkg.in/check.v1"
+
+	"rspm/storage/types"
+)
+
+// This suite will be skipped when running tests with SQLite only. To test, use
+// the `make test-integration` target. To run these tests only, use
+// `make test-integration TEST=rspm/storage TEST_ARGS=-check.f=PgCacheServerSuite`
+type PgCacheServerSuite struct {
+	pool *pgxpool.Pool
+}
+
+var _ = check.Suite(&PgCacheServerSuite{})
+
+func (s *PgCacheServerSuite) SetUpSuite(c *check.C) {
+	if testing.Short() {
+		c.Skip("skipping postgres cache server tests because -short was provided")
+	}
+}
+
+func (s *PgCacheServerSuite) SetUpTest(c *check.C) {
+	var err error
+	dbname := strings.ToLower(RandomString(16)) // databases must be lower case
+	s.pool, err = EphemeralPostgresPool(dbname)
+	c.Assert(err, check.IsNil)
+	c.Assert(s.pool, check.NotNil)
+}
+
+func (s *PgCacheServerSuite) TestNew(c *check.C) {
+	wn := &dummyWaiterNotifier{}
+	cstore := &dummyStore{
+		pool: s.pool,
+	}
+	debugLogger := &TestLogger{}
+	server := NewPgServer("test", 100*1024, wn, wn, cstore, debugLogger)
+	c.Check(server.(*PgStorageServer).chunker, check.NotNil)
+	server.(*PgStorageServer).chunker = nil
+	c.Check(server, check.DeepEquals, &PgStorageServer{
+		pool:        s.pool,
+		class:       "test",
+		debugLogger: debugLogger,
+	})
+
+	c.Assert(server.Dir(), check.Equals, "pg:test")
+	c.Assert(server.Type(), check.Equals, StorageTypePostgres)
+}
+
+func (s *PgCacheServerSuite) TestCheckOk(c *check.C) {
+	debugLogger := &TestLogger{}
+	server := &PgStorageServer{
+		pool:        s.pool,
+		debugLogger: debugLogger,
+	}
+	resolve := func(w io.Writer) (string, string, error) {
+		_, err := w.Write([]byte("this is a test"))
+		return "", "", err
+	}
+
+	// First, cache something
+	_, _, err := server.Put(resolve, "dir", "cacheaddress")
+	c.Check(err, check.IsNil)
+
+	// Next, get it
+	ok, chunked, sz, _, err := server.Check("dir", "cacheaddress")
+	c.Check(err, check.IsNil)
+	c.Assert(chunked, check.IsNil)
+	c.Check(ok, check.Equals, true)
+	c.Check(sz, check.Equals, int64(14))
+}
+
+func (s *PgCacheServerSuite) TestCheckChunkedOk(c *check.C) {
+	debugLogger := &TestLogger{}
+	server := &PgStorageServer{
+		pool:        s.pool,
+		debugLogger: debugLogger,
+	}
+	wn := &dummyWaiterNotifier{
+		ch: make(chan bool, 1),
+	}
+	server.chunker = &defaultChunkUtils{
+		chunkSize: 320,
+		server:    server,
+		waiter:    wn,
+		notifier:  wn,
+	}
+	resolve := func(w io.Writer) (string, string, error) {
+		_, err := w.Write([]byte(testDESC))
+		return "", "", err
+	}
+
+	// First, cache something
+	_, _, err := server.PutChunked(resolve, "dir", "cacheaddress", uint64(len(testDESC)))
+	c.Assert(err, check.IsNil)
+
+	// Next, get it
+	ok, chunked, sz, mod, err := server.Check("dir", "cacheaddress")
+	c.Assert(err, check.IsNil)
+	c.Assert(chunked, check.NotNil)
+	c.Assert(ok, check.Equals, true)
+	c.Assert(sz, check.Equals, int64(1953))
+	c.Assert(mod.IsZero(), check.Equals, false)
+}
+
+func (s *PgCacheServerSuite) TestGetOk(c *check.C) {
+	debugLogger := &TestLogger{}
+	server := &PgStorageServer{
+		pool:        s.pool,
+		debugLogger: debugLogger,
+	}
+	resolve := func(w io.Writer) (string, string, error) {
+		_, err := w.Write([]byte("this is a test"))
+		return "", "", err
+	}
+
+	// First, cache something
+	_, _, err := server.Put(resolve, "dir", "cacheaddress")
+	c.Check(err, check.IsNil)
+
+	// Next, get it
+	r, ch, sz, _, ok, err := server.Get("dir", "cacheaddress")
+	c.Check(err, check.IsNil)
+	c.Check(ok, check.Equals, true)
+	c.Assert(ch, check.IsNil)
+	c.Check(sz, check.Equals, int64(14))
+
+	// Check contents
+	bs := bytes.NewBufferString("")
+	_, err = io.Copy(bs, r)
+	c.Assert(err, check.IsNil)
+	c.Check(bs.String(), check.Equals, "this is a test")
+
+	// Close it
+	c.Assert(r.Close(), check.IsNil)
+}
+
+func (s *PgCacheServerSuite) TestGetChunkedOk(c *check.C) {
+	debugLogger := &TestLogger{}
+	server := &PgStorageServer{
+		pool:        s.pool,
+		debugLogger: debugLogger,
+	}
+	wn := &dummyWaiterNotifier{
+		ch: make(chan bool, 1),
+	}
+	server.chunker = &defaultChunkUtils{
+		chunkSize: 512,
+		server:    server,
+		waiter:    wn,
+		notifier:  wn,
+	}
+	resolve := func(w io.Writer) (string, string, error) {
+		_, err := w.Write([]byte(testDESC))
+		return "", "", err
+	}
+
+	// First, cache something
+	_, _, err := server.PutChunked(resolve, "dir", "cacheaddress", uint64(len(testDESC)))
+	c.Assert(err, check.IsNil)
+
+	// Next, get it
+	r, ch, sz, mod, ok, err := server.Get("dir", "cacheaddress")
+	c.Assert(err, check.IsNil)
+	c.Assert(r, check.NotNil)
+	c.Assert(ok, check.Equals, true)
+	c.Assert(ch.ModTime.IsZero(), check.Equals, false)
+	ch.ModTime = time.Time{}
+	c.Assert(ch, check.DeepEquals, &ChunksInfo{
+		ChunkSize: 512,
+		FileSize:  1953,
+		NumChunks: 4,
+		Complete:  true,
+	})
+	c.Assert(sz, check.Equals, int64(1953))
+	c.Assert(mod.IsZero(), check.Equals, false)
+
+	// Check contents
+	bs := bytes.NewBufferString("")
+	_, err = io.Copy(bs, r)
+	c.Assert(err, check.IsNil)
+	c.Assert(bs.String(), check.Equals, testDESC)
+
+	// Close it
+	c.Assert(r.Close(), check.IsNil)
+}
+
+func (s *PgCacheServerSuite) TestPutResolveErr(c *check.C) {
+	debugLogger := &TestLogger{}
+	server := &PgStorageServer{
+		pool:        s.pool,
+		debugLogger: debugLogger,
+	}
+	resolve := func(w io.Writer) (string, string, error) {
+		return "", "", errors.New("resolver error")
+	}
+	_, _, err := server.Put(resolve, "", "cacheaddress")
+	c.Check(err, check.ErrorMatches, "resolver error")
+}
+
+func (s *PgCacheServerSuite) TestPutResolveErrPreserved(c *check.C) {
+	debugLogger := &TestLogger{}
+	server := &PgStorageServer{
+		pool:        s.pool,
+		debugLogger: debugLogger,
+	}
+	resolve := func(w io.Writer) (string, string, error) {
+		return "", "", errors.New("resolver error")
+	}
+	_, _, err := server.Put(resolve, "", "cacheaddress")
+	c.Check(err, check.ErrorMatches, "resolver error")
+}
+
+func (s *PgCacheServerSuite) TestPutOk(c *check.C) {
+	debugLogger := &TestLogger{}
+	server := &PgStorageServer{
+		pool:        s.pool,
+		debugLogger: debugLogger,
+	}
+	resolve := func(w io.Writer) (string, string, error) {
+		_, err := w.Write([]byte("this is a test"))
+		return "", "", err
+	}
+
+	// First, cache something
+	d, a, err := server.Put(resolve, "adir", "cacheaddress")
+	c.Check(err, check.IsNil)
+	c.Check(d, check.Equals, "adir")
+	c.Check(a, check.Equals, "cacheaddress")
+}
+
+func (s *PgCacheServerSuite) TestPutDeferredAddressOk(c *check.C) {
+	debugLogger := &TestLogger{}
+	server := &PgStorageServer{
+		pool:        s.pool,
+		debugLogger: debugLogger,
+	}
+	resolve := func(w io.Writer) (string, string, error) {
+		_, err := w.Write([]byte("this is a test"))
+		return "dir", "address", err
+	}
+
+	// First, cache something
+	d, a, err := server.Put(resolve, "", "")
+	c.Check(err, check.IsNil)
+	c.Check(d, check.Equals, "dir")
+	c.Check(a, check.Equals, "address")
+}
+
+func (s *PgCacheServerSuite) TestRemoveNonExisting(c *check.C) {
+	server := &PgStorageServer{
+		pool: s.pool,
+	}
+	err := server.Remove("", "cacheaddress")
+	c.Check(err, check.IsNil)
+}
+
+func (s *PgCacheServerSuite) TestRemoveOk(c *check.C) {
+	debugLogger := &TestLogger{}
+	server := &PgStorageServer{
+		pool:        s.pool,
+		debugLogger: debugLogger,
+	}
+
+	resolve := func(w io.Writer) (string, string, error) {
+		_, err := w.Write([]byte("this is a test"))
+		return "", "", err
+	}
+
+	// First, cache something
+	_, _, err := server.Put(resolve, "", "cacheaddress")
+	c.Check(err, check.IsNil)
+
+	err = server.Remove("", "cacheaddress")
+	c.Check(err, check.IsNil)
+}
+
+func (s *PgCacheServerSuite) TestRemoveChunkedOk(c *check.C) {
+	debugLogger := &TestLogger{}
+	server := &PgStorageServer{
+		pool:        s.pool,
+		debugLogger: debugLogger,
+	}
+	wn := &dummyWaiterNotifier{
+		ch: make(chan bool, 1),
+	}
+	server.chunker = &defaultChunkUtils{
+		chunkSize: 512,
+		server:    server,
+		waiter:    wn,
+		notifier:  wn,
+	}
+	resolve := func(w io.Writer) (string, string, error) {
+		_, err := w.Write([]byte(testDESC))
+		return "", "", err
+	}
+
+	// First, cache something
+	_, _, err := server.PutChunked(resolve, "some", "cacheaddress", uint64(len(testDESC)))
+	c.Assert(err, check.IsNil)
+
+	// Item should be here
+	ok, chunked, sz, mod, err := server.Check("some", "cacheaddress")
+	c.Assert(err, check.IsNil)
+	c.Assert(ok, check.Equals, true)
+	c.Assert(chunked, check.NotNil)
+	c.Assert(sz, check.Equals, int64(1953))
+	c.Assert(mod.IsZero(), check.Equals, false)
+
+	err = server.Remove("some", "cacheaddress")
+	c.Assert(err, check.IsNil)
+
+	// Item should be gone
+	ok, _, _, _, err = server.Check("some", "cacheaddress")
+	c.Assert(err, check.IsNil)
+	c.Assert(ok, check.Equals, false)
+}
+
+func put(server *PgStorageServer, dir, address string, c *check.C) {
+	resolve := func(w io.Writer) (string, string, error) {
+		_, err := w.Write([]byte("this is a test"))
+		return "", "", err
+	}
+
+	// Cache the item
+	_, _, err := server.Put(resolve, dir, address)
+	c.Check(err, check.IsNil)
+}
+
+func (s *PgCacheServerSuite) TestEnumerate(c *check.C) {
+	debugLogger := &TestLogger{}
+	server := &PgStorageServer{
+		pool:        s.pool,
+		class:       "cache",
+		debugLogger: debugLogger,
+	}
+	wn := &dummyWaiterNotifier{
+		ch: make(chan bool, 1),
+	}
+	server.chunker = &defaultChunkUtils{
+		chunkSize: 352,
+		server:    server,
+		waiter:    wn,
+		notifier:  wn,
+	}
+
+	// First, cache some things
+	put(server, "", "cacheaddress", c)
+	put(server, "ad1", "cacheaddress2", c)
+	put(server, "ad1", "cacheaddress3", c)
+	put(server, "ad2", "cacheaddress4", c)
+	put(server, "ad2/3", "cacheaddress5", c)
+	put(server, "ad3/4", "cacheaddress6", c)
+
+	// Create some chunked data
+	resolve := func(w io.Writer) (string, string, error) {
+		buf := bytes.NewBufferString(testDESC)
+		_, err := io.Copy(w, buf)
+		return "", "", err
+	}
+
+	sz := uint64(len(testDESC))
+	_, _, err := server.PutChunked(resolve, "dir", "DESCRIPTION", sz)
+	c.Check(err, check.IsNil)
+
+	_, _, err = server.PutChunked(resolve, "", "DESCRIPTION2", sz)
+	c.Check(err, check.IsNil)
+
+	en, err := server.Enumerate()
+	c.Assert(err, check.IsNil)
+	c.Check(en, check.DeepEquals, []PersistentStorageItem{
+		{
+			Dir:     "",
+			Address: "DESCRIPTION2",
+			Chunked: true,
+		},
+		{
+			Dir:     "dir",
+			Address: "DESCRIPTION",
+			Chunked: true,
+		},
+		{
+			Dir:     "ad1",
+			Address: "cacheaddress2",
+		},
+		{
+			Dir:     "ad1",
+			Address: "cacheaddress3",
+		},
+		{
+			Dir:     "ad2/3",
+			Address: "cacheaddress5",
+		},
+		{
+			Dir:     "ad2",
+			Address: "cacheaddress4",
+		},
+		{
+			Dir:     "ad3/4",
+			Address: "cacheaddress6",
+		},
+		{
+			Dir:     "",
+			Address: "cacheaddress",
+		},
+	})
+}
+
+func (s *PgCacheServerSuite) TestCopy(c *check.C) {
+	debugLogger := &TestLogger{}
+	sourceServer := &PgStorageServer{
+		pool:        s.pool,
+		class:       "packages",
+		debugLogger: debugLogger,
+	}
+	wn := &dummyWaiterNotifier{
+		ch: make(chan bool, 1),
+	}
+	sourceServer.chunker = &defaultChunkUtils{
+		chunkSize: 352,
+		server:    sourceServer,
+		waiter:    wn,
+		notifier:  wn,
+	}
+	destServer := &PgStorageServer{
+		pool:        s.pool,
+		class:       "cran",
+		debugLogger: debugLogger,
+	}
+	destServer.chunker = &defaultChunkUtils{
+		chunkSize: 352,
+		server:    destServer,
+		waiter:    wn,
+		notifier:  wn,
+	}
+
+	// Create some chunked data
+	resolve := func(w io.Writer) (string, string, error) {
+		buf := bytes.NewBufferString(testDESC)
+		_, err := io.Copy(w, buf)
+		return "", "", err
+	}
+	szPut := uint64(len(testDESC))
+	_, _, err := sourceServer.PutChunked(resolve, "dir", "CHUNKED", szPut)
+	c.Check(err, check.IsNil)
+	_, _, err = sourceServer.PutChunked(resolve, "", "CHUNKED2", szPut)
+	c.Check(err, check.IsNil)
+
+	put(sourceServer, "ad2", "cacheaddress4", c)
+	put(sourceServer, "ad2/3", "cacheaddress5", c)
+
+	// Attempt to copy an item that does not exist
+	err = sourceServer.Copy("", "no-exist", destServer)
+	c.Assert(err, check.ErrorMatches, "the PostgreSQL large object .* does not exist")
+
+	// Copy
+	err = sourceServer.Copy("ad2", "cacheaddress4", destServer)
+	c.Assert(err, check.IsNil)
+	err = sourceServer.Copy("ad2/3", "cacheaddress5", destServer)
+	c.Assert(err, check.IsNil)
+	err = sourceServer.Copy("dir", "CHUNKED", destServer)
+	c.Assert(err, check.IsNil)
+	err = sourceServer.Copy("", "CHUNKED2", destServer)
+	c.Assert(err, check.IsNil)
+
+	// Original items still exist
+	en, err := sourceServer.Enumerate()
+	c.Assert(err, check.IsNil)
+	c.Check(en, check.DeepEquals, []PersistentStorageItem{
+		{
+			Dir:     "",
+			Address: "CHUNKED2",
+			Chunked: true,
+		},
+		{
+			Dir:     "dir",
+			Address: "CHUNKED",
+			Chunked: true,
+		},
+		{
+			Dir:     "ad2/3",
+			Address: "cacheaddress5",
+		},
+		{
+			Dir:     "ad2",
+			Address: "cacheaddress4",
+		},
+	})
+
+	// New (copied) items exist
+	en, err = destServer.Enumerate()
+	c.Assert(err, check.IsNil)
+	c.Check(en, check.DeepEquals, []PersistentStorageItem{
+		{
+			Dir:     "",
+			Address: "CHUNKED2",
+			Chunked: true,
+		},
+		{
+			Dir:     "dir",
+			Address: "CHUNKED",
+			Chunked: true,
+		},
+		{
+			Dir:     "ad2/3",
+			Address: "cacheaddress5",
+		},
+		{
+			Dir:     "ad2",
+			Address: "cacheaddress4",
+		},
+	})
+
+	// Make sure we can get old item
+	r, _, sz, _, ok, err := sourceServer.Get("ad2", "cacheaddress4")
+	c.Check(err, check.IsNil)
+	c.Check(ok, check.Equals, true)
+	c.Check(sz, check.Equals, int64(14))
+	//
+	// Check contents
+	bs := bytes.NewBufferString("")
+	_, err = io.Copy(bs, r)
+	c.Assert(err, check.IsNil)
+	c.Check(bs.String(), check.Equals, "this is a test")
+	//
+	// Close it
+	c.Assert(r.Close(), check.IsNil)
+
+	// Make sure we can get new item
+	r, _, sz, _, ok, err = destServer.Get("ad2", "cacheaddress4")
+	c.Check(err, check.IsNil)
+	c.Check(ok, check.Equals, true)
+	c.Check(sz, check.Equals, int64(14))
+	//
+	// Check contents
+	bs = bytes.NewBufferString("")
+	_, err = io.Copy(bs, r)
+	c.Assert(err, check.IsNil)
+	c.Check(bs.String(), check.Equals, "this is a test")
+	//
+	// Close it
+	c.Assert(r.Close(), check.IsNil)
+
+	// Make sure we can get new chunked item
+	r, _, sz, _, ok, err = destServer.Get("dir", "CHUNKED")
+	c.Check(err, check.IsNil)
+	c.Check(ok, check.Equals, true)
+	c.Check(sz, check.Equals, int64(1953))
+	//
+	// Check contents
+	bs = bytes.NewBufferString("")
+	_, err = io.Copy(bs, r)
+	c.Assert(err, check.IsNil)
+	c.Check(bs.String(), check.Equals, testDESC)
+	//
+	// Close it
+	c.Assert(r.Close(), check.IsNil)
+}
+
+func (s *PgCacheServerSuite) TestMove(c *check.C) {
+	debugLogger := &TestLogger{}
+	sourceServer := &PgStorageServer{
+		pool:        s.pool,
+		class:       "packages",
+		debugLogger: debugLogger,
+	}
+	wn := &dummyWaiterNotifier{
+		ch: make(chan bool, 1),
+	}
+	sourceServer.chunker = &defaultChunkUtils{
+		chunkSize: 352,
+		server:    sourceServer,
+		waiter:    wn,
+		notifier:  wn,
+	}
+	destServer := &PgStorageServer{
+		pool:        s.pool,
+		class:       "cran",
+		debugLogger: debugLogger,
+	}
+	destServer.chunker = &defaultChunkUtils{
+		chunkSize: 352,
+		server:    destServer,
+		waiter:    wn,
+		notifier:  wn,
+	}
+
+	// Create some chunked data
+	resolve := func(w io.Writer) (string, string, error) {
+		buf := bytes.NewBufferString(testDESC)
+		_, err := io.Copy(w, buf)
+		return "", "", err
+	}
+	szPut := uint64(len(testDESC))
+	_, _, err := sourceServer.PutChunked(resolve, "dir", "CHUNKED", szPut)
+	c.Check(err, check.IsNil)
+	_, _, err = sourceServer.PutChunked(resolve, "", "CHUNKED2", szPut)
+	c.Check(err, check.IsNil)
+
+	put(sourceServer, "ad2", "cacheaddress4", c)
+	put(sourceServer, "ad2/3", "cacheaddress5", c)
+
+	// Copy
+	err = sourceServer.Move("ad2", "cacheaddress4", destServer)
+	c.Assert(err, check.IsNil)
+	err = sourceServer.Move("ad2/3", "cacheaddress5", destServer)
+	c.Assert(err, check.IsNil)
+	err = sourceServer.Move("dir", "CHUNKED", destServer)
+	c.Assert(err, check.IsNil)
+	err = sourceServer.Move("", "CHUNKED2", destServer)
+	c.Assert(err, check.IsNil)
+
+	// Original items no longer exist
+	en, err := sourceServer.Enumerate()
+	c.Assert(err, check.IsNil)
+	c.Check(en, check.DeepEquals, []PersistentStorageItem{})
+
+	// New (copied) items exist
+	en, err = destServer.Enumerate()
+	c.Assert(err, check.IsNil)
+	c.Check(en, check.DeepEquals, []PersistentStorageItem{
+		{
+			Dir:     "",
+			Address: "CHUNKED2",
+			Chunked: true,
+		},
+		{
+			Dir:     "dir",
+			Address: "CHUNKED",
+			Chunked: true,
+		},
+		{
+			Dir:     "ad2/3",
+			Address: "cacheaddress5",
+		},
+		{
+			Dir:     "ad2",
+			Address: "cacheaddress4",
+		},
+	})
+
+	// Make sure we cannot get old item
+	r, _, sz, _, ok, err := sourceServer.Get("ad2", "cacheaddress4")
+	c.Check(err, check.IsNil)
+	c.Check(ok, check.Equals, false)
+	c.Check(r, check.IsNil)
+
+	// Make sure we cannot get old item
+	r, _, sz, _, ok, err = sourceServer.Get("dir", "CHUNKED")
+	c.Check(err, check.IsNil)
+	c.Check(ok, check.Equals, false)
+	c.Check(r, check.IsNil)
+
+	// Make sure we can get new item
+	r, _, sz, _, ok, err = destServer.Get("ad2", "cacheaddress4")
+	c.Check(err, check.IsNil)
+	c.Check(ok, check.Equals, true)
+	c.Check(sz, check.Equals, int64(14))
+	//
+	// Check contents
+	bs := bytes.NewBufferString("")
+	_, err = io.Copy(bs, r)
+	c.Assert(err, check.IsNil)
+	c.Check(bs.String(), check.Equals, "this is a test")
+	//
+	// Close it
+	c.Assert(r.Close(), check.IsNil)
+
+	// Make sure we can get new chunked item
+	r, _, sz, _, ok, err = destServer.Get("dir", "CHUNKED")
+	c.Check(err, check.IsNil)
+	c.Check(ok, check.Equals, true)
+	c.Check(sz, check.Equals, int64(1953))
+	//
+	// Check contents
+	bs = bytes.NewBufferString("")
+	_, err = io.Copy(bs, r)
+	c.Assert(err, check.IsNil)
+	c.Check(bs.String(), check.Equals, testDESC)
+	//
+	// Close it
+	c.Assert(r.Close(), check.IsNil)
+}
+
+func (s *PgCacheServerSuite) TestLocate(c *check.C) {
+	debugLogger := &TestLogger{}
+	server := &PgStorageServer{
+		class:       "storage-class",
+		debugLogger: debugLogger,
+	}
+	c.Check(server.Locate("dir", "address"), check.Equals, "storage-class/dir/address")
+	c.Check(server.Locate("", "address"), check.Equals, "storage-class/address")
+}
+
+func (s *PgCacheServerSuite) TestUsage(c *check.C) {
+	wn := &dummyWaiterNotifier{}
+	cstore := &dummyStore{}
+	debugLogger := &TestLogger{}
+	server := NewPgServer("testclass", 100*1024, wn, wn, cstore, debugLogger)
+
+	c.Assert(server.Dir(), check.Equals, "pg:testclass")
+	c.Assert(server.Type(), check.Equals, StorageTypePostgres)
+	usage, err := server.CalculateUsage()
+	c.Assert(usage, check.DeepEquals, types.Usage{})
+	c.Assert(err, check.NotNil)
+}
