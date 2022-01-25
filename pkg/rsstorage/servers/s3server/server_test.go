@@ -1,4 +1,4 @@
-package rsstorage
+package s3server
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -17,8 +18,11 @@ import (
 	"github.com/fortytw2/leaktest"
 	"gopkg.in/check.v1"
 
+	"github.com/rstudio/platform-lib/pkg/rsstorage"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
+
+func TestPackage(t *testing.T) { check.TestingT(t) }
 
 type S3PersistentStorageServerSuite struct{}
 
@@ -158,7 +162,7 @@ func (s *fakeS3) Upload(input *s3manager.UploadInput, ctx context.Context, optio
 
 func (s *S3PersistentStorageServerSuite) TestNew(c *check.C) {
 	svc := &fakeS3{}
-	wn := &dummyWaiterNotifier{}
+	wn := &rsstorage.DummyWaiterNotifier{}
 	server := NewS3StorageServer("test", "prefix", svc, 4096, wn, wn)
 	c.Assert(server.(*S3StorageServer).move, check.NotNil)
 	c.Assert(server.(*S3StorageServer).copy, check.NotNil)
@@ -173,7 +177,7 @@ func (s *S3PersistentStorageServerSuite) TestNew(c *check.C) {
 	})
 
 	c.Assert(server.Dir(), check.Equals, "s3:test")
-	c.Assert(server.Type(), check.Equals, StorageTypeS3)
+	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypeS3)
 }
 
 func (s *S3PersistentStorageServerSuite) TestCheck(c *check.C) {
@@ -194,7 +198,7 @@ func (s *S3PersistentStorageServerSuite) TestCheck(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(chunked, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(45))
-	c.Assert(mod, TimeEquals, now)
+	c.Assert(mod, rsstorage.TimeEquals, now)
 	c.Assert(ok, check.Equals, true)
 	c.Assert(svc.headRes, check.Equals, "prefix/dir/address")
 
@@ -300,7 +304,7 @@ func (s *S3PersistentStorageServerSuite) TestGet(c *check.C) {
 	c.Assert(rs, check.FitsTypeOf, &testReadCloser{})
 	c.Assert(ch, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(45))
-	c.Assert(mod, TimeEquals, now)
+	c.Assert(mod, rsstorage.TimeEquals, now)
 	c.Assert(ok, check.Equals, true)
 	c.Assert(svc.got, check.Equals, "prefix/dir/address")
 
@@ -341,14 +345,14 @@ func (s *S3PersistentStorageServerSuite) TestGet(c *check.C) {
 			head: &s3.HeadObjectOutput{},
 		},
 	}
-	chunker := &DummyChunkUtils{
-		read: output,
-		readCh: &ChunksInfo{
+	chunker := &rsstorage.DummyChunkUtils{
+		Read: output,
+		ReadCh: &rsstorage.ChunksInfo{
 			Complete: true,
 		},
-		readSz:  5454,
-		readMod: now,
-		readErr: errors.New("chunk read error"),
+		ReadSz:  5454,
+		ReadMod: now,
+		ReadErr: errors.New("chunk read error"),
 	}
 	server.chunker = chunker
 	rs, _, sz, mod, ok, err = server.Get("dir", "address")
@@ -358,11 +362,11 @@ func (s *S3PersistentStorageServerSuite) TestGet(c *check.C) {
 	c.Assert(ok, check.Equals, false)
 
 	// Chunked - ok
-	chunker.readErr = nil
+	chunker.ReadErr = nil
 	rs, ch, sz, mod, ok, err = server.Get("dir", "address")
 	c.Assert(err, check.IsNil)
 	c.Assert(rs, check.DeepEquals, output)
-	c.Assert(ch, check.DeepEquals, &ChunksInfo{
+	c.Assert(ch, check.DeepEquals, &rsstorage.ChunksInfo{
 		Complete: true,
 	})
 	c.Assert(sz, check.DeepEquals, int64(5454))
@@ -589,7 +593,7 @@ func (s *S3PersistentStorageServerSuite) TestEnumerateOk(c *check.C) {
 	}
 	en, err := server.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Check(en, check.DeepEquals, []PersistentStorageItem{
+	c.Check(en, check.DeepEquals, []rsstorage.PersistentStorageItem{
 		{
 			Dir:     "dir",
 			Address: "address3",
@@ -748,7 +752,7 @@ func (s *S3PersistentStorageServerSuite) TestCopyNoS3(c *check.C) {
 
 	// The destination server is not of type `SetStorageServer`, so we won't attempt
 	// an S3-specific copy operation.
-	destServer := &DummyPersistentStorageServer{
+	destServer := &rsstorage.DummyPersistentStorageServer{
 		PutErr: errors.New("put error"),
 	}
 
@@ -917,7 +921,7 @@ func (s *S3PersistentStorageServerSuite) TestMoveNoS3(c *check.C) {
 	}
 	// The destination server is not of type `SetStorageServer`, so we won't attempt
 	// an S3-specific move operation.
-	destServer := &DummyPersistentStorageServer{
+	destServer := &rsstorage.DummyPersistentStorageServer{
 		PutErr: errors.New("put error"),
 	}
 	err := sourceServer.Move("dir", "address", destServer)
@@ -949,7 +953,7 @@ func (s *S3PersistentStorageServerSuite) TestLocate(c *check.C) {
 
 func (s *S3PersistentStorageServerSuite) TestUsage(c *check.C) {
 	svc := &fakeS3{}
-	wn := &dummyWaiterNotifier{}
+	wn := &rsstorage.DummyWaiterNotifier{}
 	server := NewS3StorageServer("testbucket", "prefix", svc, 4096, wn, wn)
 
 	usage, err := server.CalculateUsage()
@@ -963,7 +967,7 @@ func (s *S3PersistentStorageServerSuite) TestValidate(c *check.C) {
 	deleteErr := errors.New("s3 delete op failed")
 
 	svc := &fakeS3{}
-	wn := &dummyWaiterNotifier{}
+	wn := &rsstorage.DummyWaiterNotifier{}
 	server := NewS3StorageServer("testbucket", "prefix", svc, 4096, wn, wn)
 
 	s3, ok := server.(*S3StorageServer)
@@ -999,3 +1003,50 @@ func (s *S3PersistentStorageServerSuite) TestValidate(c *check.C) {
 	err = s3.Validate()
 	c.Check(err, check.Equals, deleteErr)
 }
+
+var testDESC = `Encoding: UTF-8
+Package: plumber
+Type: Package
+Title: An API Generator for R
+Version: 0.4.2
+Date: 2017-07-24
+Authors@R: c(
+  person(family="Trestle Technology, LLC", role="aut", email="cran@trestletech.com"),
+  person("Jeff", "Allen", role="cre", email="cran@trestletech.com"),
+  person("Frans", "van Dunné", role="ctb", email="frans@ixpantia.com"),
+  person(family="SmartBear Software", role=c("ctb", "cph"), comment="swagger-ui"))
+License: MIT + file LICENSE
+BugReports: https://github.com/trestletech/plumber/issues
+URL: https://www.rplumber.io (site)
+        https://github.com/trestletech/plumber (dev)
+Description: Gives the ability to automatically generate and serve an HTTP API
+    from R functions using the annotations in the R documentation around your
+    functions.
+Depends: R (>= 3.0.0)
+Imports: R6 (>= 2.0.0), stringi (>= 0.3.0), jsonlite (>= 0.9.16),
+        httpuv (>= 1.2.3), crayon
+LazyData: TRUE
+Suggests: testthat (>= 0.11.0), XML, rmarkdown, PKI, base64enc,
+        htmlwidgets, visNetwork, analogsea
+LinkingTo: testthat (>= 0.11.0), XML, rmarkdown
+Enhances: testthat (>= 0.12.0), XML, rmarkdown
+Collate: 'content-types.R' 'cookie-parser.R' 'parse-globals.R'
+        'images.R' 'parse-block.R' 'globals.R' 'serializer-json.R'
+        'shared-secret-filter.R' 'post-body.R' 'query-string.R'
+        'plumber.R' 'default-handlers.R' 'digital-ocean.R'
+        'find-port.R' 'includes.R' 'paths.R' 'plumber-static.R'
+        'plumber-step.R' 'response.R' 'serializer-content-type.R'
+        'serializer-html.R' 'serializer-htmlwidget.R'
+        'serializer-xml.R' 'serializer.R' 'session-cookie.R'
+        'swagger.R'
+RoxygenNote: 6.0.1
+NeedsCompilation: no
+Packaged: 2017-07-24 17:17:15 UTC; jeff
+Author: Trestle Technology, LLC [aut],
+  Jeff Allen [cre],
+  Frans van Dunné [ctb],
+  SmartBear Software [ctb, cph] (swagger-ui)
+Maintainer: Jeff Allen <cran@trestletech.com>
+Repository: CRAN
+Date/Publication: 2017-07-24 21:50:56 UTC
+`

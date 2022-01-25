@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
@@ -20,11 +21,11 @@ var (
 )
 
 const (
-	chunkPollTimeout = time.Second * 5
-	maxChunkAttempts = 100
+	DefaultChunkPollTimeout = time.Second * 5
+	DefaultMaxChunkAttempts = 100
 )
 
-type chunkUtils interface {
+type ChunkUtils interface {
 	WriteChunked(dir, address string, sz uint64, resolve Resolver) error
 	ReadChunked(dir, address string) (io.ReadCloser, *ChunksInfo, int64, time.Time, error)
 }
@@ -45,32 +46,32 @@ type ChunksInfo struct {
 	Complete  bool      `json:"complete"`
 }
 
-type defaultChunkUtils struct {
-	chunkSize   uint64
-	server      PersistentStorageServer
-	waiter      ChunkWaiter
-	notifier    ChunkNotifier
-	pollTimeout time.Duration
-	maxAttempts int
+type DefaultChunkUtils struct {
+	ChunkSize   uint64
+	Server      PersistentStorageServer
+	Waiter      ChunkWaiter
+	Notifier    ChunkNotifier
+	PollTimeout time.Duration
+	MaxAttempts int
 }
 
-func (w *defaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve Resolver) (err error) {
+func (w *DefaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve Resolver) (err error) {
 
 	// Determine number of chunks we will need to create
-	numChunks := sz / w.chunkSize
-	if sz%w.chunkSize > 0 {
+	numChunks := sz / w.ChunkSize
+	if sz%w.ChunkSize > 0 {
 		numChunks++
 	}
 
 	// Clear the directory if it already exists
-	err = w.server.Remove(dir, address)
+	err = w.Server.Remove(dir, address)
 	if err != nil {
 		return nil
 	}
 
 	// Write an `info.json` to the directory
 	info := ChunksInfo{
-		ChunkSize: w.chunkSize,
+		ChunkSize: w.ChunkSize,
 		NumChunks: numChunks,
 		FileSize:  sz,
 		ModTime:   time.Now(),
@@ -81,7 +82,7 @@ func (w *defaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve
 		return
 	}
 	chunkDir := filepath.Join(dir, address)
-	_, _, err = w.server.Put(infoResolver, chunkDir, "info.json")
+	_, _, err = w.Server.Put(infoResolver, chunkDir, "info.json")
 	if err != nil {
 		return
 	}
@@ -92,7 +93,7 @@ func (w *defaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve
 	// Clean up on error
 	defer func(err *error) {
 		if *err != nil {
-			w.server.Remove(dir, address)
+			w.Server.Remove(dir, address)
 		}
 	}(&err)
 
@@ -123,7 +124,7 @@ func (w *defaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve
 			case err = <-errs:
 				return err
 			case count := <-results:
-				err = w.notifier.Notify(&types.ChunkNotification{
+				err = w.Notifier.Notify(&types.ChunkNotification{
 					Address: address,
 					Chunk:   count,
 				})
@@ -143,7 +144,7 @@ func (w *defaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve
 	// Update `info.json` when complete
 	info.Complete = true
 	info.ModTime = time.Now()
-	_, _, err = w.server.Put(infoResolver, chunkDir, "info.json")
+	_, _, err = w.Server.Put(infoResolver, chunkDir, "info.json")
 	if err != nil {
 		return
 	}
@@ -151,14 +152,14 @@ func (w *defaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve
 	return
 }
 
-func (w *defaultChunkUtils) writeChunks(numChunks uint64, chunkDir string, r *io.PipeReader, results chan uint64, errs chan error) {
+func (w *DefaultChunkUtils) writeChunks(numChunks uint64, chunkDir string, r *io.PipeReader, results chan uint64, errs chan error) {
 	defer r.Close()
 	defer close(results)
 	defer close(errs)
 	for i := uint64(1); i <= numChunks; i++ {
 		err := func() error {
 			resolve := func(writer io.Writer) (dir, address string, err error) {
-				_, err = io.CopyN(writer, r, int64(w.chunkSize))
+				_, err = io.CopyN(writer, r, int64(w.ChunkSize))
 				if err != nil && err == io.EOF {
 					err = nil
 				}
@@ -166,7 +167,7 @@ func (w *defaultChunkUtils) writeChunks(numChunks uint64, chunkDir string, r *io
 			}
 
 			chunkFile := fmt.Sprintf("%08d", i)
-			_, _, err := w.server.Put(resolve, chunkDir, chunkFile)
+			_, _, err := w.Server.Put(resolve, chunkDir, chunkFile)
 			if err != nil {
 				return err
 			}
@@ -181,10 +182,10 @@ func (w *defaultChunkUtils) writeChunks(numChunks uint64, chunkDir string, r *io
 	}
 }
 
-func (w *defaultChunkUtils) ReadChunked(dir, address string) (io.ReadCloser, *ChunksInfo, int64, time.Time, error) {
+func (w *DefaultChunkUtils) ReadChunked(dir, address string) (io.ReadCloser, *ChunksInfo, int64, time.Time, error) {
 	chunkDir := filepath.Join(dir, address)
 
-	infoFile, _, _, _, ok, err := w.server.Get(chunkDir, "info.json")
+	infoFile, _, _, _, ok, err := w.Server.Get(chunkDir, "info.json")
 	if err != nil {
 		return nil, nil, 0, time.Time{}, err
 	} else if !ok {
@@ -205,7 +206,7 @@ func (w *defaultChunkUtils) ReadChunked(dir, address string) (io.ReadCloser, *Ch
 	return pR, &info, int64(info.FileSize), info.ModTime, nil
 }
 
-func (w *defaultChunkUtils) readChunks(address, chunkDir string, numChunks uint64, complete bool, writer *io.PipeWriter) {
+func (w *DefaultChunkUtils) readChunks(address, chunkDir string, numChunks uint64, complete bool, writer *io.PipeWriter) {
 	defer writer.Close()
 
 	for i := uint64(1); i <= numChunks; i++ {
@@ -219,7 +220,7 @@ func (w *defaultChunkUtils) readChunks(address, chunkDir string, numChunks uint6
 	return
 }
 
-func (w *defaultChunkUtils) retryingChunkRead(chunkIndex uint64, address, chunkDir string, complete bool, writer *io.PipeWriter) (err error) {
+func (w *DefaultChunkUtils) retryingChunkRead(chunkIndex uint64, address, chunkDir string, complete bool, writer *io.PipeWriter) (err error) {
 	attempts := 0
 	for {
 		attempts += 1
@@ -231,23 +232,23 @@ func (w *defaultChunkUtils) retryingChunkRead(chunkIndex uint64, address, chunkD
 	}
 }
 
-func (w *defaultChunkUtils) tryChunkRead(attempts int, chunkIndex uint64, address, chunkDir string, complete bool, writer *io.PipeWriter) (bool, error) {
+func (w *DefaultChunkUtils) tryChunkRead(attempts int, chunkIndex uint64, address, chunkDir string, complete bool, writer *io.PipeWriter) (bool, error) {
 	chunkFile := fmt.Sprintf("%08d", chunkIndex)
 
 	// Open the chunks sequentially
-	chunk, _, _, _, ok, err := w.server.Get(chunkDir, chunkFile)
+	chunk, _, _, _, ok, err := w.Server.Get(chunkDir, chunkFile)
 	if err != nil {
 		return false, fmt.Errorf("error opening chunk file at %s: %s", chunkDir, err)
 	} else if !ok {
 		if !complete {
 			// If we've waited 5 minutes for this chunk to appear, err to avoid
 			// blocking forever
-			if attempts > w.maxAttempts {
+			if attempts > w.MaxAttempts {
 				return false, ErrNoChunk
 			}
 			// Wait for the next chunk, then retry in for loop.
-			w.waiter.WaitForChunk(&types.ChunkNotification{
-				Timeout: w.pollTimeout,
+			w.Waiter.WaitForChunk(&types.ChunkNotification{
+				Timeout: w.PollTimeout,
 				Address: address,
 				Chunk:   chunkIndex,
 			})
@@ -266,4 +267,32 @@ func (w *defaultChunkUtils) tryChunkRead(attempts int, chunkIndex uint64, addres
 	}
 
 	return true, nil
+}
+
+func FilterChunks(input []PersistentStorageItem) []PersistentStorageItem {
+	output := make([]PersistentStorageItem, 0)
+	chunkDirs := make(map[string]bool)
+
+	// Find all directories that are chunked and append one
+	// result for each chunked directory.
+	for _, i := range input {
+		if i.Dir != "" && i.Address == "info.json" {
+			chunkDirs[i.Dir] = true
+			d, f := filepath.Split(i.Dir)
+			output = append(output, PersistentStorageItem{
+				Dir:     strings.TrimSuffix(d, "/"),
+				Address: f,
+				Chunked: true,
+			})
+		}
+	}
+
+	// Eliminate chunk data from results
+	for _, i := range input {
+		if !chunkDirs[i.Dir] {
+			output = append(output, i)
+		}
+	}
+
+	return output
 }

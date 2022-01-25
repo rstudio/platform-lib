@@ -1,4 +1,4 @@
-package rsstorage
+package integrationtest
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -20,87 +20,22 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"gopkg.in/check.v1"
 
-	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/file"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/postgres"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/s3server"
 )
-
-var testDESC = `Encoding: UTF-8
-Package: plumber
-Type: Package
-Title: An API Generator for R
-Version: 0.4.2
-Date: 2017-07-24
-Authors@R: c(
-  person(family="Trestle Technology, LLC", role="aut", email="cran@trestletech.com"),
-  person("Jeff", "Allen", role="cre", email="cran@trestletech.com"),
-  person("Frans", "van Dunné", role="ctb", email="frans@ixpantia.com"),
-  person(family="SmartBear Software", role=c("ctb", "cph"), comment="swagger-ui"))
-License: MIT + file LICENSE
-BugReports: https://github.com/trestletech/plumber/issues
-URL: https://www.rplumber.io (site)
-        https://github.com/trestletech/plumber (dev)
-Description: Gives the ability to automatically generate and serve an HTTP API
-    from R functions using the annotations in the R documentation around your
-    functions.
-Depends: R (>= 3.0.0)
-Imports: R6 (>= 2.0.0), stringi (>= 0.3.0), jsonlite (>= 0.9.16),
-        httpuv (>= 1.2.3), crayon
-LazyData: TRUE
-Suggests: testthat (>= 0.11.0), XML, rmarkdown, PKI, base64enc,
-        htmlwidgets, visNetwork, analogsea
-LinkingTo: testthat (>= 0.11.0), XML, rmarkdown
-Enhances: testthat (>= 0.12.0), XML, rmarkdown
-Collate: 'content-types.R' 'cookie-parser.R' 'parse-globals.R'
-        'images.R' 'parse-block.R' 'globals.R' 'serializer-json.R'
-        'shared-secret-filter.R' 'post-body.R' 'query-string.R'
-        'plumber.R' 'default-handlers.R' 'digital-ocean.R'
-        'find-port.R' 'includes.R' 'paths.R' 'plumber-static.R'
-        'plumber-step.R' 'response.R' 'serializer-content-type.R'
-        'serializer-html.R' 'serializer-htmlwidget.R'
-        'serializer-xml.R' 'serializer.R' 'session-cookie.R'
-        'swagger.R'
-RoxygenNote: 6.0.1
-NeedsCompilation: no
-Packaged: 2017-07-24 17:17:15 UTC; jeff
-Author: Trestle Technology, LLC [aut],
-  Jeff Allen [cre],
-  Frans van Dunné [ctb],
-  SmartBear Software [ctb, cph] (swagger-ui)
-Maintainer: Jeff Allen <cran@trestletech.com>
-Repository: CRAN
-Date/Publication: 2017-07-24 21:50:56 UTC
-`
-
-type dummyWaiterNotifier struct {
-	ch chan bool
-}
-
-func (d *dummyWaiterNotifier) WaitForChunk(c *types.ChunkNotification) {
-	to := time.NewTimer(time.Second)
-	defer to.Stop()
-	select {
-	case <-d.ch:
-	case <-to.C:
-	}
-}
-
-func (d *dummyWaiterNotifier) Notify(c *types.ChunkNotification) error {
-	select {
-	case d.ch <- true:
-	default:
-	}
-	return nil
-}
 
 type ChunksIntegrationSuite struct {
 	pool          *pgxpool.Pool
-	tempdirhelper TempDirHelper
+	tempdirhelper rsstorage.TempDirHelper
 }
 
 var _ = check.Suite(&ChunksIntegrationSuite{})
 
 func (s *ChunksIntegrationSuite) SetUpTest(c *check.C) {
 	var err error
-	dbname := strings.ToLower(RandomString(16)) // databases must be lower case
+	dbname := strings.ToLower(rsstorage.RandomString(16)) // databases must be lower case
 	if !testing.Short() {
 		s.pool, err = EphemeralPostgresPool(dbname)
 		c.Assert(err, check.IsNil)
@@ -116,8 +51,8 @@ func (s *ChunksIntegrationSuite) TearDownTest(c *check.C) {
 // Creates a set of servers that cover all our supported storage subsystems.
 // In the tests, we'll typically create two server sets, one set as a source
 // set and another set as a destination set.
-func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]PersistentStorageServer {
-	s3Svc, err := newS3Service(&ConfigS3{
+func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]rsstorage.PersistentStorageServer {
+	s3Svc, err := s3server.NewS3Service(&rsstorage.ConfigS3{
 		Bucket:             class,
 		Endpoint:           "http://minio:9000",
 		Prefix:             prefix,
@@ -144,24 +79,24 @@ func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) 
 	dir, err := ioutil.TempDir(s.tempdirhelper.Dir(), "")
 	c.Assert(err, check.IsNil)
 
-	wn := &dummyWaiterNotifier{
-		ch: make(chan bool, 1),
+	wn := &rsstorage.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
 	}
-	debugLogger := &TestLogger{}
-	pgServer := NewPgServer(class, 100*1024, wn, wn, cstore, debugLogger)
-	s3Server := NewS3StorageServer(class, "", s3Svc, 100*1024, wn, wn)
-	fileServer := NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
+	debugLogger := &rsstorage.TestLogger{}
+	pgServer := postgres.NewPgServer(class, 100*1024, wn, wn, s.pool, debugLogger)
+	s3Server := s3server.NewS3StorageServer(class, "", s3Svc, 100*1024, wn, wn)
+	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
 
-	return map[string]PersistentStorageServer{
-		"file":     NewMetadataPersistentStorageServer("file", fileServer, cstore),
-		"s3":       NewMetadataPersistentStorageServer("s3", s3Server, cstore),
-		"postgres": NewMetadataPersistentStorageServer("pg", pgServer, cstore),
+	return map[string]rsstorage.PersistentStorageServer{
+		"file":     rsstorage.NewMetadataPersistentStorageServer("file", fileServer, cstore),
+		"s3":       rsstorage.NewMetadataPersistentStorageServer("s3", s3Server, cstore),
+		"postgres": rsstorage.NewMetadataPersistentStorageServer("pg", pgServer, cstore),
 	}
 }
 
 // This test will only validate File storage when used without Postgres and MinIO. To test
 // all services, use the `make test-integration` target. To run these tests only, use:
-// `MODULE=pkg/rsstorage just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage -check.f=ChunksIntegrationSuite`
+// `MODULE=pkg/rsstorage/integration_test just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage/integration_test -check.f=ChunksIntegrationSuite`
 func (s *ChunksIntegrationSuite) TestWriteChunked(c *check.C) {
 	serverSet := s.NewServerSet(c, "chunks", "")
 	for key, server := range serverSet {
@@ -174,17 +109,17 @@ func (s *ChunksIntegrationSuite) TestWriteChunked(c *check.C) {
 	}
 }
 
-func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer PersistentStorageServer) {
+func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer rsstorage.PersistentStorageServer) {
 
-	wn := &dummyWaiterNotifier{
-		ch: make(chan bool, 1),
+	wn := &rsstorage.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
 	}
 
-	cw := &defaultChunkUtils{
-		chunkSize: 5,
-		server:    chunkServer,
-		waiter:    wn,
-		notifier:  wn,
+	cw := &rsstorage.DefaultChunkUtils{
+		ChunkSize: 5,
+		Server:    chunkServer,
+		Waiter:    wn,
+		Notifier:  wn,
 	}
 
 	// Write some dummy data first to make sure it gets cleaned up
@@ -212,7 +147,7 @@ func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer PersistentStorage
 	// Look for expected files in output directory
 	items, err := chunkServer.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Assert(items, check.DeepEquals, []PersistentStorageItem{
+	c.Assert(items, check.DeepEquals, []rsstorage.PersistentStorageItem{
 		{
 			Dir:     "0a",
 			Address: "test-chunk",
@@ -224,13 +159,13 @@ func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer PersistentStorage
 	infoFile, _, _, _, ok, err := chunkServer.Get("0a/test-chunk", "info.json")
 	c.Assert(err, check.IsNil)
 	c.Assert(ok, check.Equals, true)
-	info := ChunksInfo{}
+	info := rsstorage.ChunksInfo{}
 	dec := json.NewDecoder(infoFile)
 	err = dec.Decode(&info)
 	c.Assert(err, check.IsNil)
 	c.Check(time.Now().Sub(info.ModTime).Minutes() < 2, check.Equals, true)
 	info.ModTime = time.Time{}
-	c.Assert(info, check.DeepEquals, ChunksInfo{
+	c.Assert(info, check.DeepEquals, rsstorage.ChunksInfo{
 		ChunkSize: 5,
 		NumChunks: 391,
 		FileSize:  1953,
@@ -259,7 +194,7 @@ func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer PersistentStorage
 }
 
 type ChunksPartialReadSuite struct {
-	tempdirhelper TempDirHelper
+	tempdirhelper rsstorage.TempDirHelper
 }
 
 var _ = check.Suite(&ChunksPartialReadSuite{})
@@ -280,24 +215,24 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 	b := bytes.NewBufferString(testDESC)
 	chunkSize := uint64(5)
 
-	wn := &dummyWaiterNotifier{
-		ch: make(chan bool, 1),
+	wn := &rsstorage.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
 	}
 
 	// Prep directory for file storage
 	dir, err := ioutil.TempDir(s.tempdirhelper.Dir(), "")
 	c.Assert(err, check.IsNil)
 
-	debugLogger := &TestLogger{}
-	fileServer := NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
+	debugLogger := &rsstorage.TestLogger{}
+	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
 
-	cw := &defaultChunkUtils{
-		chunkSize:   chunkSize,
-		server:      fileServer,
-		waiter:      wn,
-		notifier:    wn,
-		pollTimeout: chunkPollTimeout,
-		maxAttempts: maxChunkAttempts,
+	cw := &rsstorage.DefaultChunkUtils{
+		ChunkSize:   chunkSize,
+		Server:      fileServer,
+		Waiter:      wn,
+		Notifier:    wn,
+		PollTimeout: rsstorage.DefaultChunkPollTimeout,
+		MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
 	}
 
 	// Slowly write to pipe
@@ -307,7 +242,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 		defer pW.Close()
 		var index int
 		for {
-			_, err = io.CopyN(pW, b, int64(cw.chunkSize))
+			_, err = io.CopyN(pW, b, int64(cw.ChunkSize))
 			if err == io.EOF {
 				err = nil
 				return
@@ -378,20 +313,20 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 	dir, err := ioutil.TempDir(s.tempdirhelper.Dir(), "")
 	c.Assert(err, check.IsNil)
 
-	wn := &dummyWaiterNotifier{
-		ch: make(chan bool, 1),
+	wn := &rsstorage.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
 	}
 
-	debugLogger := &TestLogger{}
-	fileServer := NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
+	debugLogger := &rsstorage.TestLogger{}
+	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
 
-	cw := &defaultChunkUtils{
-		chunkSize:   chunkSize,
-		server:      fileServer,
-		pollTimeout: time.Millisecond * 100,
-		maxAttempts: 10,
-		waiter:      wn,
-		notifier:    wn,
+	cw := &rsstorage.DefaultChunkUtils{
+		ChunkSize:   chunkSize,
+		Server:      fileServer,
+		PollTimeout: time.Millisecond * 100,
+		MaxAttempts: 10,
+		Waiter:      wn,
+		Notifier:    wn,
 	}
 
 	// Slowly write to pipe
@@ -401,7 +336,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 		defer pW.Close()
 		var index int
 		for {
-			_, err := io.CopyN(pW, b, int64(cw.chunkSize))
+			_, err := io.CopyN(pW, b, int64(cw.ChunkSize))
 			if err == io.EOF {
 				err = nil
 				return
@@ -451,5 +386,5 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 	// ...while copying to buffer, the operation will fail
 	bOut := &bytes.Buffer{}
 	_, err = io.Copy(bOut, r)
-	c.Assert(err, check.DeepEquals, ErrNoChunk)
+	c.Assert(err, check.DeepEquals, rsstorage.ErrNoChunk)
 }

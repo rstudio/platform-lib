@@ -1,4 +1,4 @@
-package rsstorage
+package s3server
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -12,6 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+
+	"github.com/rstudio/platform-lib/pkg/rsstorage"
 )
 
 const S3Concurrency = 20
@@ -33,10 +35,17 @@ type defaultS3Service struct {
 	session *session.Session
 }
 
-func NewS3Service(sess *session.Session) *defaultS3Service {
+func NewS3Service(configInput *rsstorage.ConfigS3) (S3Service, error) {
+	// Create a session
+	options := getS3Options(configInput)
+	sess, err := session.NewSessionWithOptions(options)
+	if err != nil {
+		return nil, fmt.Errorf("Error starting AWS session: %s", err)
+	}
+
 	return &defaultS3Service{
 		session: sess,
-	}
+	}, nil
 }
 
 func (s *defaultS3Service) CreateBucket(input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {
@@ -112,7 +121,7 @@ func (s *defaultS3Service) copyObject(svc *s3.S3, bucket, oldKey, newBucket, new
 	out, err := copier.Copy(&s3.CopyObjectInput{
 		Bucket:     aws.String(newBucket),
 		Key:        aws.String(newKey),
-		CopySource: aws.String(NotEmptyJoin([]string{bucket, oldKey}, "/")),
+		CopySource: aws.String(rsstorage.NotEmptyJoin([]string{bucket, oldKey}, "/")),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("Something went wrong moving an object on S3. You may want to check your configuration, copy error: %s", err.Error())
@@ -156,4 +165,35 @@ func (s *defaultS3Service) ListObjects(bucket, prefix string) ([]string, error) 
 		prefix += "/"
 	}
 	return ops.BucketObjects(bucket, prefix, S3Concurrency, true, nil)
+}
+
+func getS3Options(configInput *rsstorage.ConfigS3) session.Options {
+	// By default decide whether to use shared config (e.g., `~/.aws/config`) from the
+	// environment. If the environment contains a truthy value for AWS_SDK_LOAD_CONFIG,
+	// then we'll use the shared config automatically. However, if
+	// `SharedConfigEnable == true`, then we forcefully enable it.
+	sharedConfig := session.SharedConfigStateFromEnv
+	if configInput.EnableSharedConfig {
+		sharedConfig = session.SharedConfigEnable
+	}
+
+	// Optionally support a configured region
+	s3config := aws.Config{}
+	if configInput.Region != "" {
+		s3config.Region = aws.String(configInput.Region)
+	}
+
+	// Optionally support a configured endpoint
+	if configInput.Endpoint != "" {
+		s3config.Endpoint = aws.String(configInput.Endpoint)
+	}
+
+	s3config.DisableSSL = aws.Bool(configInput.DisableSSL)
+	s3config.S3ForcePathStyle = aws.Bool(configInput.S3ForcePathStyle)
+
+	return session.Options{
+		Config:            s3config,
+		Profile:           configInput.Profile,
+		SharedConfigState: sharedConfig,
+	}
 }

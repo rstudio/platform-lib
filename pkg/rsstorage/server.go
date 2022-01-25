@@ -3,13 +3,8 @@ package rsstorage
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
-	"fmt"
 	"io"
 	"time"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/jackc/pgx/v4/pgxpool"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
@@ -131,17 +126,6 @@ type PersistentStorageItem struct {
 type PersistentStorageStore interface {
 	CacheObjectEnsureExists(cacheName, key string) error
 	CacheObjectMarkUse(cacheName, key string, accessTime time.Time) error
-	ConnPool() *pgxpool.Pool
-}
-
-// Simply wraps getStorageServerAttempt, fatally erring if something goes wrong
-func GetStorageServer(cfg *Config, class string, destination string, waiter ChunkWaiter, notifier ChunkNotifier, cstore PersistentStorageStore, debugLogger DebugLogger) (PersistentStorageServer, error) {
-	server, err := getStorageServerAttempt(cfg, class, destination, waiter, notifier, cstore, debugLogger)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewMetadataPersistentStorageServer(class, server, cstore), nil
 }
 
 type Config struct {
@@ -167,93 +151,12 @@ type ConfigS3 struct {
 	EnableSharedConfig bool
 }
 
-// Lets us create persistent storage services generically
-func getStorageServerAttempt(cfg *Config, class string, destination string, waiter ChunkWaiter, notifier ChunkNotifier, cstore PersistentStorageStore, debugLogger DebugLogger) (PersistentStorageServer, error) {
-	var server PersistentStorageServer
-	switch destination {
-	case "file":
-		if cfg.File == nil {
-			return nil, fmt.Errorf("Missing [FileStorage \"%s\"] configuration section", class)
-		}
-		//todo bioc: configurable size here
-		server = NewFileStorageServer(cfg.File.Location, cfg.ChunkSizeBytes, waiter, notifier, class, debugLogger, cfg.CacheTimeout)
-	case "s3":
-		if cfg.S3 == nil {
-			return nil, fmt.Errorf("Missing [S3Storage \"%s\"] configuration section", class)
-		}
-		s3Service, err := newS3Service(cfg.S3)
-		if err != nil {
-			return nil, fmt.Errorf("Error starting S3 session for '%s': %s", class, err)
-		}
-
-		server = NewS3StorageServer(cfg.S3.Bucket, cfg.S3.Prefix, s3Service, cfg.ChunkSizeBytes, waiter, notifier)
-
-		if cfg.S3.SkipValidation {
-			break
-		}
-
-		s3, _ := server.(*S3StorageServer)
-		err = s3.Validate()
-		if err != nil {
-			return nil, fmt.Errorf("Error validating S3 session for '%s': %s", class, err)
-		}
-	case "postgres":
-		server = NewPgServer(class, cfg.ChunkSizeBytes, waiter, notifier, cstore, debugLogger)
-	default:
-		return nil, fmt.Errorf("Invalid destination '%s' for '%s'", destination, class)
-	}
-
-	return server, nil
-}
-
-func getS3Options(configInput *ConfigS3) session.Options {
-	// By default decide whether to use shared config (e.g., `~/.aws/config`) from the
-	// environment. If the environment contains a truthy value for AWS_SDK_LOAD_CONFIG,
-	// then we'll use the shared config automatically. However, if
-	// `SharedConfigEnable == true`, then we forcefully enable it.
-	sharedConfig := session.SharedConfigStateFromEnv
-	if configInput.EnableSharedConfig {
-		sharedConfig = session.SharedConfigEnable
-	}
-
-	// Optionally support a configured region
-	s3config := aws.Config{}
-	if configInput.Region != "" {
-		s3config.Region = aws.String(configInput.Region)
-	}
-
-	// Optionally support a configured endpoint
-	if configInput.Endpoint != "" {
-		s3config.Endpoint = aws.String(configInput.Endpoint)
-	}
-
-	s3config.DisableSSL = aws.Bool(configInput.DisableSSL)
-	s3config.S3ForcePathStyle = aws.Bool(configInput.S3ForcePathStyle)
-
-	return session.Options{
-		Config:            s3config,
-		Profile:           configInput.Profile,
-		SharedConfigState: sharedConfig,
-	}
-}
-
-func newS3Service(configInput *ConfigS3) (S3Service, error) {
-	// Create a session
-	options := getS3Options(configInput)
-	sess, err := session.NewSessionWithOptions(options)
-	if err != nil {
-		return nil, fmt.Errorf("Error starting AWS session: %s", err)
-	}
-
-	return NewS3Service(sess), nil
-}
-
 type CopyPart struct {
 	Dir     string
 	Address string
 }
 
-func newCopyPart(dir, address string) CopyPart {
+func NewCopyPart(dir, address string) CopyPart {
 	return CopyPart{
 		Dir:     dir,
 		Address: address,

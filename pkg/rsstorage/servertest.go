@@ -6,11 +6,14 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
+	"gopkg.in/check.v1"
 )
 
 type GetResult struct {
@@ -164,20 +167,20 @@ func (f *DummyPersistentStorageServer) Base() PersistentStorageServer {
 }
 
 type DummyChunkUtils struct {
-	writeErr error
-	read     io.ReadCloser
-	readCh   *ChunksInfo
-	readSz   int64
-	readMod  time.Time
-	readErr  error
+	WriteErr error
+	Read     io.ReadCloser
+	ReadCh   *ChunksInfo
+	ReadSz   int64
+	ReadMod  time.Time
+	ReadErr  error
 }
 
 func (f *DummyChunkUtils) WriteChunked(dir, address string, sz uint64, resolve Resolver) error {
-	return f.writeErr
+	return f.WriteErr
 }
 
 func (f *DummyChunkUtils) ReadChunked(dir, address string) (io.ReadCloser, *ChunksInfo, int64, time.Time, error) {
-	return f.read, f.readCh, f.readSz, f.readMod, f.readErr
+	return f.Read, f.ReadCh, f.ReadSz, f.ReadMod, f.ReadErr
 }
 
 type TestLogger struct {
@@ -190,4 +193,74 @@ func (l *TestLogger) Debugf(msg string, args ...interface{}) {
 
 func (l *TestLogger) Enabled() bool {
 	return l.enabled
+}
+
+type DummyWaiterNotifier struct {
+	Ch chan bool
+}
+
+func (d *DummyWaiterNotifier) WaitForChunk(c *types.ChunkNotification) {
+	to := time.NewTimer(time.Second)
+	defer to.Stop()
+	select {
+	case <-d.Ch:
+	case <-to.C:
+	}
+}
+
+func (d *DummyWaiterNotifier) Notify(c *types.ChunkNotification) error {
+	select {
+	case d.Ch <- true:
+	default:
+	}
+	return nil
+}
+
+type timeEquals struct {
+	*check.CheckerInfo
+}
+
+// TimeEquals is a checker that uses time.Time.Equal to compare time.Time objects.
+var TimeEquals check.Checker = &timeEquals{
+	&check.CheckerInfo{Name: "TimeEquals", Params: []string{"obtained", "expected"}},
+}
+
+func (checker *timeEquals) Check(params []interface{}, names []string) (result bool, error string) {
+	if obtained, ok := params[0].(time.Time); !ok {
+		return false, "obtained is not a time.Time"
+	} else if expected, ok := params[1].(time.Time); !ok {
+		return false, "expected is not a time.Time"
+	} else {
+		// We cannot do a DeepEquals on Time because Time is not
+		// comparable through reflection.
+		return obtained.Unix() == expected.Unix(), ""
+	}
+}
+
+// TempDirHelper helps tests create and destroy temporary directories.
+type TempDirHelper struct {
+	prefix string
+	dir    string
+}
+
+// SetUp creates a temporary directory
+func (h *TempDirHelper) SetUp() error {
+	var err error
+	h.dir, err = ioutil.TempDir("", h.prefix)
+	return err
+}
+
+// TearDown removes the configured directory
+func (h *TempDirHelper) TearDown() error {
+	var err error
+	if h.dir != "" {
+		err = os.RemoveAll(h.dir)
+		h.dir = ""
+	}
+	return err
+}
+
+// Dir returns the path to the configured directory
+func (h *TempDirHelper) Dir() string {
+	return h.dir
 }

@@ -1,20 +1,27 @@
-package rsstorage
+package postgres
 
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
 	"bytes"
+	"context"
 	"errors"
+	"fmt"
 	"io"
+	"math/rand"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"gopkg.in/check.v1"
 
+	"github.com/rstudio/platform-lib/pkg/rsstorage"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
+
+func TestPackage(t *testing.T) { check.TestingT(t) }
 
 // This suite will be skipped when running tests with SQLite only. To test, use
 // the `make test-integration` target. To run these tests only, use
@@ -29,23 +36,21 @@ func (s *PgCacheServerSuite) SetUpSuite(c *check.C) {
 	if testing.Short() {
 		c.Skip("skipping postgres cache server tests because -short was provided")
 	}
+	rand.Seed(time.Now().UnixNano())
 }
 
 func (s *PgCacheServerSuite) SetUpTest(c *check.C) {
 	var err error
-	dbname := strings.ToLower(RandomString(16)) // databases must be lower case
+	dbname := strings.ToLower(rsstorage.RandomString(16)) // databases must be lower case
 	s.pool, err = EphemeralPostgresPool(dbname)
 	c.Assert(err, check.IsNil)
 	c.Assert(s.pool, check.NotNil)
 }
 
 func (s *PgCacheServerSuite) TestNew(c *check.C) {
-	wn := &dummyWaiterNotifier{}
-	cstore := &dummyStore{
-		pool: s.pool,
-	}
-	debugLogger := &TestLogger{}
-	server := NewPgServer("test", 100*1024, wn, wn, cstore, debugLogger)
+	wn := &rsstorage.DummyWaiterNotifier{}
+	debugLogger := &rsstorage.TestLogger{}
+	server := NewPgServer("test", 100*1024, wn, wn, s.pool, debugLogger)
 	c.Check(server.(*PgStorageServer).chunker, check.NotNil)
 	server.(*PgStorageServer).chunker = nil
 	c.Check(server, check.DeepEquals, &PgStorageServer{
@@ -55,11 +60,11 @@ func (s *PgCacheServerSuite) TestNew(c *check.C) {
 	})
 
 	c.Assert(server.Dir(), check.Equals, "pg:test")
-	c.Assert(server.Type(), check.Equals, StorageTypePostgres)
+	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypePostgres)
 }
 
 func (s *PgCacheServerSuite) TestCheckOk(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	server := &PgStorageServer{
 		pool:        s.pool,
 		debugLogger: debugLogger,
@@ -82,19 +87,19 @@ func (s *PgCacheServerSuite) TestCheckOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestCheckChunkedOk(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	server := &PgStorageServer{
 		pool:        s.pool,
 		debugLogger: debugLogger,
 	}
-	wn := &dummyWaiterNotifier{
-		ch: make(chan bool, 1),
+	wn := &rsstorage.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
 	}
-	server.chunker = &defaultChunkUtils{
-		chunkSize: 320,
-		server:    server,
-		waiter:    wn,
-		notifier:  wn,
+	server.chunker = &rsstorage.DefaultChunkUtils{
+		ChunkSize: 320,
+		Server:    server,
+		Waiter:    wn,
+		Notifier:  wn,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		_, err := w.Write([]byte(testDESC))
@@ -115,7 +120,7 @@ func (s *PgCacheServerSuite) TestCheckChunkedOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestGetOk(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	server := &PgStorageServer{
 		pool:        s.pool,
 		debugLogger: debugLogger,
@@ -147,19 +152,19 @@ func (s *PgCacheServerSuite) TestGetOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestGetChunkedOk(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	server := &PgStorageServer{
 		pool:        s.pool,
 		debugLogger: debugLogger,
 	}
-	wn := &dummyWaiterNotifier{
-		ch: make(chan bool, 1),
+	wn := &rsstorage.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
 	}
-	server.chunker = &defaultChunkUtils{
-		chunkSize: 512,
-		server:    server,
-		waiter:    wn,
-		notifier:  wn,
+	server.chunker = &rsstorage.DefaultChunkUtils{
+		ChunkSize: 512,
+		Server:    server,
+		Waiter:    wn,
+		Notifier:  wn,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		_, err := w.Write([]byte(testDESC))
@@ -177,7 +182,7 @@ func (s *PgCacheServerSuite) TestGetChunkedOk(c *check.C) {
 	c.Assert(ok, check.Equals, true)
 	c.Assert(ch.ModTime.IsZero(), check.Equals, false)
 	ch.ModTime = time.Time{}
-	c.Assert(ch, check.DeepEquals, &ChunksInfo{
+	c.Assert(ch, check.DeepEquals, &rsstorage.ChunksInfo{
 		ChunkSize: 512,
 		FileSize:  1953,
 		NumChunks: 4,
@@ -197,7 +202,7 @@ func (s *PgCacheServerSuite) TestGetChunkedOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestPutResolveErr(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	server := &PgStorageServer{
 		pool:        s.pool,
 		debugLogger: debugLogger,
@@ -210,7 +215,7 @@ func (s *PgCacheServerSuite) TestPutResolveErr(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestPutResolveErrPreserved(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	server := &PgStorageServer{
 		pool:        s.pool,
 		debugLogger: debugLogger,
@@ -223,7 +228,7 @@ func (s *PgCacheServerSuite) TestPutResolveErrPreserved(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestPutOk(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	server := &PgStorageServer{
 		pool:        s.pool,
 		debugLogger: debugLogger,
@@ -241,7 +246,7 @@ func (s *PgCacheServerSuite) TestPutOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestPutDeferredAddressOk(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	server := &PgStorageServer{
 		pool:        s.pool,
 		debugLogger: debugLogger,
@@ -267,7 +272,7 @@ func (s *PgCacheServerSuite) TestRemoveNonExisting(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestRemoveOk(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	server := &PgStorageServer{
 		pool:        s.pool,
 		debugLogger: debugLogger,
@@ -287,19 +292,19 @@ func (s *PgCacheServerSuite) TestRemoveOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestRemoveChunkedOk(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	server := &PgStorageServer{
 		pool:        s.pool,
 		debugLogger: debugLogger,
 	}
-	wn := &dummyWaiterNotifier{
-		ch: make(chan bool, 1),
+	wn := &rsstorage.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
 	}
-	server.chunker = &defaultChunkUtils{
-		chunkSize: 512,
-		server:    server,
-		waiter:    wn,
-		notifier:  wn,
+	server.chunker = &rsstorage.DefaultChunkUtils{
+		ChunkSize: 512,
+		Server:    server,
+		Waiter:    wn,
+		Notifier:  wn,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		_, err := w.Write([]byte(testDESC))
@@ -339,20 +344,20 @@ func put(server *PgStorageServer, dir, address string, c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestEnumerate(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	server := &PgStorageServer{
 		pool:        s.pool,
 		class:       "cache",
 		debugLogger: debugLogger,
 	}
-	wn := &dummyWaiterNotifier{
-		ch: make(chan bool, 1),
+	wn := &rsstorage.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
 	}
-	server.chunker = &defaultChunkUtils{
-		chunkSize: 352,
-		server:    server,
-		waiter:    wn,
-		notifier:  wn,
+	server.chunker = &rsstorage.DefaultChunkUtils{
+		ChunkSize: 352,
+		Server:    server,
+		Waiter:    wn,
+		Notifier:  wn,
 	}
 
 	// First, cache some things
@@ -379,7 +384,7 @@ func (s *PgCacheServerSuite) TestEnumerate(c *check.C) {
 
 	en, err := server.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Check(en, check.DeepEquals, []PersistentStorageItem{
+	c.Check(en, check.DeepEquals, []rsstorage.PersistentStorageItem{
 		{
 			Dir:     "",
 			Address: "DESCRIPTION2",
@@ -418,31 +423,31 @@ func (s *PgCacheServerSuite) TestEnumerate(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestCopy(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	sourceServer := &PgStorageServer{
 		pool:        s.pool,
 		class:       "packages",
 		debugLogger: debugLogger,
 	}
-	wn := &dummyWaiterNotifier{
-		ch: make(chan bool, 1),
+	wn := &rsstorage.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
 	}
-	sourceServer.chunker = &defaultChunkUtils{
-		chunkSize: 352,
-		server:    sourceServer,
-		waiter:    wn,
-		notifier:  wn,
+	sourceServer.chunker = &rsstorage.DefaultChunkUtils{
+		ChunkSize: 352,
+		Server:    sourceServer,
+		Waiter:    wn,
+		Notifier:  wn,
 	}
 	destServer := &PgStorageServer{
 		pool:        s.pool,
 		class:       "cran",
 		debugLogger: debugLogger,
 	}
-	destServer.chunker = &defaultChunkUtils{
-		chunkSize: 352,
-		server:    destServer,
-		waiter:    wn,
-		notifier:  wn,
+	destServer.chunker = &rsstorage.DefaultChunkUtils{
+		ChunkSize: 352,
+		Server:    destServer,
+		Waiter:    wn,
+		Notifier:  wn,
 	}
 
 	// Create some chunked data
@@ -477,7 +482,7 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 	// Original items still exist
 	en, err := sourceServer.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Check(en, check.DeepEquals, []PersistentStorageItem{
+	c.Check(en, check.DeepEquals, []rsstorage.PersistentStorageItem{
 		{
 			Dir:     "",
 			Address: "CHUNKED2",
@@ -501,7 +506,7 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 	// New (copied) items exist
 	en, err = destServer.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Check(en, check.DeepEquals, []PersistentStorageItem{
+	c.Check(en, check.DeepEquals, []rsstorage.PersistentStorageItem{
 		{
 			Dir:     "",
 			Address: "CHUNKED2",
@@ -569,31 +574,31 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestMove(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	sourceServer := &PgStorageServer{
 		pool:        s.pool,
 		class:       "packages",
 		debugLogger: debugLogger,
 	}
-	wn := &dummyWaiterNotifier{
-		ch: make(chan bool, 1),
+	wn := &rsstorage.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
 	}
-	sourceServer.chunker = &defaultChunkUtils{
-		chunkSize: 352,
-		server:    sourceServer,
-		waiter:    wn,
-		notifier:  wn,
+	sourceServer.chunker = &rsstorage.DefaultChunkUtils{
+		ChunkSize: 352,
+		Server:    sourceServer,
+		Waiter:    wn,
+		Notifier:  wn,
 	}
 	destServer := &PgStorageServer{
 		pool:        s.pool,
 		class:       "cran",
 		debugLogger: debugLogger,
 	}
-	destServer.chunker = &defaultChunkUtils{
-		chunkSize: 352,
-		server:    destServer,
-		waiter:    wn,
-		notifier:  wn,
+	destServer.chunker = &rsstorage.DefaultChunkUtils{
+		ChunkSize: 352,
+		Server:    destServer,
+		Waiter:    wn,
+		Notifier:  wn,
 	}
 
 	// Create some chunked data
@@ -624,12 +629,12 @@ func (s *PgCacheServerSuite) TestMove(c *check.C) {
 	// Original items no longer exist
 	en, err := sourceServer.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Check(en, check.DeepEquals, []PersistentStorageItem{})
+	c.Check(en, check.DeepEquals, []rsstorage.PersistentStorageItem{})
 
 	// New (copied) items exist
 	en, err = destServer.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Check(en, check.DeepEquals, []PersistentStorageItem{
+	c.Check(en, check.DeepEquals, []rsstorage.PersistentStorageItem{
 		{
 			Dir:     "",
 			Address: "CHUNKED2",
@@ -694,7 +699,7 @@ func (s *PgCacheServerSuite) TestMove(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestLocate(c *check.C) {
-	debugLogger := &TestLogger{}
+	debugLogger := &rsstorage.TestLogger{}
 	server := &PgStorageServer{
 		class:       "storage-class",
 		debugLogger: debugLogger,
@@ -704,14 +709,106 @@ func (s *PgCacheServerSuite) TestLocate(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestUsage(c *check.C) {
-	wn := &dummyWaiterNotifier{}
-	cstore := &dummyStore{}
-	debugLogger := &TestLogger{}
-	server := NewPgServer("testclass", 100*1024, wn, wn, cstore, debugLogger)
+	wn := &rsstorage.DummyWaiterNotifier{}
+	debugLogger := &rsstorage.TestLogger{}
+	server := NewPgServer("testclass", 100*1024, wn, wn, nil, debugLogger)
 
 	c.Assert(server.Dir(), check.Equals, "pg:testclass")
-	c.Assert(server.Type(), check.Equals, StorageTypePostgres)
+	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypePostgres)
 	usage, err := server.CalculateUsage()
 	c.Assert(usage, check.DeepEquals, types.Usage{})
 	c.Assert(err, check.NotNil)
 }
+
+func create(dbname string) (err error) {
+	if dbname != "postgres" {
+		connectionString := fmt.Sprintf("postgres://admin:password@postgres/%s?sslmode=disable", "postgres")
+
+		var conn *pgx.Conn
+		ctx := context.Background()
+		conn, err = pgx.Connect(ctx, connectionString)
+		if err != nil {
+			return
+		}
+		defer conn.Close(ctx)
+
+		_, err = conn.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s", dbname))
+	}
+	return
+}
+
+func EphemeralPostgresPool(dbname string) (pool *pgxpool.Pool, err error) {
+	err = create(dbname)
+	if err != nil {
+		return
+	}
+
+	connectionString := fmt.Sprintf("postgres://admin:password@postgres/%s?sslmode=disable", dbname)
+	config, err := pgxpool.ParseConfig(connectionString)
+	if err != nil {
+		return
+	}
+
+	config.MaxConns = int32(10)
+
+	pool, err = pgxpool.ConnectConfig(context.Background(), config)
+	if err != nil {
+		return
+	}
+
+	sql := "" +
+		"CREATE TABLE large_objects ( " +
+		"	oid INTEGER PRIMARY KEY, " +
+		"	address TEXT UNIQUE NOT NULL " +
+		");"
+	_, err = pool.Exec(context.Background(), sql)
+
+	return
+}
+
+var testDESC = `Encoding: UTF-8
+Package: plumber
+Type: Package
+Title: An API Generator for R
+Version: 0.4.2
+Date: 2017-07-24
+Authors@R: c(
+  person(family="Trestle Technology, LLC", role="aut", email="cran@trestletech.com"),
+  person("Jeff", "Allen", role="cre", email="cran@trestletech.com"),
+  person("Frans", "van Dunné", role="ctb", email="frans@ixpantia.com"),
+  person(family="SmartBear Software", role=c("ctb", "cph"), comment="swagger-ui"))
+License: MIT + file LICENSE
+BugReports: https://github.com/trestletech/plumber/issues
+URL: https://www.rplumber.io (site)
+        https://github.com/trestletech/plumber (dev)
+Description: Gives the ability to automatically generate and serve an HTTP API
+    from R functions using the annotations in the R documentation around your
+    functions.
+Depends: R (>= 3.0.0)
+Imports: R6 (>= 2.0.0), stringi (>= 0.3.0), jsonlite (>= 0.9.16),
+        httpuv (>= 1.2.3), crayon
+LazyData: TRUE
+Suggests: testthat (>= 0.11.0), XML, rmarkdown, PKI, base64enc,
+        htmlwidgets, visNetwork, analogsea
+LinkingTo: testthat (>= 0.11.0), XML, rmarkdown
+Enhances: testthat (>= 0.12.0), XML, rmarkdown
+Collate: 'content-types.R' 'cookie-parser.R' 'parse-globals.R'
+        'images.R' 'parse-block.R' 'globals.R' 'serializer-json.R'
+        'shared-secret-filter.R' 'post-body.R' 'query-string.R'
+        'plumber.R' 'default-handlers.R' 'digital-ocean.R'
+        'find-port.R' 'includes.R' 'paths.R' 'plumber-static.R'
+        'plumber-step.R' 'response.R' 'serializer-content-type.R'
+        'serializer-html.R' 'serializer-htmlwidget.R'
+        'serializer-xml.R' 'serializer.R' 'session-cookie.R'
+        'swagger.R'
+RoxygenNote: 6.0.1
+NeedsCompilation: no
+Packaged: 2017-07-24 17:17:15 UTC; jeff
+Author: Trestle Technology, LLC [aut],
+  Jeff Allen [cre],
+  Frans van Dunné [ctb],
+  SmartBear Software [ctb, cph] (swagger-ui)
+Maintainer: Jeff Allen <cran@trestletech.com>
+Repository: CRAN
+Date/Publication: 2017-07-24 21:50:56 UTC
+`

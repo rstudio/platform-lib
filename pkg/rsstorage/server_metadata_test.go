@@ -3,11 +3,12 @@ package rsstorage
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"bytes"
 	"errors"
 	"io"
+	"os"
 	"time"
 
-	"github.com/jackc/pgx/v4/pgxpool"
 	"gopkg.in/check.v1"
 )
 
@@ -22,6 +23,38 @@ type cacheStore struct {
 	used   string
 }
 
+type FakeFileIOFile struct {
+	name     string
+	close    error
+	contents *bytes.Buffer
+	stat     os.FileInfo
+	statErr  error
+}
+
+func (f *FakeFileIOFile) Seek(offset int64, whence int) (int64, error) {
+	return 0, nil
+}
+
+func (f *FakeFileIOFile) Stat() (os.FileInfo, error) {
+	return f.stat, f.statErr
+}
+
+func (f *FakeFileIOFile) Name() string {
+	return f.name
+}
+
+func (f *FakeFileIOFile) Close() error {
+	return f.close
+}
+
+func (f *FakeFileIOFile) Read(p []byte) (n int, err error) {
+	return f.contents.Read(p)
+}
+
+func (f *FakeFileIOFile) Write(p []byte) (n int, err error) {
+	return 0, nil
+}
+
 func (s *cacheStore) CacheObjectEnsureExists(cacheName, key string) error {
 	if s.getErr == nil {
 		s.got = key
@@ -34,10 +67,6 @@ func (s *cacheStore) CacheObjectMarkUse(cacheName, key string, accessTime time.T
 		s.used = key
 	}
 	return s.useErr
-}
-
-func (s *cacheStore) ConnPool() *pgxpool.Pool {
-	return nil
 }
 
 func (s *MetadataPersistentStorageServerSuite) TestNew(c *check.C) {

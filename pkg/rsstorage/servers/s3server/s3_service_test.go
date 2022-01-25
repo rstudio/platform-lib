@@ -1,4 +1,4 @@
-package rsstorage
+package s3server
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -12,19 +12,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/jarcoal/httpmock"
 	"gopkg.in/check.v1"
+
+	"github.com/rstudio/platform-lib/pkg/rsstorage"
 )
 
 type S3ServiceSuite struct{}
 
 var _ = check.Suite(&S3ServiceSuite{})
-
-func (s *S3ServiceSuite) TestNew(c *check.C) {
-	sess := session.Must(session.NewSession())
-	svc := NewS3Service(sess)
-	c.Assert(svc, check.DeepEquals, &defaultS3Service{
-		session: sess,
-	})
-}
 
 func (s *S3ServiceSuite) TestCreateBucket(c *check.C) {
 	sess, err := session.NewSession(&aws.Config{
@@ -201,4 +195,51 @@ func (s *S3ServiceSuite) TestListObjects(c *check.C) {
 	files, err = s3service.ListObjects("sync", "bin/3.5-xenial")
 	c.Assert(err, check.IsNil)
 	c.Check(files, check.DeepEquals, []string{"ABCDEFG.json", "HIJKLMN.tar.gz", "OPQRSTU.zip", "nothing"})
+}
+
+func (s *S3ServiceSuite) TestGetS3Options(c *check.C) {
+	// Test minimum configuration
+	s3 := &rsstorage.ConfigS3{}
+	o := getS3Options(s3)
+	c.Check(o, check.DeepEquals, session.Options{
+		Config: aws.Config{
+			DisableSSL:       aws.Bool(false),
+			S3ForcePathStyle: aws.Bool(false),
+		},
+		SharedConfigState: session.SharedConfigStateFromEnv,
+	})
+
+	// Test maximum configuration
+	s3 = &rsstorage.ConfigS3{
+		Profile:            "test-profile",
+		Region:             "us-east-1",
+		Endpoint:           "http://localhost:9000",
+		EnableSharedConfig: true,
+	}
+	o = getS3Options(s3)
+	c.Check(o, check.DeepEquals, session.Options{
+		Config: aws.Config{
+			Region:           aws.String("us-east-1"),
+			Endpoint:         aws.String("http://localhost:9000"),
+			DisableSSL:       aws.Bool(false),
+			S3ForcePathStyle: aws.Bool(false),
+		},
+		Profile:           "test-profile",
+		SharedConfigState: session.SharedConfigEnable,
+	})
+}
+
+func (s *S3ServiceSuite) TestSetStorageS3Validate(c *check.C) {
+	s3 := &rsstorage.ConfigS3{
+		Region:     "testregion",
+		DisableSSL: false,
+	}
+	svc, err := NewS3Service(s3)
+	c.Assert(err, check.IsNil)
+
+	wn := &rsstorage.DummyWaiterNotifier{}
+	s3srv := NewS3StorageServer("packages", "s3", svc, 4096, wn, wn)
+
+	err = s3srv.(*S3StorageServer).Validate()
+	c.Assert(err, check.NotNil)
 }

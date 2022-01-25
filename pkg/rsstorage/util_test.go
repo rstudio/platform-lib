@@ -3,8 +3,6 @@ package rsstorage
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
-	"io/ioutil"
-	"os"
 	"regexp"
 
 	"gopkg.in/check.v1"
@@ -46,32 +44,4 @@ func (s *UtilSuite) TestNotEmptyJoin(c *check.C) {
 	c.Assert(outputA, check.Equals, "one/two/three")
 	outputB := NotEmptyJoin(caseB, "/")
 	c.Assert(outputB, check.Equals, outputA)
-}
-
-// TempDirHelper helps tests create and destroy temporary directories.
-type TempDirHelper struct {
-	prefix string
-	dir    string
-}
-
-// SetUp creates a temporary directory
-func (h *TempDirHelper) SetUp() error {
-	var err error
-	h.dir, err = ioutil.TempDir("", h.prefix)
-	return err
-}
-
-// TearDown removes the configured directory
-func (h *TempDirHelper) TearDown() error {
-	var err error
-	if h.dir != "" {
-		err = os.RemoveAll(h.dir)
-		h.dir = ""
-	}
-	return err
-}
-
-// Dir returns the path to the configured directory
-func (h *TempDirHelper) Dir() string {
-	return h.dir
 }

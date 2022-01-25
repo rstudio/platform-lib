@@ -1,4 +1,4 @@
-package rsstorage
+package integrationtest
 
 // Copyright (C) 2022 by RStudio, PBC
 
@@ -23,14 +23,21 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"gopkg.in/check.v1"
+
+	"github.com/rstudio/platform-lib/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/file"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/postgres"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/s3server"
 )
+
+func TestPackage(t *testing.T) { check.TestingT(t) }
 
 // This suite will be skipped when running tests with SQLite only. To test, use
 // the `test-integration` target. To run these tests only, use:
-// `MODULE=pkg/rsstorage just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage -check.f=StorageIntegrationSuite`
+// `MODULE=pkg/rsstorage/integration_test just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage/integration_test -check.f=StorageIntegrationSuite`
 type StorageIntegrationSuite struct {
 	pool          *pgxpool.Pool
-	tempdirhelper TempDirHelper
+	tempdirhelper rsstorage.TempDirHelper
 }
 
 var _ = check.Suite(&StorageIntegrationSuite{})
@@ -47,8 +54,50 @@ func (d *dummyStore) CacheObjectMarkUse(cacheName, key string, accessTime time.T
 	return nil
 }
 
-func (d *dummyStore) ConnPool() *pgxpool.Pool {
-	return d.pool
+func create(dbname string) (err error) {
+	if dbname != "postgres" {
+		connectionString := fmt.Sprintf("postgres://admin:password@postgres/%s?sslmode=disable", "postgres")
+
+		var conn *pgx.Conn
+		ctx := context.Background()
+		conn, err = pgx.Connect(ctx, connectionString)
+		if err != nil {
+			return
+		}
+		defer conn.Close(ctx)
+
+		_, err = conn.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s", dbname))
+	}
+	return
+}
+
+func EphemeralPostgresPool(dbname string) (pool *pgxpool.Pool, err error) {
+	err = create(dbname)
+	if err != nil {
+		return
+	}
+
+	connectionString := fmt.Sprintf("postgres://admin:password@postgres/%s?sslmode=disable", dbname)
+	config, err := pgxpool.ParseConfig(connectionString)
+	if err != nil {
+		return
+	}
+
+	config.MaxConns = int32(10)
+
+	pool, err = pgxpool.ConnectConfig(context.Background(), config)
+	if err != nil {
+		return
+	}
+
+	sql := "" +
+		"CREATE TABLE large_objects ( " +
+		"	oid INTEGER PRIMARY KEY, " +
+		"	address TEXT UNIQUE NOT NULL " +
+		");"
+	_, err = pool.Exec(context.Background(), sql)
+
+	return
 }
 
 func (s *StorageIntegrationSuite) SetUpSuite(c *check.C) {
@@ -59,7 +108,7 @@ func (s *StorageIntegrationSuite) SetUpSuite(c *check.C) {
 
 func (s *StorageIntegrationSuite) SetUpTest(c *check.C) {
 	var err error
-	dbname := strings.ToLower(RandomString(16)) // databases must be lower case
+	dbname := strings.ToLower(rsstorage.RandomString(16)) // databases must be lower case
 	s.pool, err = EphemeralPostgresPool(dbname)
 	c.Assert(err, check.IsNil)
 
@@ -73,8 +122,8 @@ func (s *StorageIntegrationSuite) TearDownTest(c *check.C) {
 // Creates a set of servers that cover all our supported storage subsystems.
 // In the tests, we'll typically create two server sets, one set as a source
 // set and another set as a destination set.
-func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]PersistentStorageServer {
-	s3Svc, err := newS3Service(&ConfigS3{
+func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]rsstorage.PersistentStorageServer {
+	s3Svc, err := s3server.NewS3Service(&rsstorage.ConfigS3{
 		Bucket:             class,
 		Endpoint:           "http://minio:9000",
 		Prefix:             prefix,
@@ -101,27 +150,27 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 	dir, err := ioutil.TempDir(s.tempdirhelper.Dir(), "")
 	c.Assert(err, check.IsNil)
 
-	wn := &dummyWaiterNotifier{
-		ch: make(chan bool, 1),
+	wn := &rsstorage.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
 	}
 
-	debugLogger := &TestLogger{}
-	pgServer := NewPgServer(class, 100*1024, wn, wn, cstore, debugLogger)
-	s3Server := NewS3StorageServer(class, "", s3Svc, 100*1024, wn, wn)
-	fileServer := NewFileStorageServer(dir, 100*1024, wn, wn, class, debugLogger, time.Minute)
+	debugLogger := &rsstorage.TestLogger{}
+	pgServer := postgres.NewPgServer(class, 100*1024, wn, wn, s.pool, debugLogger)
+	s3Server := s3server.NewS3StorageServer(class, "", s3Svc, 100*1024, wn, wn)
+	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, class, debugLogger, time.Minute)
 
-	return map[string]PersistentStorageServer{
-		"file":     NewMetadataPersistentStorageServer("file", fileServer, cstore),
-		"s3":       NewMetadataPersistentStorageServer("s3", s3Server, cstore),
-		"postgres": NewMetadataPersistentStorageServer("pg", pgServer, cstore),
+	return map[string]rsstorage.PersistentStorageServer{
+		"file":     rsstorage.NewMetadataPersistentStorageServer("file", fileServer, cstore),
+		"s3":       rsstorage.NewMetadataPersistentStorageServer("s3", s3Server, cstore),
+		"postgres": rsstorage.NewMetadataPersistentStorageServer("pg", pgServer, cstore),
 	}
 }
 
 // The string that will be used to populate each asset in persistent storage.
 const testAssetData = "this is a test for the server of class %s"
 
-func (s *StorageIntegrationSuite) PopulateServerSet(c *check.C, set map[string]PersistentStorageServer) {
-	resolver := func(class string) Resolver {
+func (s *StorageIntegrationSuite) PopulateServerSet(c *check.C, set map[string]rsstorage.PersistentStorageServer) {
+	resolver := func(class string) rsstorage.Resolver {
 		return func(w io.Writer) (string, string, error) {
 			_, err := w.Write([]byte(fmt.Sprintf(testAssetData, class)))
 			return "", "", err
@@ -130,7 +179,7 @@ func (s *StorageIntegrationSuite) PopulateServerSet(c *check.C, set map[string]P
 
 	// Create some chunked data
 	szPut := uint64(len(testDESC))
-	resolverChunked := func(class string) Resolver {
+	resolverChunked := func(class string) rsstorage.Resolver {
 		return func(w io.Writer) (string, string, error) {
 			buf := bytes.NewBufferString(testDESC)
 			_, err := io.Copy(w, buf)
@@ -154,7 +203,7 @@ func (s *StorageIntegrationSuite) PopulateServerSet(c *check.C, set map[string]P
 }
 
 // Verifies that a given asset exists on a persistent storage server
-func (s *StorageIntegrationSuite) CheckFile(c *check.C, server PersistentStorageServer, test, dir, address, classSource, class string, sz int64, chunked bool) {
+func (s *StorageIntegrationSuite) CheckFile(c *check.C, server rsstorage.PersistentStorageServer, test, dir, address, classSource, class string, sz int64, chunked bool) {
 	log.Printf("(%s) Verifying existence of %s on server=%s (with dir=%s)", test, address, class, dir)
 
 	// Next, get it
@@ -183,7 +232,7 @@ func (s *StorageIntegrationSuite) CheckFile(c *check.C, server PersistentStorage
 }
 
 // Verifies that a given asset does not exist on a persistent storage server
-func (s *StorageIntegrationSuite) CheckFileGone(c *check.C, server PersistentStorageServer, test, dir, address, classSource string) {
+func (s *StorageIntegrationSuite) CheckFileGone(c *check.C, server rsstorage.PersistentStorageServer, test, dir, address, classSource string) {
 	log.Printf("(%s) Verifying removal of %s on server=%s (with dir=%s)", test, address, classSource, dir)
 
 	ok, _, _, _, err := server.Check("", address)
@@ -309,11 +358,11 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 // resolver failures.
 //
 // Run with (against local MinIO instance):
-//  `MODULE=pkg/rsstorage just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage -check.f=S3IntegrationSuite`
+//  `MODULE=pkg/rsstorage/integration_test just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage/integration_test -check.f=S3IntegrationSuite`
 //
 // To run against your own AWS S3 bucket:
 //   First, customize the variables in the test below as noted. Then, run:
-//     `MODULE=pkg/rsstorage just test -v github.com/rstudio/platform-lib/pkg/rsstorage -check.f=S3IntegrationSuite`
+//     `MODULE=pkg/rsstorage/integration_test DEF_TEST_ARGS="-v" just test github.com/rstudio/platform-lib/pkg/rsstorage/integration_test -check.f=S3IntegrationSuite`
 type S3IntegrationSuite struct{}
 
 var _ = check.Suite(&S3IntegrationSuite{})
@@ -345,7 +394,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 		forcePathStyle = true
 	}
 
-	s3Svc, err := newS3Service(&ConfigS3{
+	s3Svc, err := s3server.NewS3Service(&rsstorage.ConfigS3{
 		// Common settings
 		Bucket:             bucket,
 		Prefix:             "integration-test",
@@ -381,10 +430,10 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 		}()
 	}
 
-	wn := &dummyWaiterNotifier{
-		ch: make(chan bool, 1),
+	wn := &rsstorage.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
 	}
-	s3Server := NewS3StorageServer(bucket, "integration-test", s3Svc, 100*1024, wn, wn)
+	s3Server := s3server.NewS3StorageServer(bucket, "integration-test", s3Svc, 100*1024, wn, wn)
 
 	// This channel gets notified/closed after we start writing some data to the writer,
 	// but before the write fails.
@@ -393,7 +442,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	// This channel gets notified/closed when we're ready for the resolve function to fail.
 	end := make(chan struct{})
 
-	resolver := func(class string) Resolver {
+	resolver := func(class string) rsstorage.Resolver {
 		return func(w io.Writer) (string, string, error) {
 			// Start writing some data to the resolver's writer
 			//w.Write([]byte(fmt.Sprintf(testAssetData, class)))
@@ -470,7 +519,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		forcePathStyle = true
 	}
 
-	s3Svc, err := newS3Service(&ConfigS3{
+	s3Svc, err := s3server.NewS3Service(&rsstorage.ConfigS3{
 		// Common settings
 		Bucket:             bucket,
 		Prefix:             "integration-test",
@@ -506,10 +555,10 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		}()
 	}
 
-	wn := &dummyWaiterNotifier{
-		ch: make(chan bool, 1),
+	wn := &rsstorage.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
 	}
-	s3Server := NewS3StorageServer(bucket, "integration-test", s3Svc, 100*1024, wn, wn)
+	s3Server := s3server.NewS3StorageServer(bucket, "integration-test", s3Svc, 100*1024, wn, wn)
 
 	// This channel gets notified/closed after we start writing some data to the writer,
 	// but before the write fails.
@@ -518,7 +567,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 	// This channel gets notified/closed when we're ready for the resolve function to fail.
 	end := make(chan struct{})
 
-	resolver := func(class string) Resolver {
+	resolver := func(class string) rsstorage.Resolver {
 		return func(w io.Writer) (string, string, error) {
 			// Start writing some data to the resolver's writer
 			w.Write([]byte(fmt.Sprintf(testAssetData, class)))
@@ -578,48 +627,49 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 	c.Check(ok, check.Equals, false)
 }
 
-func create(dbname string) (err error) {
-	if dbname != "postgres" {
-		connectionString := fmt.Sprintf("postgres://admin:password@postgres/%s?sslmode=disable", "postgres")
-
-		var conn *pgx.Conn
-		ctx := context.Background()
-		conn, err = pgx.Connect(ctx, connectionString)
-		if err != nil {
-			return
-		}
-		defer conn.Close(ctx)
-
-		_, err = conn.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s", dbname))
-	}
-	return
-}
-
-func EphemeralPostgresPool(dbname string) (pool *pgxpool.Pool, err error) {
-	err = create(dbname)
-	if err != nil {
-		return
-	}
-
-	connectionString := fmt.Sprintf("postgres://admin:password@postgres/%s?sslmode=disable", dbname)
-	config, err := pgxpool.ParseConfig(connectionString)
-	if err != nil {
-		return
-	}
-
-	config.MaxConns = int32(10)
-
-	pool, err = pgxpool.ConnectConfig(context.Background(), config)
-	if err != nil {
-		return
-	}
-
-	sql := "" +
-		"CREATE TABLE large_objects ( " +
-		"	oid INTEGER PRIMARY KEY, " +
-		"	address TEXT UNIQUE NOT NULL " +
-		");"
-	_, err = pool.Exec(context.Background(), sql)
-
-	return
-}
+var testDESC = `Encoding: UTF-8
+Package: plumber
+Type: Package
+Title: An API Generator for R
+Version: 0.4.2
+Date: 2017-07-24
+Authors@R: c(
+  person(family="Trestle Technology, LLC", role="aut", email="cran@trestletech.com"),
+  person("Jeff", "Allen", role="cre", email="cran@trestletech.com"),
+  person("Frans", "van Dunné", role="ctb", email="frans@ixpantia.com"),
+  person(family="SmartBear Software", role=c("ctb", "cph"), comment="swagger-ui"))
+License: MIT + file LICENSE
+BugReports: https://github.com/trestletech/plumber/issues
+URL: https://www.rplumber.io (site)
+        https://github.com/trestletech/plumber (dev)
+Description: Gives the ability to automatically generate and serve an HTTP API
+    from R functions using the annotations in the R documentation around your
+    functions.
+Depends: R (>= 3.0.0)
+Imports: R6 (>= 2.0.0), stringi (>= 0.3.0), jsonlite (>= 0.9.16),
+        httpuv (>= 1.2.3), crayon
+LazyData: TRUE
+Suggests: testthat (>= 0.11.0), XML, rmarkdown, PKI, base64enc,
+        htmlwidgets, visNetwork, analogsea
+LinkingTo: testthat (>= 0.11.0), XML, rmarkdown
+Enhances: testthat (>= 0.12.0), XML, rmarkdown
+Collate: 'content-types.R' 'cookie-parser.R' 'parse-globals.R'
+        'images.R' 'parse-block.R' 'globals.R' 'serializer-json.R'
+        'shared-secret-filter.R' 'post-body.R' 'query-string.R'
+        'plumber.R' 'default-handlers.R' 'digital-ocean.R'
+        'find-port.R' 'includes.R' 'paths.R' 'plumber-static.R'
+        'plumber-step.R' 'response.R' 'serializer-content-type.R'
+        'serializer-html.R' 'serializer-htmlwidget.R'
+        'serializer-xml.R' 'serializer.R' 'session-cookie.R'
+        'swagger.R'
+RoxygenNote: 6.0.1
+NeedsCompilation: no
+Packaged: 2017-07-24 17:17:15 UTC; jeff
+Author: Trestle Technology, LLC [aut],
+  Jeff Allen [cre],
+  Frans van Dunné [ctb],
+  SmartBear Software [ctb, cph] (swagger-ui)
+Maintainer: Jeff Allen <cran@trestletech.com>
+Repository: CRAN
+Date/Publication: 2017-07-24 21:50:56 UTC
+`
