@@ -5,7 +5,7 @@ __EXITCODE=0
 
 CURDIR=$(pwd)
 
-MODULES=${MODULE:-$(find . -name go.mod | xargs dirname)}
+MODULES=${MODULE:-$(find . -name go.mod | xargs -n1 dirname)}
 DEF_TEST_ARGS=${DEF_TEST_ARGS:--short}
 
 for MODULE in ${MODULES}; do
