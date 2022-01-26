@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/rstudio/platform-lib/pkg/rslog"
 	"log"
 	"regexp"
 	"time"
@@ -18,7 +19,6 @@ import (
 	// Must import github.com/jackc/pgx/v4/stdlib for sqlx support.
 	_ "github.com/jackc/pgx/v4/stdlib"
 
-	"github.com/rstudio/platform-lib/pkg/rslog/debug"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listenerfactory"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local"
@@ -27,7 +27,7 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listenerutils"
 )
 
-var debugLogger debug.DebugLogger
+var debugLogger rslog.DebugLogger
 
 var (
 	message string
@@ -37,7 +37,7 @@ var (
 )
 
 func init() {
-	debugLogger = debug.NewDebugLogger(RegionNotify)
+	debugLogger = rslog.NewDebugLogger(RegionNotify)
 
 	NotifyCmd.Example = `  testnotify notify
   testnotify notify --driver=pq

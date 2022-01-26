@@ -7,7 +7,6 @@ import (
 	"log"
 
 	"github.com/rstudio/platform-lib/pkg/rslog"
-	"github.com/rstudio/platform-lib/pkg/rslog/debug"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +32,7 @@ func (f *factory) DefaultLogger() rslog.Logger {
 
 const (
 	// TestDebug is an example product region for debug logging
-	TestDebug debug.ProductRegion = 1
+	TestDebug rslog.ProductRegion = 1
 )
 
 var (
@@ -43,10 +42,10 @@ var (
 
 func init() {
 	// Register product debug regions and initialize debug logging
-	debug.RegisterRegions(map[debug.ProductRegion]string{
+	rslog.RegisterRegions(map[rslog.ProductRegion]string{
 		TestDebug: "test-debug",
 	})
-	debug.InitLogs([]debug.ProductRegion{
+	rslog.InitLogs([]rslog.ProductRegion{
 		TestDebug,
 	})
 

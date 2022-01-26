@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/rstudio/platform-lib/pkg/rslog"
-	"github.com/rstudio/platform-lib/pkg/rslog/debug"
 )
 
 // Usage:
@@ -41,10 +40,10 @@ func (f *factory) DefaultLogger() rslog.Logger {
 	return lgr
 }
 
-var debugLogger debug.DebugLogger
+var debugLogger rslog.DebugLogger
 
 const (
-	RegionTest debug.ProductRegion = 1
+	RegionTest rslog.ProductRegion = 1
 )
 
 func init() {
@@ -55,13 +54,13 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 
 	// Initialize debug logging
-	debug.InitLogs([]debug.ProductRegion{
+	rslog.InitLogs([]rslog.ProductRegion{
 		RegionTest,
 	})
-	debug.RegisterRegions(map[debug.ProductRegion]string{
+	rslog.RegisterRegions(map[rslog.ProductRegion]string{
 		RegionTest: "test-debug",
 	})
-	debugLogger = debug.NewDebugLogger(RegionTest)
+	debugLogger = rslog.NewDebugLogger(RegionTest)
 }
 
 func main() {

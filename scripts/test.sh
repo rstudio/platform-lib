@@ -11,6 +11,9 @@ DEF_TEST_ARGS=${DEF_TEST_ARGS:--short}
 for MODULE in ${MODULES}; do
     cd ${MODULE}
 
+    echo ${MODULE}
+    echo ${TEST_ARGS}
+
     go test ${DEF_TEST_ARGS} ${TEST_ARGS[*]}
     result=$?
     if [[ $result -ne 0 ]]; then

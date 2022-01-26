@@ -11,7 +11,7 @@ TMP=$(mktemp)
 TMP_VEND=${CURDIR}/tmpvendor
 mkdir -p ${TMP_VEND}
 
-for MODULE in $(find . -name go.mod | xargs dirname); do
+for MODULE in $(find . -name go.mod | xargs -n1 dirname); do
     echo "Generate vendor directory for module ${MODULE}"
     if [ ! -f "${MODULE}/go.mod" ] ; then
         echo "Skipping module ${MODULE}, as it does not contain go.mod."

@@ -1,19 +1,17 @@
-package debug_test
+package rslogtest
 
 // Copyright (C) 2021 by RStudio, PBC.
 
 import (
+	"github.com/rstudio/platform-lib/pkg/rslog"
 	"testing"
 
-	"github.com/rstudio/platform-lib/pkg/rslog"
-	"github.com/rstudio/platform-lib/pkg/rslog/debug"
-	"github.com/rstudio/platform-lib/pkg/rslog/rslogtest"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
 
 const (
-	Nothing = debug.ProductRegion(iota)
+	Nothing = rslog.ProductRegion(iota)
 	Proxy
 	RProc
 	Router
@@ -23,13 +21,13 @@ const (
 )
 
 func init() {
-	debug.RegisterRegions(map[debug.ProductRegion]string{})
+	rslog.RegisterRegions(map[rslog.ProductRegion]string{})
 }
 
 type DebugLoggerSuite struct {
 	suite.Suite
 
-	loggerMock *rslogtest.LoggerMock
+	loggerMock *LoggerMock
 }
 
 func TestDebugLoggerSuite(t *testing.T) {
@@ -37,35 +35,35 @@ func TestDebugLoggerSuite(t *testing.T) {
 }
 
 func (s *DebugLoggerSuite) TestInitLog() {
-	s.False(debug.Enabled(Proxy))
+	s.False(rslog.Enabled(Proxy))
 
 	// Singular region enabled.
-	debug.InitLogs([]debug.ProductRegion{Proxy})
-	s.True(debug.Enabled(Proxy))
+	rslog.InitLogs([]rslog.ProductRegion{Proxy})
+	s.True(rslog.Enabled(Proxy))
 
 	// multiple regions enabled (using translation and normalization)
-	debug.InitLogs([]debug.ProductRegion{
+	rslog.InitLogs([]rslog.ProductRegion{
 		Proxy,
 		RProc,
 		Router,
 	})
-	s.True(debug.Enabled(Proxy))
-	s.True(debug.Enabled(RProc))
-	s.True(debug.Enabled(Router))
+	s.True(rslog.Enabled(Proxy))
+	s.True(rslog.Enabled(RProc))
+	s.True(rslog.Enabled(Router))
 
 	// calling InitLogs resets what is enabled.
-	debug.InitLogs(nil)
-	s.False(debug.Enabled(Proxy))
-	s.False(debug.Enabled(RProc))
-	s.False(debug.Enabled(Router))
+	rslog.InitLogs(nil)
+	s.False(rslog.Enabled(Proxy))
+	s.False(rslog.Enabled(RProc))
+	s.False(rslog.Enabled(Router))
 }
 
 func (s *DebugLoggerSuite) TestNewDebugLogger() {
-	lgr := debug.NewDebugLogger(Proxy)
-	defer debug.Disable(Proxy)
+	lgr := rslog.NewDebugLogger(Proxy)
+	defer rslog.Disable(Proxy)
 	s.Equal(lgr.Enabled(), false)
 
-	debug.Enable(Proxy)
+	rslog.Enable(Proxy)
 	s.Equal(lgr.Enabled(), true)
 
 	// Logger with fields should be under same region, new callback
@@ -77,33 +75,33 @@ func (s *DebugLoggerSuite) TestNewDebugLogger() {
 	s.Equal(sublgr.Enabled(), true)
 
 	// For a totally different region
-	another := debug.NewDebugLogger(LDAP)
+	another := rslog.NewDebugLogger(LDAP)
 	s.Equal(another.Enabled(), false)
 }
 
 func (s *DebugLoggerSuite) TestUpdateToLevelAndCaller() {
-	base := &rslogtest.LoggerMock{}
-	lgr := debug.NewDebugLogger(OAuth2)
+	base := &LoggerMock{}
+	lgr := rslog.NewDebugLogger(OAuth2)
 	lgr.Logger = base
 
-	debug.Enable(OAuth2)
-	s.True(debug.Enabled(OAuth2))
+	rslog.Enable(OAuth2)
+	s.True(rslog.Enabled(OAuth2))
 	base.AssertExpectations(s.T())
 
 	// Sub loggers
-	baseTwo := &rslogtest.LoggerMock{}
-	lgr = debug.NewDebugLogger(Session)
+	baseTwo := &LoggerMock{}
+	lgr = rslog.NewDebugLogger(Session)
 	lgr.Logger = baseTwo
 
-	debug.Enable(Session)
-	s.True(debug.Enabled(Session))
+	rslog.Enable(Session)
+	s.True(rslog.Enabled(Session))
 	baseTwo.AssertExpectations(s.T())
 
 	baseTwo.On("WithFields", mock.Anything).Return(baseTwo)
 	lgr.WithFields(rslog.Fields{"sub": "logger"})
 
-	debug.Disable(Session)
-	s.False(debug.Enabled(Session))
+	rslog.Disable(Session)
+	s.False(rslog.Enabled(Session))
 
 	// Should have called with fields for sub logger (1 call)
 	s.Len(baseTwo.Calls, 1)

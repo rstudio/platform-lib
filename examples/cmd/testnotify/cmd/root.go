@@ -4,27 +4,26 @@ package cmd
 
 import (
 	"errors"
+	"github.com/rstudio/platform-lib/pkg/rslog"
 	"time"
 
 	"github.com/lib/pq"
 	"github.com/spf13/cobra"
-
-	"github.com/rstudio/platform-lib/pkg/rslog/debug"
 )
 
 const (
 	defaultPgConnStr = "postgres://admin:password@postgres/postgres?sslmode=disable"
 
-	RegionNotify debug.ProductRegion = 1
+	RegionNotify rslog.ProductRegion = 1
 )
 
 func init() {
 
 	// Initialize debug logging
-	debug.InitLogs([]debug.ProductRegion{
+	rslog.InitLogs([]rslog.ProductRegion{
 		RegionNotify,
 	})
-	debug.RegisterRegions(map[debug.ProductRegion]string{
+	rslog.RegisterRegions(map[rslog.ProductRegion]string{
 		RegionNotify: "test-notifications",
 	})
 }
