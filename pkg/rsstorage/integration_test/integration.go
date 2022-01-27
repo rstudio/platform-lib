@@ -13,19 +13,19 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/s3server"
 )
 
-// Simply wraps getStorageServerAttempt, fatally erring if something goes wrong
-func GetStorageServer(cfg *rsstorage.Config, class string, destination string, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, pool *pgxpool.Pool, cstore rsstorage.PersistentStorageStore, debugLogger rsstorage.DebugLogger) (rsstorage.PersistentStorageServer, error) {
+// GetStorageServer wraps getStorageServerAttempt, fatally erring if something goes wrong
+func GetStorageServer(cfg *rsstorage.Config, class string, destination string, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, pool *pgxpool.Pool, cstore rsstorage.CacheStore, debugLogger rsstorage.DebugLogger) (rsstorage.StorageServer, error) {
 	server, err := getStorageServerAttempt(cfg, class, destination, waiter, notifier, pool, debugLogger)
 	if err != nil {
 		return nil, err
 	}
 
-	return rsstorage.NewMetadataPersistentStorageServer(class, server, cstore), nil
+	return rsstorage.NewMetadataStorageServer(class, server, cstore), nil
 }
 
-// Lets us create persistent storage services generically
-func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination string, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, pool *pgxpool.Pool, debugLogger rsstorage.DebugLogger) (rsstorage.PersistentStorageServer, error) {
-	var server rsstorage.PersistentStorageServer
+// getStorageServerAttempt creates storage services generically
+func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination string, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, pool *pgxpool.Pool, debugLogger rsstorage.DebugLogger) (rsstorage.StorageServer, error) {
+	var server rsstorage.StorageServer
 	switch destination {
 	case "file":
 		if cfg.File == nil {
@@ -37,7 +37,7 @@ func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination st
 		if cfg.S3 == nil {
 			return nil, fmt.Errorf("Missing [S3Storage \"%s\"] configuration section", class)
 		}
-		s3Service, err := s3server.NewS3Service(cfg.S3)
+		s3Service, err := s3server.NewS3Wrapper(cfg.S3)
 		if err != nil {
 			return nil, fmt.Errorf("Error starting S3 session for '%s': %s", class, err)
 		}
@@ -48,13 +48,13 @@ func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination st
 			break
 		}
 
-		s3, _ := server.(*s3server.S3StorageServer)
+		s3, _ := server.(*s3server.StorageServer)
 		err = s3.Validate()
 		if err != nil {
 			return nil, fmt.Errorf("Error validating S3 session for '%s': %s", class, err)
 		}
 	case "postgres":
-		server = postgres.NewPgServer(class, cfg.ChunkSizeBytes, waiter, notifier, pool, debugLogger)
+		server = postgres.NewPgStorageServer(class, cfg.ChunkSizeBytes, waiter, notifier, pool, debugLogger)
 	default:
 		return nil, fmt.Errorf("Invalid destination '%s' for '%s'", destination, class)
 	}

@@ -2,7 +2,7 @@
 
 ## Description
 
-Includes unit tests that exercise all the persistent storage servers
+Includes unit tests that exercise all the storage servers
 implemented in `pkg/rsstorage/servers/*`. Since these tests must import
 all the implementation modules, we package them separately so other 
 applications don't need to import all the implementations and their

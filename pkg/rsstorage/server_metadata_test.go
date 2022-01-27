@@ -12,9 +12,9 @@ import (
 	"gopkg.in/check.v1"
 )
 
-type MetadataPersistentStorageServerSuite struct{}
+type MetadataServerSuite struct{}
 
-var _ = check.Suite(&MetadataPersistentStorageServerSuite{})
+var _ = check.Suite(&MetadataServerSuite{})
 
 type cacheStore struct {
 	getErr error
@@ -69,60 +69,60 @@ func (s *cacheStore) CacheObjectMarkUse(cacheName, key string, accessTime time.T
 	return s.useErr
 }
 
-func (s *MetadataPersistentStorageServerSuite) TestNew(c *check.C) {
-	parentServer := &DummyPersistentStorageServer{}
+func (s *MetadataServerSuite) TestNew(c *check.C) {
+	parentServer := &DummyStorageServer{}
 	cstore := &cacheStore{}
-	server := NewMetadataPersistentStorageServer("test", parentServer, cstore)
-	c.Check(server, check.DeepEquals, &MetadataPersistentStorageServer{
-		PersistentStorageServer: parentServer,
-		name:                    "test",
-		store:                   cstore,
+	server := NewMetadataStorageServer("test", parentServer, cstore)
+	c.Check(server, check.DeepEquals, &MetadataStorageServer{
+		StorageServer: parentServer,
+		name:          "test",
+		store:         cstore,
 	})
 }
 
-func (s *MetadataPersistentStorageServerSuite) TestGetServerErr(c *check.C) {
-	parentServer := &DummyPersistentStorageServer{
+func (s *MetadataServerSuite) TestGetServerErr(c *check.C) {
+	parentServer := &DummyStorageServer{
 		GetErr: errors.New("get error"),
 	}
 	cstore := &cacheStore{}
-	server := &MetadataPersistentStorageServer{
-		PersistentStorageServer: parentServer,
-		store:                   cstore,
-		name:                    "test",
+	server := &MetadataStorageServer{
+		StorageServer: parentServer,
+		store:         cstore,
+		name:          "test",
 	}
 	_, _, _, _, ok, err := server.Get("testdir", "storageaddress")
 	c.Check(ok, check.Equals, false)
 	c.Check(err, check.ErrorMatches, "get error")
 }
 
-func (s *MetadataPersistentStorageServerSuite) TestGetStoreErr(c *check.C) {
-	parentServer := &DummyPersistentStorageServer{
+func (s *MetadataServerSuite) TestGetStoreErr(c *check.C) {
+	parentServer := &DummyStorageServer{
 		GetOk: true,
 	}
 	cstore := &cacheStore{
 		useErr: errors.New("store get error"),
 	}
-	server := &MetadataPersistentStorageServer{
-		PersistentStorageServer: parentServer,
-		store:                   cstore,
-		name:                    "test",
+	server := &MetadataStorageServer{
+		StorageServer: parentServer,
+		store:         cstore,
+		name:          "test",
 	}
 	_, _, _, _, ok, err := server.Get("testdir", "storageaddress")
 	c.Check(ok, check.Equals, false)
 	c.Check(err, check.ErrorMatches, "store get error")
 }
 
-func (s *MetadataPersistentStorageServerSuite) TestGetOk(c *check.C) {
+func (s *MetadataServerSuite) TestGetOk(c *check.C) {
 	f := &FakeFileIOFile{}
-	parentServer := &DummyPersistentStorageServer{
+	parentServer := &DummyStorageServer{
 		GetOk:     true,
 		GetReader: f,
 	}
 	cstore := &cacheStore{}
-	server := &MetadataPersistentStorageServer{
-		PersistentStorageServer: parentServer,
-		store:                   cstore,
-		name:                    "test",
+	server := &MetadataStorageServer{
+		StorageServer: parentServer,
+		store:         cstore,
+		name:          "test",
 	}
 	r, _, _, _, ok, err := server.Get("somedir", "storageaddress")
 	c.Check(r, check.DeepEquals, f)
@@ -131,15 +131,15 @@ func (s *MetadataPersistentStorageServerSuite) TestGetOk(c *check.C) {
 	c.Check(cstore.used, check.Equals, "somedir/storageaddress")
 }
 
-func (s *MetadataPersistentStorageServerSuite) TestPutServerErr(c *check.C) {
-	parentServer := &DummyPersistentStorageServer{
+func (s *MetadataServerSuite) TestPutServerErr(c *check.C) {
+	parentServer := &DummyStorageServer{
 		PutErr: errors.New("put error"),
 	}
 	cstore := &cacheStore{}
-	server := &MetadataPersistentStorageServer{
-		PersistentStorageServer: parentServer,
-		store:                   cstore,
-		name:                    "test",
+	server := &MetadataStorageServer{
+		StorageServer: parentServer,
+		store:         cstore,
+		name:          "test",
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
@@ -148,15 +148,15 @@ func (s *MetadataPersistentStorageServerSuite) TestPutServerErr(c *check.C) {
 	c.Check(err, check.ErrorMatches, "put error")
 }
 
-func (s *MetadataPersistentStorageServerSuite) TestPutStoreErr(c *check.C) {
-	parentServer := &DummyPersistentStorageServer{}
+func (s *MetadataServerSuite) TestPutStoreErr(c *check.C) {
+	parentServer := &DummyStorageServer{}
 	cstore := &cacheStore{
 		getErr: errors.New("use error"),
 	}
-	server := &MetadataPersistentStorageServer{
-		PersistentStorageServer: parentServer,
-		store:                   cstore,
-		name:                    "test",
+	server := &MetadataStorageServer{
+		StorageServer: parentServer,
+		store:         cstore,
+		name:          "test",
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
@@ -165,13 +165,13 @@ func (s *MetadataPersistentStorageServerSuite) TestPutStoreErr(c *check.C) {
 	c.Check(err, check.ErrorMatches, "use error")
 }
 
-func (s *MetadataPersistentStorageServerSuite) TestPutOk(c *check.C) {
-	parentServer := &DummyPersistentStorageServer{}
+func (s *MetadataServerSuite) TestPutOk(c *check.C) {
+	parentServer := &DummyStorageServer{}
 	cstore := &cacheStore{}
-	server := &MetadataPersistentStorageServer{
-		PersistentStorageServer: parentServer,
-		store:                   cstore,
-		name:                    "test",
+	server := &MetadataStorageServer{
+		StorageServer: parentServer,
+		store:         cstore,
+		name:          "test",
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		return "adir", "storageaddress", nil

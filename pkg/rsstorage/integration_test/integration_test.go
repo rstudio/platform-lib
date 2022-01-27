@@ -25,9 +25,12 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/internal/servertest"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/file"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/postgres"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/s3server"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
 func TestPackage(t *testing.T) { check.TestingT(t) }
@@ -37,7 +40,7 @@ func TestPackage(t *testing.T) { check.TestingT(t) }
 // `MODULE=pkg/rsstorage/integration_test just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage/integration_test -check.f=StorageIntegrationSuite`
 type StorageIntegrationSuite struct {
 	pool          *pgxpool.Pool
-	tempdirhelper rsstorage.TempDirHelper
+	tempdirhelper servertest.TempDirHelper
 }
 
 var _ = check.Suite(&StorageIntegrationSuite{})
@@ -102,13 +105,13 @@ func EphemeralPostgresPool(dbname string) (pool *pgxpool.Pool, err error) {
 
 func (s *StorageIntegrationSuite) SetUpSuite(c *check.C) {
 	if testing.Short() {
-		c.Skip("skipping persistent storage integration tests because -short was provided")
+		c.Skip("skipping integration tests because -short was provided")
 	}
 }
 
 func (s *StorageIntegrationSuite) SetUpTest(c *check.C) {
 	var err error
-	dbname := strings.ToLower(rsstorage.RandomString(16)) // databases must be lower case
+	dbname := strings.ToLower(internal.RandomString(16)) // databases must be lower case
 	s.pool, err = EphemeralPostgresPool(dbname)
 	c.Assert(err, check.IsNil)
 
@@ -122,8 +125,8 @@ func (s *StorageIntegrationSuite) TearDownTest(c *check.C) {
 // Creates a set of servers that cover all our supported storage subsystems.
 // In the tests, we'll typically create two server sets, one set as a source
 // set and another set as a destination set.
-func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]rsstorage.PersistentStorageServer {
-	s3Svc, err := s3server.NewS3Service(&rsstorage.ConfigS3{
+func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]rsstorage.StorageServer {
+	s3Svc, err := s3server.NewS3Wrapper(&rsstorage.ConfigS3{
 		Bucket:             class,
 		Endpoint:           "http://minio:9000",
 		Prefix:             prefix,
@@ -150,27 +153,27 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 	dir, err := ioutil.TempDir(s.tempdirhelper.Dir(), "")
 	c.Assert(err, check.IsNil)
 
-	wn := &rsstorage.DummyWaiterNotifier{
+	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
 
-	debugLogger := &rsstorage.TestLogger{}
-	pgServer := postgres.NewPgServer(class, 100*1024, wn, wn, s.pool, debugLogger)
+	debugLogger := &servertest.TestLogger{}
+	pgServer := postgres.NewPgStorageServer(class, 100*1024, wn, wn, s.pool, debugLogger)
 	s3Server := s3server.NewS3StorageServer(class, "", s3Svc, 100*1024, wn, wn)
 	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, class, debugLogger, time.Minute)
 
-	return map[string]rsstorage.PersistentStorageServer{
-		"file":     rsstorage.NewMetadataPersistentStorageServer("file", fileServer, cstore),
-		"s3":       rsstorage.NewMetadataPersistentStorageServer("s3", s3Server, cstore),
-		"postgres": rsstorage.NewMetadataPersistentStorageServer("pg", pgServer, cstore),
+	return map[string]rsstorage.StorageServer{
+		"file":     rsstorage.NewMetadataStorageServer("file", fileServer, cstore),
+		"s3":       rsstorage.NewMetadataStorageServer("s3", s3Server, cstore),
+		"postgres": rsstorage.NewMetadataStorageServer("pg", pgServer, cstore),
 	}
 }
 
-// The string that will be used to populate each asset in persistent storage.
+// The string that will be used to populate each stored asset.
 const testAssetData = "this is a test for the server of class %s"
 
-func (s *StorageIntegrationSuite) PopulateServerSet(c *check.C, set map[string]rsstorage.PersistentStorageServer) {
-	resolver := func(class string) rsstorage.Resolver {
+func (s *StorageIntegrationSuite) PopulateServerSet(c *check.C, set map[string]rsstorage.StorageServer) {
+	resolver := func(class string) types.Resolver {
 		return func(w io.Writer) (string, string, error) {
 			_, err := w.Write([]byte(fmt.Sprintf(testAssetData, class)))
 			return "", "", err
@@ -178,10 +181,10 @@ func (s *StorageIntegrationSuite) PopulateServerSet(c *check.C, set map[string]r
 	}
 
 	// Create some chunked data
-	szPut := uint64(len(testDESC))
-	resolverChunked := func(class string) rsstorage.Resolver {
+	szPut := uint64(len(servertest.TestDESC))
+	resolverChunked := func(class string) types.Resolver {
 		return func(w io.Writer) (string, string, error) {
-			buf := bytes.NewBufferString(testDESC)
+			buf := bytes.NewBufferString(servertest.TestDESC)
 			_, err := io.Copy(w, buf)
 			return "", "", err
 		}
@@ -202,8 +205,8 @@ func (s *StorageIntegrationSuite) PopulateServerSet(c *check.C, set map[string]r
 	}
 }
 
-// Verifies that a given asset exists on a persistent storage server
-func (s *StorageIntegrationSuite) CheckFile(c *check.C, server rsstorage.PersistentStorageServer, test, dir, address, classSource, class string, sz int64, chunked bool) {
+// Verifies that a given asset exists
+func (s *StorageIntegrationSuite) CheckFile(c *check.C, server rsstorage.StorageServer, test, dir, address, classSource, class string, sz int64, chunked bool) {
 	log.Printf("(%s) Verifying existence of %s on server=%s (with dir=%s)", test, address, class, dir)
 
 	// Next, get it
@@ -222,7 +225,7 @@ func (s *StorageIntegrationSuite) CheckFile(c *check.C, server rsstorage.Persist
 	_, err = io.Copy(bs, r)
 	c.Assert(err, check.IsNil)
 	if chunked {
-		c.Check(bs.String(), check.Equals, testDESC)
+		c.Check(bs.String(), check.Equals, servertest.TestDESC)
 	} else {
 		c.Check(bs.String(), check.Equals, fmt.Sprintf(testAssetData, classSource))
 	}
@@ -231,8 +234,8 @@ func (s *StorageIntegrationSuite) CheckFile(c *check.C, server rsstorage.Persist
 	c.Assert(r.Close(), check.IsNil)
 }
 
-// Verifies that a given asset does not exist on a persistent storage server
-func (s *StorageIntegrationSuite) CheckFileGone(c *check.C, server rsstorage.PersistentStorageServer, test, dir, address, classSource string) {
+// Verifies that a given asset does not exist
+func (s *StorageIntegrationSuite) CheckFileGone(c *check.C, server rsstorage.StorageServer, test, dir, address, classSource string) {
 	log.Printf("(%s) Verifying removal of %s on server=%s (with dir=%s)", test, address, classSource, dir)
 
 	ok, _, _, _, err := server.Check("", address)
@@ -369,7 +372,7 @@ var _ = check.Suite(&S3IntegrationSuite{})
 
 func (s *S3IntegrationSuite) SetUpSuite(c *check.C) {
 	if testing.Short() {
-		c.Skip("skipping persistent s3 integration tests because -short was provided")
+		c.Skip("skipping s3 integration tests because -short was provided")
 	}
 }
 
@@ -394,7 +397,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 		forcePathStyle = true
 	}
 
-	s3Svc, err := s3server.NewS3Service(&rsstorage.ConfigS3{
+	s3Svc, err := s3server.NewS3Wrapper(&rsstorage.ConfigS3{
 		// Common settings
 		Bucket:             bucket,
 		Prefix:             "integration-test",
@@ -430,7 +433,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 		}()
 	}
 
-	wn := &rsstorage.DummyWaiterNotifier{
+	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
 	s3Server := s3server.NewS3StorageServer(bucket, "integration-test", s3Svc, 100*1024, wn, wn)
@@ -442,7 +445,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	// This channel gets notified/closed when we're ready for the resolve function to fail.
 	end := make(chan struct{})
 
-	resolver := func(class string) rsstorage.Resolver {
+	resolver := func(class string) types.Resolver {
 		return func(w io.Writer) (string, string, error) {
 			// Start writing some data to the resolver's writer
 			//w.Write([]byte(fmt.Sprintf(testAssetData, class)))
@@ -519,7 +522,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		forcePathStyle = true
 	}
 
-	s3Svc, err := s3server.NewS3Service(&rsstorage.ConfigS3{
+	s3Svc, err := s3server.NewS3Wrapper(&rsstorage.ConfigS3{
 		// Common settings
 		Bucket:             bucket,
 		Prefix:             "integration-test",
@@ -555,7 +558,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		}()
 	}
 
-	wn := &rsstorage.DummyWaiterNotifier{
+	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
 	s3Server := s3server.NewS3StorageServer(bucket, "integration-test", s3Svc, 100*1024, wn, wn)
@@ -567,7 +570,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 	// This channel gets notified/closed when we're ready for the resolve function to fail.
 	end := make(chan struct{})
 
-	resolver := func(class string) rsstorage.Resolver {
+	resolver := func(class string) types.Resolver {
 		return func(w io.Writer) (string, string, error) {
 			// Start writing some data to the resolver's writer
 			w.Write([]byte(fmt.Sprintf(testAssetData, class)))
@@ -626,50 +629,3 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, false)
 }
-
-var testDESC = `Encoding: UTF-8
-Package: plumber
-Type: Package
-Title: An API Generator for R
-Version: 0.4.2
-Date: 2017-07-24
-Authors@R: c(
-  person(family="Trestle Technology, LLC", role="aut", email="cran@trestletech.com"),
-  person("Jeff", "Allen", role="cre", email="cran@trestletech.com"),
-  person("Frans", "van Dunné", role="ctb", email="frans@ixpantia.com"),
-  person(family="SmartBear Software", role=c("ctb", "cph"), comment="swagger-ui"))
-License: MIT + file LICENSE
-BugReports: https://github.com/trestletech/plumber/issues
-URL: https://www.rplumber.io (site)
-        https://github.com/trestletech/plumber (dev)
-Description: Gives the ability to automatically generate and serve an HTTP API
-    from R functions using the annotations in the R documentation around your
-    functions.
-Depends: R (>= 3.0.0)
-Imports: R6 (>= 2.0.0), stringi (>= 0.3.0), jsonlite (>= 0.9.16),
-        httpuv (>= 1.2.3), crayon
-LazyData: TRUE
-Suggests: testthat (>= 0.11.0), XML, rmarkdown, PKI, base64enc,
-        htmlwidgets, visNetwork, analogsea
-LinkingTo: testthat (>= 0.11.0), XML, rmarkdown
-Enhances: testthat (>= 0.12.0), XML, rmarkdown
-Collate: 'content-types.R' 'cookie-parser.R' 'parse-globals.R'
-        'images.R' 'parse-block.R' 'globals.R' 'serializer-json.R'
-        'shared-secret-filter.R' 'post-body.R' 'query-string.R'
-        'plumber.R' 'default-handlers.R' 'digital-ocean.R'
-        'find-port.R' 'includes.R' 'paths.R' 'plumber-static.R'
-        'plumber-step.R' 'response.R' 'serializer-content-type.R'
-        'serializer-html.R' 'serializer-htmlwidget.R'
-        'serializer-xml.R' 'serializer.R' 'session-cookie.R'
-        'swagger.R'
-RoxygenNote: 6.0.1
-NeedsCompilation: no
-Packaged: 2017-07-24 17:17:15 UTC; jeff
-Author: Trestle Technology, LLC [aut],
-  Jeff Allen [cre],
-  Frans van Dunné [ctb],
-  SmartBear Software [ctb, cph] (swagger-ui)
-Maintainer: Jeff Allen <cran@trestletech.com>
-Repository: CRAN
-Date/Publication: 2017-07-24 21:50:56 UTC
-`

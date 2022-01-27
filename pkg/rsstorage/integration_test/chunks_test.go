@@ -21,21 +21,24 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/internal/servertest"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/file"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/postgres"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/s3server"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
 type ChunksIntegrationSuite struct {
 	pool          *pgxpool.Pool
-	tempdirhelper rsstorage.TempDirHelper
+	tempdirhelper servertest.TempDirHelper
 }
 
 var _ = check.Suite(&ChunksIntegrationSuite{})
 
 func (s *ChunksIntegrationSuite) SetUpTest(c *check.C) {
 	var err error
-	dbname := strings.ToLower(rsstorage.RandomString(16)) // databases must be lower case
+	dbname := strings.ToLower(internal.RandomString(16)) // databases must be lower case
 	if !testing.Short() {
 		s.pool, err = EphemeralPostgresPool(dbname)
 		c.Assert(err, check.IsNil)
@@ -51,8 +54,8 @@ func (s *ChunksIntegrationSuite) TearDownTest(c *check.C) {
 // Creates a set of servers that cover all our supported storage subsystems.
 // In the tests, we'll typically create two server sets, one set as a source
 // set and another set as a destination set.
-func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]rsstorage.PersistentStorageServer {
-	s3Svc, err := s3server.NewS3Service(&rsstorage.ConfigS3{
+func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]rsstorage.StorageServer {
+	s3Svc, err := s3server.NewS3Wrapper(&rsstorage.ConfigS3{
 		Bucket:             class,
 		Endpoint:           "http://minio:9000",
 		Prefix:             prefix,
@@ -79,18 +82,18 @@ func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) 
 	dir, err := ioutil.TempDir(s.tempdirhelper.Dir(), "")
 	c.Assert(err, check.IsNil)
 
-	wn := &rsstorage.DummyWaiterNotifier{
+	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	debugLogger := &rsstorage.TestLogger{}
-	pgServer := postgres.NewPgServer(class, 100*1024, wn, wn, s.pool, debugLogger)
+	debugLogger := &servertest.TestLogger{}
+	pgServer := postgres.NewPgStorageServer(class, 100*1024, wn, wn, s.pool, debugLogger)
 	s3Server := s3server.NewS3StorageServer(class, "", s3Svc, 100*1024, wn, wn)
 	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
 
-	return map[string]rsstorage.PersistentStorageServer{
-		"file":     rsstorage.NewMetadataPersistentStorageServer("file", fileServer, cstore),
-		"s3":       rsstorage.NewMetadataPersistentStorageServer("s3", s3Server, cstore),
-		"postgres": rsstorage.NewMetadataPersistentStorageServer("pg", pgServer, cstore),
+	return map[string]rsstorage.StorageServer{
+		"file":     rsstorage.NewMetadataStorageServer("file", fileServer, cstore),
+		"s3":       rsstorage.NewMetadataStorageServer("s3", s3Server, cstore),
+		"postgres": rsstorage.NewMetadataStorageServer("pg", pgServer, cstore),
 	}
 }
 
@@ -101,17 +104,17 @@ func (s *ChunksIntegrationSuite) TestWriteChunked(c *check.C) {
 	serverSet := s.NewServerSet(c, "chunks", "")
 	for key, server := range serverSet {
 		if testing.Short() && key != "file" {
-			log.Printf("skipping persistent storage chunks integration tests for %s because -short was provided", key)
+			log.Printf("skipping chunks integration tests for %s because -short was provided", key)
 		} else {
-			log.Printf("testing persistent storage chunks integration tests for %s", key)
+			log.Printf("testing chunks integration tests for %s", key)
 			s.check(c, server)
 		}
 	}
 }
 
-func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer rsstorage.PersistentStorageServer) {
+func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer rsstorage.StorageServer) {
 
-	wn := &rsstorage.DummyWaiterNotifier{
+	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
 
@@ -133,10 +136,10 @@ func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer rsstorage.Persist
 	err := cw.WriteChunked("0a", "test-chunk", sz, resolveJunk)
 	c.Assert(err, check.IsNil)
 
-	sz = uint64(len(testDESC))
+	sz = uint64(len(servertest.TestDESC))
 
 	resolve := func(writer io.Writer) (dir, address string, err error) {
-		b := bytes.NewBufferString(testDESC)
+		b := bytes.NewBufferString(servertest.TestDESC)
 		_, err = io.Copy(writer, b)
 		return
 	}
@@ -147,7 +150,7 @@ func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer rsstorage.Persist
 	// Look for expected files in output directory
 	items, err := chunkServer.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Assert(items, check.DeepEquals, []rsstorage.PersistentStorageItem{
+	c.Assert(items, check.DeepEquals, []types.StoredItem{
 		{
 			Dir:     "0a",
 			Address: "test-chunk",
@@ -159,13 +162,13 @@ func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer rsstorage.Persist
 	infoFile, _, _, _, ok, err := chunkServer.Get("0a/test-chunk", "info.json")
 	c.Assert(err, check.IsNil)
 	c.Assert(ok, check.Equals, true)
-	info := rsstorage.ChunksInfo{}
+	info := types.ChunksInfo{}
 	dec := json.NewDecoder(infoFile)
 	err = dec.Decode(&info)
 	c.Assert(err, check.IsNil)
 	c.Check(time.Now().Sub(info.ModTime).Minutes() < 2, check.Equals, true)
 	info.ModTime = time.Time{}
-	c.Assert(info, check.DeepEquals, rsstorage.ChunksInfo{
+	c.Assert(info, check.DeepEquals, types.ChunksInfo{
 		ChunkSize: 5,
 		NumChunks: 391,
 		FileSize:  1953,
@@ -194,7 +197,7 @@ func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer rsstorage.Persist
 }
 
 type ChunksPartialReadSuite struct {
-	tempdirhelper rsstorage.TempDirHelper
+	tempdirhelper servertest.TempDirHelper
 }
 
 var _ = check.Suite(&ChunksPartialReadSuite{})
@@ -211,11 +214,11 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 	log.Printf("Starting test %s", c.TestName())
 	defer leaktest.Check(c)
 
-	sz := uint64(len(testDESC))
-	b := bytes.NewBufferString(testDESC)
+	sz := uint64(len(servertest.TestDESC))
+	b := bytes.NewBufferString(servertest.TestDESC)
 	chunkSize := uint64(5)
 
-	wn := &rsstorage.DummyWaiterNotifier{
+	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
 
@@ -223,7 +226,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 	dir, err := ioutil.TempDir(s.tempdirhelper.Dir(), "")
 	c.Assert(err, check.IsNil)
 
-	debugLogger := &rsstorage.TestLogger{}
+	debugLogger := &servertest.TestLogger{}
 	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
 
 	cw := &rsstorage.DefaultChunkUtils{
@@ -305,19 +308,19 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 	defer leaktest.Check(c)
 
-	sz := uint64(len(testDESC))
-	b := bytes.NewBufferString(testDESC)
+	sz := uint64(len(servertest.TestDESC))
+	b := bytes.NewBufferString(servertest.TestDESC)
 	chunkSize := uint64(5)
 
 	// Prep directory for file storage
 	dir, err := ioutil.TempDir(s.tempdirhelper.Dir(), "")
 	c.Assert(err, check.IsNil)
 
-	wn := &rsstorage.DummyWaiterNotifier{
+	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
 
-	debugLogger := &rsstorage.TestLogger{}
+	debugLogger := &servertest.TestLogger{}
 	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
 
 	cw := &rsstorage.DefaultChunkUtils{

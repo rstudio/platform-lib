@@ -20,7 +20,7 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
-type FileStorageServer struct {
+type StorageServer struct {
 	dir          string
 	class        string
 	fileIO       FileIO
@@ -29,15 +29,15 @@ type FileStorageServer struct {
 	debugLogger  rsstorage.DebugLogger
 }
 
-func NewFileStorageServer(dir string, chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, class string, debugLogger rsstorage.DebugLogger, cacheTimeout time.Duration) rsstorage.PersistentStorageServer {
-	fs := &FileStorageServer{
+func NewFileStorageServer(dir string, chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, class string, debugLogger rsstorage.DebugLogger, cacheTimeout time.Duration) rsstorage.StorageServer {
+	fs := &StorageServer{
 		dir:          dir,
 		fileIO:       &defaultFileIO{},
 		class:        class,
 		debugLogger:  debugLogger,
 		cacheTimeout: cacheTimeout,
 	}
-	return &FileStorageServer{
+	return &StorageServer{
 		dir:          dir,
 		fileIO:       &defaultFileIO{},
 		debugLogger:  debugLogger,
@@ -54,7 +54,7 @@ func NewFileStorageServer(dir string, chunkSize uint64, waiter rsstorage.ChunkWa
 	}
 }
 
-func (s *FileStorageServer) Check(dir, address string) (bool, *rsstorage.ChunksInfo, int64, time.Time, error) {
+func (s *StorageServer) Check(dir, address string) (bool, *types.ChunksInfo, int64, time.Time, error) {
 	// Determine the location for this file
 	filePath := filepath.Join(s.dir, dir, address)
 
@@ -73,7 +73,7 @@ func (s *FileStorageServer) Check(dir, address string) (bool, *rsstorage.ChunksI
 		}
 		defer infoFile.Close()
 
-		info := rsstorage.ChunksInfo{}
+		info := types.ChunksInfo{}
 		dec := json.NewDecoder(infoFile)
 		err = dec.Decode(&info)
 		if err != nil {
@@ -87,15 +87,15 @@ func (s *FileStorageServer) Check(dir, address string) (bool, *rsstorage.ChunksI
 	}
 }
 
-func (s *FileStorageServer) Dir() string {
+func (s *StorageServer) Dir() string {
 	return s.dir
 }
 
-func (s *FileStorageServer) Type() rsstorage.StorageType {
+func (s *StorageServer) Type() types.StorageType {
 	return rsstorage.StorageTypeFile
 }
 
-func (s *FileStorageServer) CalculateUsage() (types.Usage, error) {
+func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 	start := time.Now()
 	info, err := disk.GetInfo(s.dir)
 	if err != nil {
@@ -150,7 +150,7 @@ func DiskUsage(duPath string, cacheTimeout time.Duration) (size datasize.ByteSiz
 	return
 }
 
-func (s *FileStorageServer) Get(dir, address string) (io.ReadCloser, *rsstorage.ChunksInfo, int64, time.Time, bool, error) {
+func (s *StorageServer) Get(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
 	// Determine the location for this file
 	filePath := filepath.Join(s.dir, dir, address)
 
@@ -180,7 +180,7 @@ func (s *FileStorageServer) Get(dir, address string) (io.ReadCloser, *rsstorage.
 	}
 }
 
-func (s *FileStorageServer) Flush(dir, address string) {
+func (s *StorageServer) Flush(dir, address string) {
 	// Determine location for this file
 	filePath := filepath.Join(s.dir, dir, address)
 
@@ -188,7 +188,7 @@ func (s *FileStorageServer) Flush(dir, address string) {
 	s.fileIO.FlushWithChownAndStat(filePath)
 }
 
-func (s *FileStorageServer) Put(resolve rsstorage.Resolver, dir, address string) (string, string, error) {
+func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (string, string, error) {
 
 	// Store the data
 	wdir, waddress, staging, err := s.write(resolve)
@@ -223,7 +223,7 @@ func (s *FileStorageServer) Put(resolve rsstorage.Resolver, dir, address string)
 	return dir, address, nil
 }
 
-func (s *FileStorageServer) PutChunked(resolve rsstorage.Resolver, dir, address string, sz uint64) (string, string, error) {
+func (s *StorageServer) PutChunked(resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
 	if address == "" {
 		return "", "", fmt.Errorf("cache only supports pre-addressed chunked put commands")
 	}
@@ -238,7 +238,7 @@ func (s *FileStorageServer) PutChunked(resolve rsstorage.Resolver, dir, address 
 	return dir, address, nil
 }
 
-func (s *FileStorageServer) write(resolve rsstorage.Resolver) (dir, address, staging string, err error) {
+func (s *StorageServer) write(resolve types.Resolver) (dir, address, staging string, err error) {
 	// Open the file where we will stage the data
 	stagingFile, err := s.fileIO.OpenStaging(s.dir, "")
 	if err != nil {
@@ -257,16 +257,16 @@ func (s *FileStorageServer) write(resolve rsstorage.Resolver) (dir, address, sta
 	return
 }
 
-func (s *FileStorageServer) cleanup(staging string) {
+func (s *StorageServer) cleanup(staging string) {
 	// Clean up, but don't error if we fail
 	removeError := s.fileIO.Remove(staging)
 	if removeError != nil && !os.IsNotExist(removeError) {
 		// Warn and discard errors cleaning up
-		s.debugLogger.Debugf("FileStorageServer error while cleaning up staged data: %s", removeError)
+		s.debugLogger.Debugf("file.StorageServer error while cleaning up staged data: %s", removeError)
 	}
 }
 
-func (s *FileStorageServer) Remove(dir, address string) error {
+func (s *StorageServer) Remove(dir, address string) error {
 	// Determine the location for this file
 	ok, chunked, _, _, err := s.Check(dir, address)
 	if err != nil {
@@ -284,11 +284,11 @@ func (s *FileStorageServer) Remove(dir, address string) error {
 	}
 }
 
-func (s *FileStorageServer) Enumerate() ([]rsstorage.PersistentStorageItem, error) {
-	items := make([]rsstorage.PersistentStorageItem, 0)
+func (s *StorageServer) Enumerate() ([]types.StoredItem, error) {
+	items := make([]types.StoredItem, 0)
 	err := filepath.Walk(s.dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			log.Printf("Error enumerating persistent storage for directory %s: %s", s.dir, err)
+			log.Printf("Error enumerating storage for directory %s: %s", s.dir, err)
 			return nil
 		}
 		if !info.IsDir() {
@@ -300,7 +300,7 @@ func (s *FileStorageServer) Enumerate() ([]rsstorage.PersistentStorageItem, erro
 			if dir == "." {
 				dir = ""
 			}
-			items = append(items, rsstorage.PersistentStorageItem{
+			items = append(items, types.StoredItem{
 				Dir:     dir,
 				Address: info.Name(),
 			})
@@ -313,7 +313,7 @@ func (s *FileStorageServer) Enumerate() ([]rsstorage.PersistentStorageItem, erro
 	return rsstorage.FilterChunks(items), nil
 }
 
-func (s *FileStorageServer) move(dir, address string, server rsstorage.PersistentStorageServer) error {
+func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer) error {
 	source := s.Locate(dir, address)
 	dest := server.Locate(dir, address)
 	s.debugLogger.Debugf("Renaming %s to %s", source, dest)
@@ -334,10 +334,10 @@ func (s *FileStorageServer) move(dir, address string, server rsstorage.Persisten
 	return nil
 }
 
-func (s *FileStorageServer) Move(dir, address string, server rsstorage.PersistentStorageServer) error {
+func (s *StorageServer) Move(dir, address string, server rsstorage.StorageServer) error {
 	copy := true
 	switch server.(type) {
-	case *FileStorageServer:
+	case *StorageServer:
 		// Attempt move
 		err := s.move(dir, address, server)
 		if err == nil {
@@ -364,7 +364,7 @@ func (s *FileStorageServer) Move(dir, address string, server rsstorage.Persisten
 	return nil
 }
 
-func (s *FileStorageServer) Copy(dir, address string, server rsstorage.PersistentStorageServer) error {
+func (s *StorageServer) Copy(dir, address string, server rsstorage.StorageServer) error {
 	// Open the file
 	f, chunked, sz, _, ok, err := s.Get(dir, address)
 	if err != nil {
@@ -374,14 +374,14 @@ func (s *FileStorageServer) Copy(dir, address string, server rsstorage.Persisten
 		return fmt.Errorf("the file at %s to copy does not exist", filepath.Join(dir, address))
 	}
 
-	install := func(file io.ReadCloser) rsstorage.Resolver {
+	install := func(file io.ReadCloser) types.Resolver {
 		return func(writer io.Writer) (string, string, error) {
 			_, err := io.Copy(writer, file)
 			return "", "", err
 		}
 	}
 
-	// Use the server Base() in case the server is wrapped, e.g., `Metadatarsstorage.PersistentStorageServer`
+	// Use the server Base() in case the server is wrapped, e.g., `Metadatarsstorage.StorageServer`
 	if chunked != nil {
 		_, _, err = server.Base().PutChunked(install(f), dir, address, uint64(sz))
 	} else {
@@ -390,11 +390,11 @@ func (s *FileStorageServer) Copy(dir, address string, server rsstorage.Persisten
 	return err
 }
 
-func (s *FileStorageServer) Locate(dir, address string) string {
+func (s *StorageServer) Locate(dir, address string) string {
 	return filepath.Join(s.dir, dir, address)
 }
 
-func (s *FileStorageServer) Base() rsstorage.PersistentStorageServer {
+func (s *StorageServer) Base() rsstorage.StorageServer {
 	return s
 }
 

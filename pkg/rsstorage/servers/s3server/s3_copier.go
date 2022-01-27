@@ -19,7 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
-	"github.com/rstudio/platform-lib/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
 )
 
 // From https://github.com/aws/aws-sdk-go/pull/2653
@@ -178,8 +178,8 @@ func (c Copier) CopyWithContext(ctx aws.Context, input *s3.CopyObjectInput, opti
 // number of round trips to UploadPartCopy by maximizing the number of bytes
 // copied per goroutine-part.
 func optimalPartSize(sourceSize int64, concurrency int) int64 {
-	return rsstorage.MaxInt64(
-		s3manager.MinUploadPartSize, rsstorage.MinInt64(
+	return internal.MaxInt64(
+		s3manager.MinUploadPartSize, internal.MinInt64(
 			sourceSize/int64(concurrency), MaxUploadPartSize))
 }
 
@@ -190,7 +190,7 @@ func optimalPartSize(sourceSize int64, concurrency int) int64 {
 func copySourceRange(sourceSize, partSize, partNum int64) string {
 	rangeStart := (partNum - 1) * partSize
 	remainingBytes := sourceSize - rangeStart
-	rangeEnd := rangeStart + rsstorage.MinInt64(remainingBytes, partSize) - 1
+	rangeEnd := rangeStart + internal.MinInt64(remainingBytes, partSize) - 1
 	return fmt.Sprintf("bytes=%d-%d", rangeStart, rangeEnd)
 }
 
@@ -215,7 +215,7 @@ func (c *copier) copy() (*s3.CopyObjectOutput, error) {
 		return nil, err
 	}
 
-	c.partSize = rsstorage.MinInt64(optimalPartSize(c.src.size, c.cfg.Concurrency), c.cfg.MaxPartSize)
+	c.partSize = internal.MinInt64(optimalPartSize(c.src.size, c.cfg.Concurrency), c.cfg.MaxPartSize)
 	c.partCount = (c.src.size + c.partSize - 1) / c.partSize
 
 	if c.src.size <= c.cfg.MultipartCopyThreshold || c.partCount < 2 {
@@ -363,7 +363,7 @@ func (c *copier) multipartCopy() (*s3.CopyObjectOutput, error) {
 	firstErr := make(chan error, 1)
 	var firstPart *s3.UploadPartCopyOutput
 
-	for i := int64(0); i < rsstorage.MinInt64(c.partCount, int64(c.cfg.Concurrency)); i++ {
+	for i := int64(0); i < internal.MinInt64(c.partCount, int64(c.cfg.Concurrency)); i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

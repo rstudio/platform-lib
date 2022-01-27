@@ -14,12 +14,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
 )
 
 const S3Concurrency = 20
 
 // Encapsulates the S3 services we need
-type S3Service interface {
+type S3Wrapper interface {
 	CreateBucket(input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error)
 	DeleteBucket(input *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error)
 	HeadObject(input *s3.HeadObjectInput) (*s3.HeadObjectOutput, error)
@@ -31,11 +32,11 @@ type S3Service interface {
 	ListObjects(bucket, prefix string) ([]string, error)
 }
 
-type defaultS3Service struct {
+type defaultS3Wrapper struct {
 	session *session.Session
 }
 
-func NewS3Service(configInput *rsstorage.ConfigS3) (S3Service, error) {
+func NewS3Wrapper(configInput *rsstorage.ConfigS3) (S3Wrapper, error) {
 	// Create a session
 	options := getS3Options(configInput)
 	sess, err := session.NewSessionWithOptions(options)
@@ -43,12 +44,12 @@ func NewS3Service(configInput *rsstorage.ConfigS3) (S3Service, error) {
 		return nil, fmt.Errorf("Error starting AWS session: %s", err)
 	}
 
-	return &defaultS3Service{
+	return &defaultS3Wrapper{
 		session: sess,
 	}, nil
 }
 
-func (s *defaultS3Service) CreateBucket(input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {
+func (s *defaultS3Wrapper) CreateBucket(input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {
 	svc := s3.New(s.session)
 	out, err := svc.CreateBucket(input)
 	if err != nil {
@@ -57,7 +58,7 @@ func (s *defaultS3Service) CreateBucket(input *s3.CreateBucketInput) (*s3.Create
 	return out, err
 }
 
-func (s *defaultS3Service) DeleteBucket(input *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error) {
+func (s *defaultS3Wrapper) DeleteBucket(input *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error) {
 	svc := s3.New(s.session)
 	out, err := svc.DeleteBucket(input)
 	if err != nil {
@@ -66,7 +67,7 @@ func (s *defaultS3Service) DeleteBucket(input *s3.DeleteBucketInput) (*s3.Delete
 	return out, err
 }
 
-func (s *defaultS3Service) HeadObject(input *s3.HeadObjectInput) (*s3.HeadObjectOutput, error) {
+func (s *defaultS3Wrapper) HeadObject(input *s3.HeadObjectInput) (*s3.HeadObjectOutput, error) {
 	svc := s3.New(s.session)
 	out, err := svc.HeadObject(input)
 	if err != nil {
@@ -81,7 +82,7 @@ func (s *defaultS3Service) HeadObject(input *s3.HeadObjectInput) (*s3.HeadObject
 	return out, err
 }
 
-func (s *defaultS3Service) GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, error) {
+func (s *defaultS3Wrapper) GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, error) {
 	svc := s3.New(s.session)
 	out, err := svc.GetObject(input)
 	if err != nil {
@@ -96,7 +97,7 @@ func (s *defaultS3Service) GetObject(input *s3.GetObjectInput) (*s3.GetObjectOut
 	return out, err
 }
 
-func (s *defaultS3Service) DeleteObject(input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error) {
+func (s *defaultS3Wrapper) DeleteObject(input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error) {
 	svc := s3.New(s.session)
 	out, err := svc.DeleteObject(input)
 	if err != nil {
@@ -105,7 +106,7 @@ func (s *defaultS3Service) DeleteObject(input *s3.DeleteObjectInput) (*s3.Delete
 	return out, nil
 }
 
-func (s *defaultS3Service) Upload(input *s3manager.UploadInput, ctx context.Context, options ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error) {
+func (s *defaultS3Wrapper) Upload(input *s3manager.UploadInput, ctx context.Context, options ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error) {
 	uploader := s3manager.NewUploader(s.session)
 	out, err := uploader.UploadWithContext(ctx, input, options...)
 	if err != nil {
@@ -114,14 +115,14 @@ func (s *defaultS3Service) Upload(input *s3manager.UploadInput, ctx context.Cont
 	return out, err
 }
 
-func (s *defaultS3Service) copyObject(svc *s3.S3, bucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
+func (s *defaultS3Wrapper) copyObject(svc *s3.S3, bucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
 	copier := NewCopierWithClient(svc)
 
 	// First, copy the object
 	out, err := copier.Copy(&s3.CopyObjectInput{
 		Bucket:     aws.String(newBucket),
 		Key:        aws.String(newKey),
-		CopySource: aws.String(rsstorage.NotEmptyJoin([]string{bucket, oldKey}, "/")),
+		CopySource: aws.String(internal.NotEmptyJoin([]string{bucket, oldKey}, "/")),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("Something went wrong moving an object on S3. You may want to check your configuration, copy error: %s", err.Error())
@@ -130,7 +131,7 @@ func (s *defaultS3Service) copyObject(svc *s3.S3, bucket, oldKey, newBucket, new
 	return out, nil
 }
 
-func (s *defaultS3Service) CopyObject(bucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
+func (s *defaultS3Wrapper) CopyObject(bucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
 	svc := s3.New(s.session)
 
 	out, err := s.copyObject(svc, bucket, oldKey, newBucket, newKey)
@@ -141,7 +142,7 @@ func (s *defaultS3Service) CopyObject(bucket, oldKey, newBucket, newKey string) 
 	return out, nil
 }
 
-func (s *defaultS3Service) MoveObject(bucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
+func (s *defaultS3Wrapper) MoveObject(bucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
 	svc := s3.New(s.session)
 
 	out, err := s.copyObject(svc, bucket, oldKey, newBucket, newKey)
@@ -158,7 +159,7 @@ func (s *defaultS3Service) MoveObject(bucket, oldKey, newBucket, newKey string) 
 	return out, nil
 }
 
-func (s *defaultS3Service) ListObjects(bucket, prefix string) ([]string, error) {
+func (s *defaultS3Wrapper) ListObjects(bucket, prefix string) ([]string, error) {
 	ops := NewAwsOps(s.session)
 	// prefix must end with a slash
 	if !strings.HasSuffix(prefix, "/") {

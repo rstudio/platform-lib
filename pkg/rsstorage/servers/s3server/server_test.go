@@ -19,14 +19,15 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/internal/servertest"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
 func TestPackage(t *testing.T) { check.TestingT(t) }
 
-type S3PersistentStorageServerSuite struct{}
+type S3StorageServerSuite struct{}
 
-var _ = check.Suite(&S3PersistentStorageServerSuite{})
+var _ = check.Suite(&S3StorageServerSuite{})
 
 type testReadCloser struct {
 	io.Reader
@@ -160,17 +161,17 @@ func (s *fakeS3) Upload(input *s3manager.UploadInput, ctx context.Context, optio
 	return s.upload, s.uploadErr
 }
 
-func (s *S3PersistentStorageServerSuite) TestNew(c *check.C) {
+func (s *S3StorageServerSuite) TestNew(c *check.C) {
 	svc := &fakeS3{}
-	wn := &rsstorage.DummyWaiterNotifier{}
+	wn := &servertest.DummyWaiterNotifier{}
 	server := NewS3StorageServer("test", "prefix", svc, 4096, wn, wn)
-	c.Assert(server.(*S3StorageServer).move, check.NotNil)
-	c.Assert(server.(*S3StorageServer).copy, check.NotNil)
-	c.Assert(server.(*S3StorageServer).chunker, check.NotNil)
-	server.(*S3StorageServer).move = nil
-	server.(*S3StorageServer).copy = nil
-	server.(*S3StorageServer).chunker = nil
-	c.Check(server, check.DeepEquals, &S3StorageServer{
+	c.Assert(server.(*StorageServer).move, check.NotNil)
+	c.Assert(server.(*StorageServer).copy, check.NotNil)
+	c.Assert(server.(*StorageServer).chunker, check.NotNil)
+	server.(*StorageServer).move = nil
+	server.(*StorageServer).copy = nil
+	server.(*StorageServer).chunker = nil
+	c.Check(server, check.DeepEquals, &StorageServer{
 		bucket: "test",
 		prefix: "prefix",
 		svc:    svc,
@@ -180,7 +181,7 @@ func (s *S3PersistentStorageServerSuite) TestNew(c *check.C) {
 	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypeS3)
 }
 
-func (s *S3PersistentStorageServerSuite) TestCheck(c *check.C) {
+func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 	now := time.Now()
 	svc := &fakeS3{
 		head: &s3.HeadObjectOutput{
@@ -188,7 +189,7 @@ func (s *S3PersistentStorageServerSuite) TestCheck(c *check.C) {
 			LastModified:  aws.Time(now),
 		},
 	}
-	server := &S3StorageServer{
+	server := &StorageServer{
 		svc:    svc,
 		prefix: "prefix",
 	}
@@ -198,7 +199,7 @@ func (s *S3PersistentStorageServerSuite) TestCheck(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(chunked, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(45))
-	c.Assert(mod, rsstorage.TimeEquals, now)
+	c.Assert(mod, servertest.TimeEquals, now)
 	c.Assert(ok, check.Equals, true)
 	c.Assert(svc.headRes, check.Equals, "prefix/dir/address")
 
@@ -283,7 +284,7 @@ func (s *S3PersistentStorageServerSuite) TestCheck(c *check.C) {
 	c.Assert(ok, check.Equals, true)
 }
 
-func (s *S3PersistentStorageServerSuite) TestGet(c *check.C) {
+func (s *S3StorageServerSuite) TestGet(c *check.C) {
 	output := &testReadCloser{bytes.NewBufferString("test output")}
 	now := time.Now()
 	svc := &fakeS3{
@@ -293,7 +294,7 @@ func (s *S3PersistentStorageServerSuite) TestGet(c *check.C) {
 			LastModified:  aws.Time(now),
 		},
 	}
-	server := &S3StorageServer{
+	server := &StorageServer{
 		svc:    svc,
 		prefix: "prefix",
 	}
@@ -304,7 +305,7 @@ func (s *S3PersistentStorageServerSuite) TestGet(c *check.C) {
 	c.Assert(rs, check.FitsTypeOf, &testReadCloser{})
 	c.Assert(ch, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(45))
-	c.Assert(mod, rsstorage.TimeEquals, now)
+	c.Assert(mod, servertest.TimeEquals, now)
 	c.Assert(ok, check.Equals, true)
 	c.Assert(svc.got, check.Equals, "prefix/dir/address")
 
@@ -345,9 +346,9 @@ func (s *S3PersistentStorageServerSuite) TestGet(c *check.C) {
 			head: &s3.HeadObjectOutput{},
 		},
 	}
-	chunker := &rsstorage.DummyChunkUtils{
+	chunker := &servertest.DummyChunkUtils{
 		Read: output,
-		ReadCh: &rsstorage.ChunksInfo{
+		ReadCh: &types.ChunksInfo{
 			Complete: true,
 		},
 		ReadSz:  5454,
@@ -366,7 +367,7 @@ func (s *S3PersistentStorageServerSuite) TestGet(c *check.C) {
 	rs, ch, sz, mod, ok, err = server.Get("dir", "address")
 	c.Assert(err, check.IsNil)
 	c.Assert(rs, check.DeepEquals, output)
-	c.Assert(ch, check.DeepEquals, &rsstorage.ChunksInfo{
+	c.Assert(ch, check.DeepEquals, &types.ChunksInfo{
 		Complete: true,
 	})
 	c.Assert(sz, check.DeepEquals, int64(5454))
@@ -374,7 +375,7 @@ func (s *S3PersistentStorageServerSuite) TestGet(c *check.C) {
 	c.Assert(ok, check.Equals, true)
 }
 
-func (s *S3PersistentStorageServerSuite) TestPut(c *check.C) {
+func (s *S3StorageServerSuite) TestPut(c *check.C) {
 	defer leaktest.Check(c)
 
 	input := bytes.NewBufferString("test input")
@@ -386,7 +387,7 @@ func (s *S3PersistentStorageServerSuite) TestPut(c *check.C) {
 	svc := &fakeS3{
 		upload: output,
 	}
-	server := &S3StorageServer{
+	server := &StorageServer{
 		svc:    svc,
 		bucket: "test-bucket",
 		prefix: "prefix",
@@ -415,7 +416,7 @@ func (s *S3PersistentStorageServerSuite) TestPut(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "resolver error")
 }
 
-func (s *S3PersistentStorageServerSuite) TestPutDeferredAddress(c *check.C) {
+func (s *S3StorageServerSuite) TestPutDeferredAddress(c *check.C) {
 	defer leaktest.Check(c)
 
 	input := bytes.NewBufferString("test input")
@@ -427,7 +428,7 @@ func (s *S3PersistentStorageServerSuite) TestPutDeferredAddress(c *check.C) {
 	svc := &fakeS3{
 		upload: output,
 	}
-	server := &S3StorageServer{
+	server := &StorageServer{
 		svc:    svc,
 		bucket: "test-bucket",
 		prefix: "prefix",
@@ -451,7 +452,7 @@ func (s *S3PersistentStorageServerSuite) TestPutDeferredAddress(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "move error")
 }
 
-func (s *S3PersistentStorageServerSuite) TestRemove(c *check.C) {
+func (s *S3StorageServerSuite) TestRemove(c *check.C) {
 	svc := &fakeS3{
 		headMap: map[string]HeadResponse{
 			"dir/address": {
@@ -459,7 +460,7 @@ func (s *S3PersistentStorageServerSuite) TestRemove(c *check.C) {
 			},
 		},
 	}
-	server := &S3StorageServer{
+	server := &StorageServer{
 		svc: svc,
 	}
 
@@ -559,18 +560,18 @@ func (s *S3PersistentStorageServerSuite) TestRemove(c *check.C) {
 		"prefix/dir/address/info.json")
 }
 
-func (s *S3PersistentStorageServerSuite) TestEnumerateError(c *check.C) {
+func (s *S3StorageServerSuite) TestEnumerateError(c *check.C) {
 	svc := &fakeS3{
 		listError: errors.New("list error"),
 	}
-	server := &S3StorageServer{
+	server := &StorageServer{
 		svc: svc,
 	}
 	_, err := server.Enumerate()
 	c.Assert(err, check.ErrorMatches, "list error")
 }
 
-func (s *S3PersistentStorageServerSuite) TestEnumerateOk(c *check.C) {
+func (s *S3StorageServerSuite) TestEnumerateOk(c *check.C) {
 	svc := &fakeS3{
 		list: []string{
 			"dir/address",
@@ -588,12 +589,12 @@ func (s *S3PersistentStorageServerSuite) TestEnumerateOk(c *check.C) {
 			"somechunk/00000004",
 		},
 	}
-	server := &S3StorageServer{
+	server := &StorageServer{
 		svc: svc,
 	}
 	en, err := server.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Check(en, check.DeepEquals, []rsstorage.PersistentStorageItem{
+	c.Check(en, check.DeepEquals, []types.StoredItem{
 		{
 			Dir:     "dir",
 			Address: "address3",
@@ -635,8 +636,8 @@ func (f *fakeMoveOrCopy) Operation(bucket, path, newBucket, newPath string) (*s3
 	return nil, f.result
 }
 
-func (s *S3PersistentStorageServerSuite) TestInternalMoveOrCopy(c *check.C) {
-	sourceServer := &S3StorageServer{
+func (s *S3StorageServerSuite) TestInternalMoveOrCopy(c *check.C) {
+	sourceServer := &StorageServer{
 		bucket: "bucketA",
 		prefix: "prefixA",
 		svc: &fakeS3{
@@ -646,7 +647,7 @@ func (s *S3PersistentStorageServerSuite) TestInternalMoveOrCopy(c *check.C) {
 			},
 		},
 	}
-	destServer := &S3StorageServer{
+	destServer := &StorageServer{
 		bucket: "bucketB",
 		prefix: "prefixB",
 	}
@@ -668,11 +669,11 @@ func (s *S3PersistentStorageServerSuite) TestInternalMoveOrCopy(c *check.C) {
 
 // Test scenario where we copy from S3 -> S3. The S3-specific copy
 // operation succeeds immediately.
-func (s *S3PersistentStorageServerSuite) TestCopyViaS3(c *check.C) {
+func (s *S3StorageServerSuite) TestCopyViaS3(c *check.C) {
 	opCopy := &fakeMoveOrCopy{
 		ops: make([]string, 0),
 	}
-	sourceServer := &S3StorageServer{
+	sourceServer := &StorageServer{
 		bucket: "a-test-bucket",
 		prefix: "some/prefix",
 		copy:   opCopy.Operation,
@@ -683,7 +684,7 @@ func (s *S3PersistentStorageServerSuite) TestCopyViaS3(c *check.C) {
 			},
 		},
 	}
-	destServer := &S3StorageServer{
+	destServer := &StorageServer{
 		bucket: "b-test-bucket",
 		prefix: "another-place",
 	}
@@ -695,7 +696,7 @@ func (s *S3PersistentStorageServerSuite) TestCopyViaS3(c *check.C) {
 // Test scenario where we copy from S3 -> S3. The S3-specific copy
 // operation fails, but we succeed by performing a slower `Get` + `Put`
 // operation.
-func (s *S3PersistentStorageServerSuite) TestCopyViaS3Fallback(c *check.C) {
+func (s *S3StorageServerSuite) TestCopyViaS3Fallback(c *check.C) {
 	// The copy operation attempt will fail, but the fallback to `Get` + `Put`
 	// should succeed.
 	opCopy := &fakeMoveOrCopy{
@@ -715,13 +716,13 @@ func (s *S3PersistentStorageServerSuite) TestCopyViaS3Fallback(c *check.C) {
 			LastModified:  aws.Time(time.Now()),
 		},
 	}
-	sourceServer := &S3StorageServer{
+	sourceServer := &StorageServer{
 		bucket: "a-test-bucket",
 		prefix: "some/prefix",
 		copy:   opCopy.Operation,
 		svc:    svc,
 	}
-	destServer := &S3StorageServer{
+	destServer := &StorageServer{
 		bucket: "b-test-bucket",
 		prefix: "another-place",
 		svc:    svc,
@@ -734,7 +735,7 @@ func (s *S3PersistentStorageServerSuite) TestCopyViaS3Fallback(c *check.C) {
 
 // Test scenario where we copy from S3 to a non-S3 storage system. The
 // This scenario always uses a `Get` + `Put` operation.
-func (s *S3PersistentStorageServerSuite) TestCopyNoS3(c *check.C) {
+func (s *S3StorageServerSuite) TestCopyNoS3(c *check.C) {
 	output := &testReadCloser{bytes.NewBufferString("test output")}
 	now := time.Now()
 	svc := &fakeS3{
@@ -744,7 +745,7 @@ func (s *S3PersistentStorageServerSuite) TestCopyNoS3(c *check.C) {
 			LastModified:  aws.Time(now),
 		},
 	}
-	sourceServer := &S3StorageServer{
+	sourceServer := &StorageServer{
 		bucket: "a-test-bucket",
 		prefix: "some/prefix",
 		svc:    svc,
@@ -752,7 +753,7 @@ func (s *S3PersistentStorageServerSuite) TestCopyNoS3(c *check.C) {
 
 	// The destination server is not of type `SetStorageServer`, so we won't attempt
 	// an S3-specific copy operation.
-	destServer := &rsstorage.DummyPersistentStorageServer{
+	destServer := &rsstorage.DummyStorageServer{
 		PutErr: errors.New("put error"),
 	}
 
@@ -779,11 +780,11 @@ func (s *S3PersistentStorageServerSuite) TestCopyNoS3(c *check.C) {
 
 // Test scenario where we move from S3 -> S3. The S3-specific move
 // operation succeeds.
-func (s *S3PersistentStorageServerSuite) TestMoveViaS3(c *check.C) {
+func (s *S3StorageServerSuite) TestMoveViaS3(c *check.C) {
 	opMove := &fakeMoveOrCopy{
 		ops: make([]string, 0),
 	}
-	sourceServer := &S3StorageServer{
+	sourceServer := &StorageServer{
 		bucket: "a-test-bucket",
 		prefix: "some/prefix",
 		move:   opMove.Operation,
@@ -794,7 +795,7 @@ func (s *S3PersistentStorageServerSuite) TestMoveViaS3(c *check.C) {
 			},
 		},
 	}
-	destServer := &S3StorageServer{
+	destServer := &StorageServer{
 		bucket: "b-test-bucket",
 		prefix: "another-place",
 	}
@@ -808,7 +809,7 @@ func (s *S3PersistentStorageServerSuite) TestMoveViaS3(c *check.C) {
 // Test scenario where we move from S3 -> S3. The S3-specific move
 // operation fails, but we succeed by performing a copy + delete, still
 // using the S3-specific copy operation.
-func (s *S3PersistentStorageServerSuite) TestMoveViaS3Fallback(c *check.C) {
+func (s *S3StorageServerSuite) TestMoveViaS3Fallback(c *check.C) {
 	// The initial move will fail
 	opMove := &fakeMoveOrCopy{
 		ops:    make([]string, 0),
@@ -831,14 +832,14 @@ func (s *S3PersistentStorageServerSuite) TestMoveViaS3Fallback(c *check.C) {
 			LastModified:  aws.Time(now),
 		},
 	}
-	sourceServer := &S3StorageServer{
+	sourceServer := &StorageServer{
 		bucket: "a-test-bucket",
 		prefix: "some/prefix",
 		move:   opMove.Operation,
 		copy:   opCopy.Operation,
 		svc:    svc,
 	}
-	destServer := &S3StorageServer{
+	destServer := &StorageServer{
 		bucket: "b-test-bucket",
 		prefix: "another-place",
 		svc:    svc,
@@ -853,7 +854,7 @@ func (s *S3PersistentStorageServerSuite) TestMoveViaS3Fallback(c *check.C) {
 // operation fails. The fallback to copying fails when trying the
 // S3-specific copy operation. Finally, we succeed by copying with
 // a `Get` + `Put` operation followed by a `Remove`.
-func (s *S3PersistentStorageServerSuite) TestMoveViaS3FallbackCopyFallback(c *check.C) {
+func (s *S3StorageServerSuite) TestMoveViaS3FallbackCopyFallback(c *check.C) {
 	// The initial move will fail
 	opMove := &fakeMoveOrCopy{
 		ops:    make([]string, 0),
@@ -878,14 +879,14 @@ func (s *S3PersistentStorageServerSuite) TestMoveViaS3FallbackCopyFallback(c *ch
 			LastModified:  aws.Time(now),
 		},
 	}
-	sourceServer := &S3StorageServer{
+	sourceServer := &StorageServer{
 		bucket: "a-test-bucket",
 		prefix: "some/prefix",
 		move:   opMove.Operation,
 		copy:   opCopy.Operation,
 		svc:    svc,
 	}
-	destServer := &S3StorageServer{
+	destServer := &StorageServer{
 		bucket: "b-test-bucket",
 		prefix: "another-place",
 		svc:    svc,
@@ -899,7 +900,7 @@ func (s *S3PersistentStorageServerSuite) TestMoveViaS3FallbackCopyFallback(c *ch
 // Test scenario where we move from S3 to a non-S3 storage system. The
 // This scenario always uses a `Get` + `Put` operation followed by a
 // `Remove`.
-func (s *S3PersistentStorageServerSuite) TestMoveNoS3(c *check.C) {
+func (s *S3StorageServerSuite) TestMoveNoS3(c *check.C) {
 	output := &testReadCloser{bytes.NewBufferString("test output")}
 	now := time.Now()
 	svc := &fakeS3{
@@ -914,14 +915,14 @@ func (s *S3PersistentStorageServerSuite) TestMoveNoS3(c *check.C) {
 		},
 		deleteErr: errors.New("delete error"),
 	}
-	sourceServer := &S3StorageServer{
+	sourceServer := &StorageServer{
 		bucket: "a-test-bucket",
 		prefix: "some/prefix",
 		svc:    svc,
 	}
 	// The destination server is not of type `SetStorageServer`, so we won't attempt
 	// an S3-specific move operation.
-	destServer := &rsstorage.DummyPersistentStorageServer{
+	destServer := &rsstorage.DummyStorageServer{
 		PutErr: errors.New("put error"),
 	}
 	err := sourceServer.Move("dir", "address", destServer)
@@ -936,24 +937,24 @@ func (s *S3PersistentStorageServerSuite) TestMoveNoS3(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *S3PersistentStorageServerSuite) TestLocate(c *check.C) {
-	server := &S3StorageServer{
+func (s *S3StorageServerSuite) TestLocate(c *check.C) {
+	server := &StorageServer{
 		bucket: "a-test-bucket",
 		prefix: "some/prefix",
 	}
 	c.Check(server.Locate("dir", "address"), check.Equals, "s3://a-test-bucket/some/prefix/dir/address")
 	c.Check(server.Locate("", "address"), check.Equals, "s3://a-test-bucket/some/prefix/address")
 
-	server = &S3StorageServer{
+	server = &StorageServer{
 		bucket: "a-test-bucket",
 	}
 	c.Check(server.Locate("dir", "address"), check.Equals, "s3://a-test-bucket/dir/address")
 	c.Check(server.Locate("", "address"), check.Equals, "s3://a-test-bucket/address")
 }
 
-func (s *S3PersistentStorageServerSuite) TestUsage(c *check.C) {
+func (s *S3StorageServerSuite) TestUsage(c *check.C) {
 	svc := &fakeS3{}
-	wn := &rsstorage.DummyWaiterNotifier{}
+	wn := &servertest.DummyWaiterNotifier{}
 	server := NewS3StorageServer("testbucket", "prefix", svc, 4096, wn, wn)
 
 	usage, err := server.CalculateUsage()
@@ -961,16 +962,16 @@ func (s *S3PersistentStorageServerSuite) TestUsage(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
-func (s *S3PersistentStorageServerSuite) TestValidate(c *check.C) {
+func (s *S3StorageServerSuite) TestValidate(c *check.C) {
 	uploadErr := errors.New("s3 upload op failed")
 	headErr := errors.New("s3 head op failed")
 	deleteErr := errors.New("s3 delete op failed")
 
 	svc := &fakeS3{}
-	wn := &rsstorage.DummyWaiterNotifier{}
+	wn := &servertest.DummyWaiterNotifier{}
 	server := NewS3StorageServer("testbucket", "prefix", svc, 4096, wn, wn)
 
-	s3, ok := server.(*S3StorageServer)
+	s3, ok := server.(*StorageServer)
 	c.Assert(ok, check.Equals, true)
 
 	err := s3.Validate()
@@ -980,7 +981,7 @@ func (s *S3PersistentStorageServerSuite) TestValidate(c *check.C) {
 		uploadErr: uploadErr,
 	}
 	server = NewS3StorageServer("testbucket", "prefix", svc, 4096, wn, wn)
-	s3, ok = server.(*S3StorageServer)
+	s3, ok = server.(*StorageServer)
 	c.Assert(ok, check.Equals, true)
 	err = s3.Validate()
 	c.Check(err, check.Equals, uploadErr)
@@ -989,7 +990,7 @@ func (s *S3PersistentStorageServerSuite) TestValidate(c *check.C) {
 		headErr: headErr,
 	}
 	server = NewS3StorageServer("testbucket", "prefix", svc, 4096, wn, wn)
-	s3, ok = server.(*S3StorageServer)
+	s3, ok = server.(*StorageServer)
 	c.Assert(ok, check.Equals, true)
 	err = s3.Validate()
 	c.Check(err, check.Equals, headErr)
@@ -998,55 +999,8 @@ func (s *S3PersistentStorageServerSuite) TestValidate(c *check.C) {
 		headErr: deleteErr,
 	}
 	server = NewS3StorageServer("testbucket", "prefix", svc, 4096, wn, wn)
-	s3, ok = server.(*S3StorageServer)
+	s3, ok = server.(*StorageServer)
 	c.Assert(ok, check.Equals, true)
 	err = s3.Validate()
 	c.Check(err, check.Equals, deleteErr)
 }
-
-var testDESC = `Encoding: UTF-8
-Package: plumber
-Type: Package
-Title: An API Generator for R
-Version: 0.4.2
-Date: 2017-07-24
-Authors@R: c(
-  person(family="Trestle Technology, LLC", role="aut", email="cran@trestletech.com"),
-  person("Jeff", "Allen", role="cre", email="cran@trestletech.com"),
-  person("Frans", "van Dunné", role="ctb", email="frans@ixpantia.com"),
-  person(family="SmartBear Software", role=c("ctb", "cph"), comment="swagger-ui"))
-License: MIT + file LICENSE
-BugReports: https://github.com/trestletech/plumber/issues
-URL: https://www.rplumber.io (site)
-        https://github.com/trestletech/plumber (dev)
-Description: Gives the ability to automatically generate and serve an HTTP API
-    from R functions using the annotations in the R documentation around your
-    functions.
-Depends: R (>= 3.0.0)
-Imports: R6 (>= 2.0.0), stringi (>= 0.3.0), jsonlite (>= 0.9.16),
-        httpuv (>= 1.2.3), crayon
-LazyData: TRUE
-Suggests: testthat (>= 0.11.0), XML, rmarkdown, PKI, base64enc,
-        htmlwidgets, visNetwork, analogsea
-LinkingTo: testthat (>= 0.11.0), XML, rmarkdown
-Enhances: testthat (>= 0.12.0), XML, rmarkdown
-Collate: 'content-types.R' 'cookie-parser.R' 'parse-globals.R'
-        'images.R' 'parse-block.R' 'globals.R' 'serializer-json.R'
-        'shared-secret-filter.R' 'post-body.R' 'query-string.R'
-        'plumber.R' 'default-handlers.R' 'digital-ocean.R'
-        'find-port.R' 'includes.R' 'paths.R' 'plumber-static.R'
-        'plumber-step.R' 'response.R' 'serializer-content-type.R'
-        'serializer-html.R' 'serializer-htmlwidget.R'
-        'serializer-xml.R' 'serializer.R' 'session-cookie.R'
-        'swagger.R'
-RoxygenNote: 6.0.1
-NeedsCompilation: no
-Packaged: 2017-07-24 17:17:15 UTC; jeff
-Author: Trestle Technology, LLC [aut],
-  Jeff Allen [cre],
-  Frans van Dunné [ctb],
-  SmartBear Software [ctb, cph] (swagger-ui)
-Maintainer: Jeff Allen <cran@trestletech.com>
-Repository: CRAN
-Date/Publication: 2017-07-24 21:50:56 UTC
-`

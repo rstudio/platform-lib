@@ -18,6 +18,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/internal/servertest"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
@@ -31,49 +32,34 @@ func (*FakeReadCloser) Close() error {
 	return nil
 }
 
-type FilePersistentStorageServerSuite struct {
-	tempDirHelper rsstorage.TempDirHelper
+type FileStorageServerSuite struct {
+	tempDirHelper servertest.TempDirHelper
 }
 
-type dummyUsageCalculator struct {
-	DummyUsage      *types.Usage
-	DummyUsageError error
-	DuSize          datasize.ByteSize
-	DuErr           error
-}
-
-func (d *dummyUsageCalculator) Usage(dir string) (types.Usage, error) {
-	return *d.DummyUsage, d.DummyUsageError
-}
-
-func (d *dummyUsageCalculator) DiskUsage(duPath string) (size datasize.ByteSize, err error) {
-	return d.DuSize, d.DuErr
-}
-
-func (s *FilePersistentStorageServerSuite) SetUpTest(c *check.C) {
-	s.tempDirHelper = rsstorage.TempDirHelper{}
+func (s *FileStorageServerSuite) SetUpTest(c *check.C) {
+	s.tempDirHelper = servertest.TempDirHelper{}
 	c.Assert(s.tempDirHelper.SetUp(), check.IsNil)
 }
 
-func (s *FilePersistentStorageServerSuite) TearDownTest(c *check.C) {
+func (s *FileStorageServerSuite) TearDownTest(c *check.C) {
 	c.Assert(s.tempDirHelper.TearDown(), check.IsNil)
 }
 
-var _ = check.Suite(&FilePersistentStorageServerSuite{})
+var _ = check.Suite(&FileStorageServerSuite{})
 
-func (s *FilePersistentStorageServerSuite) TestNew(c *check.C) {
-	wn := &rsstorage.DummyWaiterNotifier{
+func (s *FileStorageServerSuite) TestNew(c *check.C) {
+	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	debugLogger := &rsstorage.TestLogger{}
+	debugLogger := &servertest.TestLogger{}
 	server := NewFileStorageServer("test", 4096, wn, wn, "classname", debugLogger, time.Minute)
 
-	c.Check(server, check.DeepEquals, &FileStorageServer{
+	c.Check(server, check.DeepEquals, &StorageServer{
 		dir:    "test",
 		fileIO: &defaultFileIO{},
 		chunker: &rsstorage.DefaultChunkUtils{
 			ChunkSize: 4096,
-			Server: &FileStorageServer{
+			Server: &StorageServer{
 				dir:          "test",
 				fileIO:       &defaultFileIO{},
 				cacheTimeout: time.Minute,
@@ -212,8 +198,8 @@ func (f *FakeFileIOFile) Write(p []byte) (n int, err error) {
 	return 0, nil
 }
 
-func (s *FilePersistentStorageServerSuite) TestCheckOpenErr(c *check.C) {
-	server := &FileStorageServer{
+func (s *FileStorageServerSuite) TestCheckOpenErr(c *check.C) {
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			statErr: errors.New("open error"),
 		},
@@ -223,8 +209,8 @@ func (s *FilePersistentStorageServerSuite) TestCheckOpenErr(c *check.C) {
 	c.Check(err, check.ErrorMatches, "open error")
 }
 
-func (s *FilePersistentStorageServerSuite) TestCheckNotExist(c *check.C) {
-	server := &FileStorageServer{
+func (s *FileStorageServerSuite) TestCheckNotExist(c *check.C) {
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			statErr: os.ErrNotExist,
 		},
@@ -234,13 +220,13 @@ func (s *FilePersistentStorageServerSuite) TestCheckNotExist(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
-func (s *FilePersistentStorageServerSuite) TestCheckOk(c *check.C) {
+func (s *FileStorageServerSuite) TestCheckOk(c *check.C) {
 	now := time.Now()
 	stat := &fakeFileStat{
 		ts: now,
 		sz: 65,
 	}
-	server := &FileStorageServer{
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			stat: stat,
 		},
@@ -249,11 +235,11 @@ func (s *FilePersistentStorageServerSuite) TestCheckOk(c *check.C) {
 	c.Check(ok, check.Equals, true)
 	c.Assert(chunked, check.IsNil)
 	c.Check(sz, check.Equals, int64(65))
-	c.Check(ts, rsstorage.TimeEquals, now)
+	c.Check(ts, servertest.TimeEquals, now)
 	c.Check(err, check.IsNil)
 }
 
-func (s *FilePersistentStorageServerSuite) TestCheckChunked(c *check.C) {
+func (s *FileStorageServerSuite) TestCheckChunked(c *check.C) {
 	now := time.Now()
 	nowbytes, err := now.MarshalJSON()
 	c.Assert(err, check.IsNil)
@@ -273,7 +259,7 @@ func (s *FilePersistentStorageServerSuite) TestCheckChunked(c *check.C) {
 		open:    file,
 		openErr: errors.New("info open error"),
 	}
-	server := &FileStorageServer{
+	server := &StorageServer{
 		fileIO: fio,
 	}
 
@@ -293,12 +279,12 @@ func (s *FilePersistentStorageServerSuite) TestCheckChunked(c *check.C) {
 	c.Check(ok, check.Equals, true)
 	c.Check(chunked, check.NotNil)
 	c.Check(sz, check.Equals, int64(3232))
-	c.Check(ts, rsstorage.TimeEquals, now)
+	c.Check(ts, servertest.TimeEquals, now)
 	c.Check(err, check.IsNil)
 }
 
-func (s *FilePersistentStorageServerSuite) TestGetOpenErr(c *check.C) {
-	server := &FileStorageServer{
+func (s *FileStorageServerSuite) TestGetOpenErr(c *check.C) {
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openErr: errors.New("open error"),
 		},
@@ -309,8 +295,8 @@ func (s *FilePersistentStorageServerSuite) TestGetOpenErr(c *check.C) {
 	c.Check(err, check.ErrorMatches, "open error")
 }
 
-func (s *FilePersistentStorageServerSuite) TestGetNotExist(c *check.C) {
-	server := &FileStorageServer{
+func (s *FileStorageServerSuite) TestGetNotExist(c *check.C) {
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openErr: os.ErrNotExist,
 		},
@@ -321,11 +307,11 @@ func (s *FilePersistentStorageServerSuite) TestGetNotExist(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
-func (s *FilePersistentStorageServerSuite) TestGetOk(c *check.C) {
+func (s *FileStorageServerSuite) TestGetOk(c *check.C) {
 	f := &FakeFileIOFile{
 		stat: &fakeFileStat{},
 	}
-	server := &FileStorageServer{
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			open: f,
 		},
@@ -337,7 +323,7 @@ func (s *FilePersistentStorageServerSuite) TestGetOk(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
-func (s *FilePersistentStorageServerSuite) TestGetChunked(c *check.C) {
+func (s *FileStorageServerSuite) TestGetChunked(c *check.C) {
 	f := &FakeFileIOFile{
 		stat: &fakeFileStat{
 			dir: true,
@@ -348,16 +334,16 @@ func (s *FilePersistentStorageServerSuite) TestGetChunked(c *check.C) {
 		Reader: b,
 	}
 	now := time.Now()
-	chunker := &rsstorage.DummyChunkUtils{
+	chunker := &servertest.DummyChunkUtils{
 		Read: rc,
-		ReadCh: &rsstorage.ChunksInfo{
+		ReadCh: &types.ChunksInfo{
 			Complete: true,
 		},
 		ReadSz:  int64(b.Len()),
 		ReadMod: now,
 		ReadErr: errors.New("chunked read error"),
 	}
-	server := &FileStorageServer{
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			open: f,
 		},
@@ -373,7 +359,7 @@ func (s *FilePersistentStorageServerSuite) TestGetChunked(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(r, check.DeepEquals, rc)
 	c.Check(ok, check.Equals, true)
-	c.Check(ch, check.DeepEquals, &rsstorage.ChunksInfo{
+	c.Check(ch, check.DeepEquals, &types.ChunksInfo{
 		ChunkSize: 0,
 		FileSize:  0,
 		ModTime:   time.Time{},
@@ -384,8 +370,8 @@ func (s *FilePersistentStorageServerSuite) TestGetChunked(c *check.C) {
 	c.Check(mod, check.DeepEquals, now)
 }
 
-func (s *FilePersistentStorageServerSuite) TestFlushFails(c *check.C) {
-	server := &FileStorageServer{
+func (s *FileStorageServerSuite) TestFlushFails(c *check.C) {
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			flush: errors.New("flush error"),
 		},
@@ -394,15 +380,15 @@ func (s *FilePersistentStorageServerSuite) TestFlushFails(c *check.C) {
 	server.Flush("", "storageaddress")
 }
 
-func (s *FilePersistentStorageServerSuite) TestFlushOk(c *check.C) {
-	server := &FileStorageServer{
+func (s *FileStorageServerSuite) TestFlushOk(c *check.C) {
+	server := &StorageServer{
 		fileIO: &fakeFileIO{},
 	}
 	server.Flush("", "storageaddress")
 }
 
-func (s *FilePersistentStorageServerSuite) TestPutOpenErr(c *check.C) {
-	server := &FileStorageServer{
+func (s *FileStorageServerSuite) TestPutOpenErr(c *check.C) {
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openStagingErr: errors.New("open staging error"),
 		},
@@ -414,12 +400,12 @@ func (s *FilePersistentStorageServerSuite) TestPutOpenErr(c *check.C) {
 	c.Check(err, check.ErrorMatches, "open staging error")
 }
 
-func (s *FilePersistentStorageServerSuite) TestPutResolveErr(c *check.C) {
+func (s *FileStorageServerSuite) TestPutResolveErr(c *check.C) {
 	f := &FakeFileIOFile{
 		close: errors.New("close error"),
 	}
-	debugLogger := &rsstorage.TestLogger{}
-	server := &FileStorageServer{
+	debugLogger := &servertest.TestLogger{}
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openStaging: f,
 		},
@@ -432,12 +418,12 @@ func (s *FilePersistentStorageServerSuite) TestPutResolveErr(c *check.C) {
 	c.Check(err, check.ErrorMatches, "resolver error")
 }
 
-func (s *FilePersistentStorageServerSuite) TestPutResolveErrPreserved(c *check.C) {
+func (s *FileStorageServerSuite) TestPutResolveErrPreserved(c *check.C) {
 	f := &FakeFileIOFile{
 		close: errors.New("close file error"),
 	}
-	debugLogger := &rsstorage.TestLogger{}
-	server := &FileStorageServer{
+	debugLogger := &servertest.TestLogger{}
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openStaging: f,
 		},
@@ -450,10 +436,10 @@ func (s *FilePersistentStorageServerSuite) TestPutResolveErrPreserved(c *check.C
 	c.Check(err, check.ErrorMatches, "resolver error")
 }
 
-func (s *FilePersistentStorageServerSuite) TestPutMkDirError(c *check.C) {
+func (s *FileStorageServerSuite) TestPutMkDirError(c *check.C) {
 	f := &FakeFileIOFile{}
-	debugLogger := &rsstorage.TestLogger{}
-	server := &FileStorageServer{
+	debugLogger := &servertest.TestLogger{}
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openStaging: f,
 			mkdir:       errors.New("mkdir error"),
@@ -467,10 +453,10 @@ func (s *FilePersistentStorageServerSuite) TestPutMkDirError(c *check.C) {
 	c.Check(err, check.ErrorMatches, "mkdir error")
 }
 
-func (s *FilePersistentStorageServerSuite) TestPutMkDirErrorIgnored(c *check.C) {
+func (s *FileStorageServerSuite) TestPutMkDirErrorIgnored(c *check.C) {
 	f := &FakeFileIOFile{}
-	debugLogger := &rsstorage.TestLogger{}
-	server := &FileStorageServer{
+	debugLogger := &servertest.TestLogger{}
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openStaging: f,
 			mkdir:       errors.New("mkdir error"),
@@ -485,10 +471,10 @@ func (s *FilePersistentStorageServerSuite) TestPutMkDirErrorIgnored(c *check.C) 
 	c.Check(err, check.IsNil)
 }
 
-func (s *FilePersistentStorageServerSuite) TestPutMoveError(c *check.C) {
+func (s *FileStorageServerSuite) TestPutMoveError(c *check.C) {
 	f := &FakeFileIOFile{}
-	debugLogger := &rsstorage.TestLogger{}
-	server := &FileStorageServer{
+	debugLogger := &servertest.TestLogger{}
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openStaging:   f,
 			stagingToPerm: errors.New("staging to perm error"),
@@ -502,13 +488,13 @@ func (s *FilePersistentStorageServerSuite) TestPutMoveError(c *check.C) {
 	c.Check(err, check.ErrorMatches, "staging to perm error")
 }
 
-func (s *FilePersistentStorageServerSuite) TestPutOk(c *check.C) {
+func (s *FileStorageServerSuite) TestPutOk(c *check.C) {
 	f := &FakeFileIOFile{}
 	ffi := &fakeFileIO{
 		openStaging: f,
 	}
-	debugLogger := &rsstorage.TestLogger{}
-	server := &FileStorageServer{
+	debugLogger := &servertest.TestLogger{}
+	server := &StorageServer{
 		fileIO:      ffi,
 		debugLogger: debugLogger,
 	}
@@ -522,11 +508,11 @@ func (s *FilePersistentStorageServerSuite) TestPutOk(c *check.C) {
 	c.Check(a, check.Equals, "storageaddress")
 }
 
-func (s *FilePersistentStorageServerSuite) TestPutChunked(c *check.C) {
-	f := &rsstorage.DummyChunkUtils{
+func (s *FileStorageServerSuite) TestPutChunked(c *check.C) {
+	f := &servertest.DummyChunkUtils{
 		WriteErr: errors.New("write error"),
 	}
-	server := &FileStorageServer{
+	server := &StorageServer{
 		chunker: f,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
@@ -549,13 +535,13 @@ func (s *FilePersistentStorageServerSuite) TestPutChunked(c *check.C) {
 	c.Assert(a, check.Equals, "storageaddress")
 }
 
-func (s *FilePersistentStorageServerSuite) TestPutOkDeferredAddress(c *check.C) {
+func (s *FileStorageServerSuite) TestPutOkDeferredAddress(c *check.C) {
 	f := &FakeFileIOFile{}
 	ffi := &fakeFileIO{
 		openStaging: f,
 	}
-	debugLogger := &rsstorage.TestLogger{}
-	server := &FileStorageServer{
+	debugLogger := &servertest.TestLogger{}
+	server := &StorageServer{
 		fileIO:      ffi,
 		debugLogger: debugLogger,
 	}
@@ -573,10 +559,10 @@ func (s *FilePersistentStorageServerSuite) TestPutOkDeferredAddress(c *check.C) 
 	c.Check(a, check.Equals, "deferred")
 }
 
-func (s *FilePersistentStorageServerSuite) TestPutOkCleanupFailure(c *check.C) {
+func (s *FileStorageServerSuite) TestPutOkCleanupFailure(c *check.C) {
 	f := &FakeFileIOFile{}
-	debugLogger := &rsstorage.TestLogger{}
-	server := &FileStorageServer{
+	debugLogger := &servertest.TestLogger{}
+	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openStaging: f,
 			remove:      errors.New("remove error that isn't caught"),
@@ -590,7 +576,7 @@ func (s *FilePersistentStorageServerSuite) TestPutOkCleanupFailure(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
-func (s *FilePersistentStorageServerSuite) TestRemove(c *check.C) {
+func (s *FileStorageServerSuite) TestRemove(c *check.C) {
 	now := time.Now()
 	nowbytes, err := now.MarshalJSON()
 	c.Assert(err, check.IsNil)
@@ -609,7 +595,7 @@ func (s *FilePersistentStorageServerSuite) TestRemove(c *check.C) {
 		remove:      errors.New("remove error"),
 		removeAll:   errors.New("remove all error"),
 	}
-	server := &FileStorageServer{
+	server := &StorageServer{
 		fileIO: fileIO,
 	}
 	err = server.Remove("", "storageaddress")
@@ -642,7 +628,7 @@ func (s *FilePersistentStorageServerSuite) TestRemove(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
-func (s *FilePersistentStorageServerSuite) TestUsage(c *check.C) {
+func (s *FileStorageServerSuite) TestUsage(c *check.C) {
 	tempdir, err := ioutil.TempDir("", "")
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(tempdir)
@@ -672,9 +658,9 @@ func (s *FilePersistentStorageServerSuite) TestUsage(c *check.C) {
 	err = ioutil.WriteFile(filepath.Join(dir2, "test5"), fileContents5, 0644)
 	c.Assert(err, check.IsNil)
 
-	server := &FileStorageServer{
+	server := &StorageServer{
 		dir:          tempdir,
-		debugLogger:  &rsstorage.TestLogger{},
+		debugLogger:  &servertest.TestLogger{},
 		cacheTimeout: time.Minute,
 	}
 	fsUsage, err := server.CalculateUsage()
@@ -684,7 +670,7 @@ func (s *FilePersistentStorageServerSuite) TestUsage(c *check.C) {
 	c.Assert(fsUsage.UsedBytes, check.Equals, 80*datasize.KB)
 }
 
-func (s *FilePersistentStorageServerSuite) TestUsageTimeout(c *check.C) {
+func (s *FileStorageServerSuite) TestUsageTimeout(c *check.C) {
 	tempdir, err := ioutil.TempDir("", "")
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(tempdir)
@@ -714,9 +700,9 @@ func (s *FilePersistentStorageServerSuite) TestUsageTimeout(c *check.C) {
 	err = ioutil.WriteFile(filepath.Join(dir2, "test5"), fileContents5, 0644)
 	c.Assert(err, check.IsNil)
 
-	server := &FileStorageServer{
+	server := &StorageServer{
 		dir:         tempdir,
-		debugLogger: &rsstorage.TestLogger{},
+		debugLogger: &servertest.TestLogger{},
 	}
 	fsUsage, err := server.CalculateUsage()
 	c.Assert(err, check.NotNil)
@@ -728,11 +714,11 @@ func (s *FilePersistentStorageServerSuite) TestUsageTimeout(c *check.C) {
 var _ = check.Suite(&FileEnumerationSuite{})
 
 type FileEnumerationSuite struct {
-	tempDirHelper rsstorage.TempDirHelper
+	tempDirHelper servertest.TempDirHelper
 }
 
 func (s *FileEnumerationSuite) SetUpTest(c *check.C) {
-	s.tempDirHelper = rsstorage.TempDirHelper{}
+	s.tempDirHelper = servertest.TempDirHelper{}
 	c.Assert(s.tempDirHelper.SetUp(), check.IsNil)
 }
 
@@ -754,13 +740,13 @@ func createTempFile(dir, file, data string, c *check.C) {
 }
 
 func (s *FileEnumerationSuite) TestEnumerate(c *check.C) {
-	debugLogger := &rsstorage.TestLogger{}
-	server := &FileStorageServer{
+	debugLogger := &servertest.TestLogger{}
+	server := &StorageServer{
 		dir:         s.tempDirHelper.Dir(),
 		fileIO:      &defaultFileIO{},
 		debugLogger: debugLogger,
 	}
-	wn := &rsstorage.DummyWaiterNotifier{
+	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
 	server.chunker = &rsstorage.DefaultChunkUtils{
@@ -777,12 +763,12 @@ func (s *FileEnumerationSuite) TestEnumerate(c *check.C) {
 
 	// Create some chunked data
 	resolve := func(w io.Writer) (string, string, error) {
-		buf := bytes.NewBufferString(testDESC)
+		buf := bytes.NewBufferString(servertest.TestDESC)
 		_, err := io.Copy(w, buf)
 		return "", "", err
 	}
 
-	sz := uint64(len(testDESC))
+	sz := uint64(len(servertest.TestDESC))
 	_, _, err := server.PutChunked(resolve, "dir", "DESCRIPTION", sz)
 	c.Check(err, check.IsNil)
 
@@ -792,7 +778,7 @@ func (s *FileEnumerationSuite) TestEnumerate(c *check.C) {
 	// Successfully enumerate files
 	en, err := server.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Check(en, check.DeepEquals, []rsstorage.PersistentStorageItem{
+	c.Check(en, check.DeepEquals, []types.StoredItem{
 		{
 			Dir:     "",
 			Address: "DESCRIPTION2",
@@ -821,11 +807,11 @@ func (s *FileEnumerationSuite) TestEnumerate(c *check.C) {
 var _ = check.Suite(&FileCopyMoveSuite{})
 
 type FileCopyMoveSuite struct {
-	tempDirHelper rsstorage.TempDirHelper
+	tempDirHelper servertest.TempDirHelper
 }
 
 func (s *FileCopyMoveSuite) SetUpTest(c *check.C) {
-	s.tempDirHelper = rsstorage.TempDirHelper{}
+	s.tempDirHelper = servertest.TempDirHelper{}
 	c.Assert(s.tempDirHelper.SetUp(), check.IsNil)
 }
 
@@ -842,10 +828,10 @@ func (s *FileCopyMoveSuite) TestCopyFail(c *check.C) {
 		open:    f,
 		openErr: errors.New("open error"),
 	}
-	serverSource := &FileStorageServer{
+	serverSource := &StorageServer{
 		fileIO: fi,
 	}
-	serverDest := &rsstorage.DummyPersistentStorageServer{
+	serverDest := &rsstorage.DummyStorageServer{
 		PutErr: errors.New("put error"),
 	}
 	err := serverSource.Copy("dir", "address", serverDest)
@@ -864,13 +850,13 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Associated a server with each directory (source and destination)
-	debugLogger := &rsstorage.TestLogger{}
-	serverSource := &FileStorageServer{
+	debugLogger := &servertest.TestLogger{}
+	serverSource := &StorageServer{
 		dir:         dirSource,
 		fileIO:      &defaultFileIO{},
 		debugLogger: debugLogger,
 	}
-	wn := &rsstorage.DummyWaiterNotifier{
+	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
 	serverSource.chunker = &rsstorage.DefaultChunkUtils{
@@ -879,7 +865,7 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 		Waiter:    wn,
 		Notifier:  wn,
 	}
-	serverDest := &FileStorageServer{
+	serverDest := &StorageServer{
 		dir:         dirDest,
 		fileIO:      &defaultFileIO{},
 		debugLogger: debugLogger,
@@ -898,11 +884,11 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 
 	// Create some chunked data
 	resolve := func(w io.Writer) (string, string, error) {
-		buf := bytes.NewBufferString(testDESC)
+		buf := bytes.NewBufferString(servertest.TestDESC)
 		_, err := io.Copy(w, buf)
 		return "", "", err
 	}
-	sz := uint64(len(testDESC))
+	sz := uint64(len(servertest.TestDESC))
 	_, _, err = serverSource.PutChunked(resolve, "dir", "CHUNK", sz)
 	c.Check(err, check.IsNil)
 	_, _, err = serverSource.PutChunked(resolve, "", "CHUNK2", sz)
@@ -923,7 +909,7 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 	// Successfully enumerate files
 	en, err := serverDest.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Check(en, check.DeepEquals, []rsstorage.PersistentStorageItem{
+	c.Check(en, check.DeepEquals, []types.StoredItem{
 		{
 			Dir:     "",
 			Address: "CHUNK2",
@@ -953,12 +939,12 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 	c.Assert(err, check.IsNil)
 	b, err := ioutil.ReadAll(f)
 	c.Assert(err, check.IsNil)
-	c.Assert(string(b), check.Equals, testDESC)
+	c.Assert(string(b), check.Equals, servertest.TestDESC)
 
 	// Files should still be on source
 	en, err = serverSource.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Check(en, check.DeepEquals, []rsstorage.PersistentStorageItem{
+	c.Check(en, check.DeepEquals, []types.StoredItem{
 		{
 			Dir:     "",
 			Address: "CHUNK2",
@@ -994,10 +980,10 @@ func (s *FileCopyMoveSuite) TestMoveFail(c *check.C) {
 		open:    f,
 		openErr: errors.New("open error"),
 	}
-	serverSource := &FileStorageServer{
+	serverSource := &StorageServer{
 		fileIO: fi,
 	}
-	serverDest := &rsstorage.DummyPersistentStorageServer{
+	serverDest := &rsstorage.DummyStorageServer{
 		PutErr: errors.New("put error"),
 	}
 
@@ -1032,13 +1018,13 @@ func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Associated a server with each directory (source and destination)
-	debugLogger := &rsstorage.TestLogger{}
-	serverSource := &FileStorageServer{
+	debugLogger := &servertest.TestLogger{}
+	serverSource := &StorageServer{
 		dir:         dirSource,
 		fileIO:      &defaultFileIO{},
 		debugLogger: debugLogger,
 	}
-	wn := &rsstorage.DummyWaiterNotifier{
+	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
 	serverSource.chunker = &rsstorage.DefaultChunkUtils{
@@ -1047,7 +1033,7 @@ func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
 		Waiter:    wn,
 		Notifier:  wn,
 	}
-	serverDest := &FileStorageServer{
+	serverDest := &StorageServer{
 		dir:         dirDest,
 		fileIO:      &defaultFileIO{},
 		debugLogger: debugLogger,
@@ -1066,11 +1052,11 @@ func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
 
 	// Create some chunked data
 	resolve := func(w io.Writer) (string, string, error) {
-		buf := bytes.NewBufferString(testDESC)
+		buf := bytes.NewBufferString(servertest.TestDESC)
 		_, err := io.Copy(w, buf)
 		return "", "", err
 	}
-	sz := uint64(len(testDESC))
+	sz := uint64(len(servertest.TestDESC))
 	_, _, err = serverSource.PutChunked(resolve, "dir", "CHUNK", sz)
 	c.Check(err, check.IsNil)
 	_, _, err = serverSource.PutChunked(resolve, "", "CHUNK2", sz)
@@ -1091,7 +1077,7 @@ func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
 	// Successfully enumerate files
 	en, err := serverDest.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Check(en, check.DeepEquals, []rsstorage.PersistentStorageItem{
+	c.Check(en, check.DeepEquals, []types.StoredItem{
 		{
 			Dir:     "",
 			Address: "CHUNK2",
@@ -1120,65 +1106,18 @@ func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
 	f, _, _, _, _, err := serverDest.Get("dir", "CHUNK")
 	b, err := ioutil.ReadAll(f)
 	c.Assert(err, check.IsNil)
-	c.Assert(string(b), check.Equals, testDESC)
+	c.Assert(string(b), check.Equals, servertest.TestDESC)
 
 	// Files should no longer be on source
 	en, err = serverSource.Enumerate()
 	c.Assert(err, check.IsNil)
-	c.Check(en, check.DeepEquals, []rsstorage.PersistentStorageItem{})
+	c.Check(en, check.DeepEquals, []types.StoredItem{})
 }
 
 func (s *FileCopyMoveSuite) TestLocate(c *check.C) {
-	server := &FileStorageServer{
+	server := &StorageServer{
 		dir: "/some/test/dir",
 	}
 	c.Check(server.Locate("dir", "address"), check.Equals, "/some/test/dir/dir/address")
 	c.Check(server.Locate("", "address"), check.Equals, "/some/test/dir/address")
 }
-
-var testDESC = `Encoding: UTF-8
-Package: plumber
-Type: Package
-Title: An API Generator for R
-Version: 0.4.2
-Date: 2017-07-24
-Authors@R: c(
-  person(family="Trestle Technology, LLC", role="aut", email="cran@trestletech.com"),
-  person("Jeff", "Allen", role="cre", email="cran@trestletech.com"),
-  person("Frans", "van Dunné", role="ctb", email="frans@ixpantia.com"),
-  person(family="SmartBear Software", role=c("ctb", "cph"), comment="swagger-ui"))
-License: MIT + file LICENSE
-BugReports: https://github.com/trestletech/plumber/issues
-URL: https://www.rplumber.io (site)
-        https://github.com/trestletech/plumber (dev)
-Description: Gives the ability to automatically generate and serve an HTTP API
-    from R functions using the annotations in the R documentation around your
-    functions.
-Depends: R (>= 3.0.0)
-Imports: R6 (>= 2.0.0), stringi (>= 0.3.0), jsonlite (>= 0.9.16),
-        httpuv (>= 1.2.3), crayon
-LazyData: TRUE
-Suggests: testthat (>= 0.11.0), XML, rmarkdown, PKI, base64enc,
-        htmlwidgets, visNetwork, analogsea
-LinkingTo: testthat (>= 0.11.0), XML, rmarkdown
-Enhances: testthat (>= 0.12.0), XML, rmarkdown
-Collate: 'content-types.R' 'cookie-parser.R' 'parse-globals.R'
-        'images.R' 'parse-block.R' 'globals.R' 'serializer-json.R'
-        'shared-secret-filter.R' 'post-body.R' 'query-string.R'
-        'plumber.R' 'default-handlers.R' 'digital-ocean.R'
-        'find-port.R' 'includes.R' 'paths.R' 'plumber-static.R'
-        'plumber-step.R' 'response.R' 'serializer-content-type.R'
-        'serializer-html.R' 'serializer-htmlwidget.R'
-        'serializer-xml.R' 'serializer.R' 'session-cookie.R'
-        'swagger.R'
-RoxygenNote: 6.0.1
-NeedsCompilation: no
-Packaged: 2017-07-24 17:17:15 UTC; jeff
-Author: Trestle Technology, LLC [aut],
-  Jeff Allen [cre],
-  Frans van Dunné [ctb],
-  SmartBear Software [ctb, cph] (swagger-ui)
-Maintainer: Jeff Allen <cran@trestletech.com>
-Repository: CRAN
-Date/Publication: 2017-07-24 21:50:56 UTC
-`

@@ -26,8 +26,8 @@ const (
 )
 
 type ChunkUtils interface {
-	WriteChunked(dir, address string, sz uint64, resolve Resolver) error
-	ReadChunked(dir, address string) (io.ReadCloser, *ChunksInfo, int64, time.Time, error)
+	WriteChunked(dir, address string, sz uint64, resolve types.Resolver) error
+	ReadChunked(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, error)
 }
 
 type ChunkWaiter interface {
@@ -38,24 +38,16 @@ type ChunkNotifier interface {
 	Notify(c *types.ChunkNotification) error
 }
 
-type ChunksInfo struct {
-	ChunkSize uint64    `json:"chunk_size"`
-	FileSize  uint64    `json:"file_size"`
-	ModTime   time.Time `json:"mod_time"`
-	NumChunks uint64    `json:"num_chunks"`
-	Complete  bool      `json:"complete"`
-}
-
 type DefaultChunkUtils struct {
 	ChunkSize   uint64
-	Server      PersistentStorageServer
+	Server      StorageServer
 	Waiter      ChunkWaiter
 	Notifier    ChunkNotifier
 	PollTimeout time.Duration
 	MaxAttempts int
 }
 
-func (w *DefaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve Resolver) (err error) {
+func (w *DefaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve types.Resolver) (err error) {
 
 	// Determine number of chunks we will need to create
 	numChunks := sz / w.ChunkSize
@@ -70,7 +62,7 @@ func (w *DefaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve
 	}
 
 	// Write an `info.json` to the directory
-	info := ChunksInfo{
+	info := types.ChunksInfo{
 		ChunkSize: w.ChunkSize,
 		NumChunks: numChunks,
 		FileSize:  sz,
@@ -182,7 +174,7 @@ func (w *DefaultChunkUtils) writeChunks(numChunks uint64, chunkDir string, r *io
 	}
 }
 
-func (w *DefaultChunkUtils) ReadChunked(dir, address string) (io.ReadCloser, *ChunksInfo, int64, time.Time, error) {
+func (w *DefaultChunkUtils) ReadChunked(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, error) {
 	chunkDir := filepath.Join(dir, address)
 
 	infoFile, _, _, _, ok, err := w.Server.Get(chunkDir, "info.json")
@@ -193,7 +185,7 @@ func (w *DefaultChunkUtils) ReadChunked(dir, address string) (io.ReadCloser, *Ch
 	}
 	defer infoFile.Close()
 
-	info := ChunksInfo{}
+	info := types.ChunksInfo{}
 	dec := json.NewDecoder(infoFile)
 	err = dec.Decode(&info)
 	if err != nil {
@@ -269,8 +261,8 @@ func (w *DefaultChunkUtils) tryChunkRead(attempts int, chunkIndex uint64, addres
 	return true, nil
 }
 
-func FilterChunks(input []PersistentStorageItem) []PersistentStorageItem {
-	output := make([]PersistentStorageItem, 0)
+func FilterChunks(input []types.StoredItem) []types.StoredItem {
+	output := make([]types.StoredItem, 0)
 	chunkDirs := make(map[string]bool)
 
 	// Find all directories that are chunked and append one
@@ -279,7 +271,7 @@ func FilterChunks(input []PersistentStorageItem) []PersistentStorageItem {
 		if i.Dir != "" && i.Address == "info.json" {
 			chunkDirs[i.Dir] = true
 			d, f := filepath.Split(i.Dir)
-			output = append(output, PersistentStorageItem{
+			output = append(output, types.StoredItem{
 				Dir:     strings.TrimSuffix(d, "/"),
 				Address: f,
 				Chunked: true,

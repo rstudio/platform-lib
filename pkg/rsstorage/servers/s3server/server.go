@@ -19,29 +19,30 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
 type moveOrCopyFn func(bucket, key, newBucket, newKey string) (*s3.CopyObjectOutput, error)
 
-type S3StorageServer struct {
+type StorageServer struct {
 	bucket  string
 	prefix  string
-	svc     S3Service
+	svc     S3Wrapper
 	move    moveOrCopyFn
 	copy    moveOrCopyFn
 	chunker rsstorage.ChunkUtils
 }
 
-func NewS3StorageServer(bucket, prefix string, svc S3Service, chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier) rsstorage.PersistentStorageServer {
-	s3s := &S3StorageServer{
+func NewS3StorageServer(bucket, prefix string, svc S3Wrapper, chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier) rsstorage.StorageServer {
+	s3s := &StorageServer{
 		bucket: bucket,
 		prefix: prefix,
 		svc:    svc,
 		move:   svc.MoveObject,
 		copy:   svc.CopyObject,
 	}
-	return &S3StorageServer{
+	return &StorageServer{
 		bucket: bucket,
 		prefix: prefix,
 		svc:    svc,
@@ -61,12 +62,12 @@ func NewS3StorageServer(bucket, prefix string, svc S3Service, chunkSize uint64, 
 // Validate performs S3 actions to ensure that the s3:GetObject, s3:PutObject, and s3:DeleteObject permissions are
 // configured correctly. Note: This doesn't validate all the permissions (e.g. s3:AbortMultipartUpload), but it should
 // be enough to confirm that the storage class is working.
-func (s *S3StorageServer) Validate() error {
+func (s *StorageServer) Validate() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	file := "validate." + rsstorage.RandomString(10) + ".txt"
-	uploadAddr := rsstorage.NotEmptyJoin([]string{s.prefix, "temp", file}, "/")
+	file := "validate." + internal.RandomString(10) + ".txt"
+	uploadAddr := internal.NotEmptyJoin([]string{s.prefix, "temp", file}, "/")
 	_, err := s.svc.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(uploadAddr),
@@ -95,9 +96,9 @@ func (s *S3StorageServer) Validate() error {
 	return nil
 }
 
-func (s *S3StorageServer) Check(dir, address string) (bool, *rsstorage.ChunksInfo, int64, time.Time, error) {
+func (s *StorageServer) Check(dir, address string) (bool, *types.ChunksInfo, int64, time.Time, error) {
 	var chunked bool
-	addr := rsstorage.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
+	addr := internal.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
 	infoAddr := filepath.Join(addr, "info.json")
 	resp, err := s.svc.HeadObject(&s3.HeadObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(addr)})
 
@@ -135,7 +136,7 @@ func (s *S3StorageServer) Check(dir, address string) (bool, *rsstorage.ChunksInf
 		}
 		defer resp.Body.Close()
 		dec := json.NewDecoder(resp.Body)
-		info := rsstorage.ChunksInfo{}
+		info := types.ChunksInfo{}
 		err = dec.Decode(&info)
 		if err != nil {
 			return false, nil, 0, time.Time{}, err
@@ -147,22 +148,22 @@ func (s *S3StorageServer) Check(dir, address string) (bool, *rsstorage.ChunksInf
 	}
 }
 
-func (s *S3StorageServer) Dir() string {
+func (s *StorageServer) Dir() string {
 	return "s3:" + s.bucket
 }
 
-func (s *S3StorageServer) Type() rsstorage.StorageType {
+func (s *StorageServer) Type() types.StorageType {
 	return rsstorage.StorageTypeS3
 }
 
-func (s *S3StorageServer) CalculateUsage() (types.Usage, error) {
+func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 	// Currently unused.
-	return types.Usage{}, fmt.Errorf("server S3StorageServer does not implement CalculateUsage")
+	return types.Usage{}, fmt.Errorf("server s3server.StorageServer does not implement CalculateUsage")
 }
 
-func (s *S3StorageServer) Get(dir, address string) (io.ReadCloser, *rsstorage.ChunksInfo, int64, time.Time, bool, error) {
+func (s *StorageServer) Get(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
 	var chunked bool
-	addr := rsstorage.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
+	addr := internal.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
 	infoAddr := filepath.Join(addr, "info.json")
 	resp, err := s.svc.GetObject(&s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(addr)})
 	if err != nil {
@@ -203,10 +204,10 @@ func (s *S3StorageServer) Get(dir, address string) (io.ReadCloser, *rsstorage.Ch
 	}
 }
 
-func (s *S3StorageServer) Flush(dir, address string) {
+func (s *StorageServer) Flush(dir, address string) {
 }
 
-func (s *S3StorageServer) Put(resolve rsstorage.Resolver, dir, address string) (string, string, error) {
+func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (string, string, error) {
 	// Pipe the results so we can resolve the item and simultaneously
 	// write it to S3
 	r, w := io.Pipe()
@@ -232,7 +233,7 @@ func (s *S3StorageServer) Put(resolve rsstorage.Resolver, dir, address string) (
 	}()
 
 	// Upload to a temporary S3 address using the piped reader
-	uploadAddr := rsstorage.NotEmptyJoin([]string{s.prefix, "temp", uuid.New().String()}, "/")
+	uploadAddr := internal.NotEmptyJoin([]string{s.prefix, "temp", uuid.New().String()}, "/")
 	_, err := s.svc.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(uploadAddr),
@@ -252,7 +253,7 @@ func (s *S3StorageServer) Put(resolve rsstorage.Resolver, dir, address string) (
 	}
 
 	var permanentAddr string
-	permanentAddr = rsstorage.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
+	permanentAddr = internal.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
 
 	// We need to copy the item on S3 to the new address
 	_, err = s.svc.MoveObject(s.bucket, uploadAddr, s.bucket, permanentAddr)
@@ -263,7 +264,7 @@ func (s *S3StorageServer) Put(resolve rsstorage.Resolver, dir, address string) (
 	return dir, address, nil
 }
 
-func (s *S3StorageServer) PutChunked(resolve rsstorage.Resolver, dir, address string, sz uint64) (string, string, error) {
+func (s *StorageServer) PutChunked(resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
 	if address == "" {
 		return "", "", fmt.Errorf("cache only supports pre-addressed chunked put commands")
 	}
@@ -278,7 +279,7 @@ func (s *S3StorageServer) PutChunked(resolve rsstorage.Resolver, dir, address st
 	return dir, address, nil
 }
 
-func (s *S3StorageServer) Remove(dir, address string) error {
+func (s *StorageServer) Remove(dir, address string) error {
 	ok, chunked, _, _, err := s.Check(dir, address)
 	if err != nil {
 		return err
@@ -291,25 +292,25 @@ func (s *S3StorageServer) Remove(dir, address string) error {
 		// Delete chunks
 		for i := uint64(1); i <= chunked.NumChunks; i++ {
 			chunk := fmt.Sprintf("%08d", i)
-			addr := rsstorage.NotEmptyJoin([]string{s.prefix, dir, address, chunk}, "/")
+			addr := internal.NotEmptyJoin([]string{s.prefix, dir, address, chunk}, "/")
 			_, err = s.svc.DeleteObject(&s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(addr)})
 			if err != nil {
 				return err
 			}
 		}
 		// Delete "info.json"
-		addr := rsstorage.NotEmptyJoin([]string{s.prefix, dir, address, "info.json"}, "/")
+		addr := internal.NotEmptyJoin([]string{s.prefix, dir, address, "info.json"}, "/")
 		_, err = s.svc.DeleteObject(&s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(addr)})
 	} else {
-		addr := rsstorage.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
+		addr := internal.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
 		_, err = s.svc.DeleteObject(&s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(addr)})
 	}
 
 	return err
 }
 
-func (s *S3StorageServer) Enumerate() ([]rsstorage.PersistentStorageItem, error) {
-	items := make([]rsstorage.PersistentStorageItem, 0)
+func (s *StorageServer) Enumerate() ([]types.StoredItem, error) {
+	items := make([]types.StoredItem, 0)
 	s3Objects, err := s.svc.ListObjects(s.bucket, s.prefix)
 	if err != nil {
 		return nil, err
@@ -320,7 +321,7 @@ func (s *S3StorageServer) Enumerate() ([]rsstorage.PersistentStorageItem, error)
 		if dir == "." {
 			dir = ""
 		}
-		items = append(items, rsstorage.PersistentStorageItem{
+		items = append(items, types.StoredItem{
 			Dir:     dir,
 			Address: filepath.Base(path),
 		})
@@ -329,7 +330,7 @@ func (s *S3StorageServer) Enumerate() ([]rsstorage.PersistentStorageItem, error)
 	return rsstorage.FilterChunks(items), nil
 }
 
-func (s *S3StorageServer) moveOrCopy(dir, address string, server rsstorage.PersistentStorageServer, fn moveOrCopyFn) error {
+func (s *StorageServer) moveOrCopy(dir, address string, server rsstorage.StorageServer, fn moveOrCopyFn) error {
 	// Get a list of parts to copy. This works for either single-part or chunked assets
 	parts, err := s.parts(dir, address)
 	if err != nil {
@@ -339,7 +340,7 @@ func (s *S3StorageServer) moveOrCopy(dir, address string, server rsstorage.Persi
 	for _, part := range parts {
 
 		// Determine the path to the source item
-		sourcePath := rsstorage.NotEmptyJoin([]string{s.prefix, part.Dir, part.Address}, "/")
+		sourcePath := internal.NotEmptyJoin([]string{s.prefix, part.Dir, part.Address}, "/")
 
 		// Determine the path to which we will move/copy the item
 		destUrl, err := url.Parse(server.Locate(part.Dir, part.Address))
@@ -360,7 +361,7 @@ func (s *S3StorageServer) moveOrCopy(dir, address string, server rsstorage.Persi
 	return nil
 }
 
-func (s *S3StorageServer) parts(dir, address string) ([]rsstorage.CopyPart, error) {
+func (s *StorageServer) parts(dir, address string) ([]rsstorage.CopyPart, error) {
 	ok, chunked, _, _, err := s.Check(dir, address)
 	if err != nil {
 		return nil, err
@@ -384,10 +385,10 @@ func (s *S3StorageServer) parts(dir, address string) ([]rsstorage.CopyPart, erro
 	}
 }
 
-func (s *S3StorageServer) Move(dir, address string, server rsstorage.PersistentStorageServer) error {
+func (s *StorageServer) Move(dir, address string, server rsstorage.StorageServer) error {
 	copy := true
 	switch server.(type) {
-	case *S3StorageServer:
+	case *StorageServer:
 		// Attempt move
 		err := s.moveOrCopy(dir, address, server, s.move)
 		if err == nil {
@@ -414,10 +415,10 @@ func (s *S3StorageServer) Move(dir, address string, server rsstorage.PersistentS
 	return nil
 }
 
-func (s *S3StorageServer) Copy(dir, address string, server rsstorage.PersistentStorageServer) error {
+func (s *StorageServer) Copy(dir, address string, server rsstorage.StorageServer) error {
 	s3Copy := true
 	switch server.(type) {
-	case *S3StorageServer:
+	case *StorageServer:
 		// Attempt copy
 		err := s.moveOrCopy(dir, address, server, s.copy)
 		if err == nil {
@@ -436,14 +437,14 @@ func (s *S3StorageServer) Copy(dir, address string, server rsstorage.PersistentS
 			return err
 		}
 
-		install := func(file io.ReadCloser) rsstorage.Resolver {
+		install := func(file io.ReadCloser) types.Resolver {
 			return func(writer io.Writer) (string, string, error) {
 				_, err := io.Copy(writer, file)
 				return "", "", err
 			}
 		}
 
-		// Use the server Base() in case the server is wrapped, e.g., `Metadatarsstorage.PersistentStorageServer`
+		// Use the server Base() in case the server is wrapped, e.g., `Metadatarsstorage.StorageServer`
 		if chunked != nil {
 			_, _, err = server.Base().PutChunked(install(f), dir, address, uint64(sz))
 		} else {
@@ -457,12 +458,12 @@ func (s *S3StorageServer) Copy(dir, address string, server rsstorage.PersistentS
 	return nil
 }
 
-func (s *S3StorageServer) Locate(dir, address string) string {
-	addr := rsstorage.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
+func (s *StorageServer) Locate(dir, address string) string {
+	addr := internal.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
 	url := fmt.Sprintf("s3://%s/%s", s.bucket, addr)
 	return url
 }
 
-func (s *S3StorageServer) Base() rsstorage.PersistentStorageServer {
+func (s *StorageServer) Base() rsstorage.StorageServer {
 	return s
 }

@@ -18,23 +18,24 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
-type PgStorageServer struct {
+type StorageServer struct {
 	pool        *pgxpool.Pool
 	class       string
 	chunker     rsstorage.ChunkUtils
 	debugLogger rsstorage.DebugLogger
 }
 
-func NewPgServer(class string, chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, pool *pgxpool.Pool, debugLogger rsstorage.DebugLogger) rsstorage.PersistentStorageServer {
-	pgs := &PgStorageServer{
+func NewPgStorageServer(class string, chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, pool *pgxpool.Pool, debugLogger rsstorage.DebugLogger) rsstorage.StorageServer {
+	pgs := &StorageServer{
 		class:       class,
 		pool:        pool,
 		debugLogger: debugLogger,
 	}
-	return &PgStorageServer{
+	return &StorageServer{
 		class:       class,
 		pool:        pool,
 		debugLogger: debugLogger,
@@ -104,7 +105,7 @@ func newLargeObjectCloser(lo *pgx.LargeObject, pool *pgxpool.Pool, conn *pgxpool
 	}
 }
 
-func (s *PgStorageServer) Check(dir, address string) (found bool, chunked *rsstorage.ChunksInfo, sz int64, ts time.Time, err error) {
+func (s *StorageServer) Check(dir, address string) (found bool, chunked *types.ChunksInfo, sz int64, ts time.Time, err error) {
 	// Look up the large object (see if it exists) in our mapping table
 	var dbOid uint32
 	location := path.Join(s.class, dir, address)
@@ -129,7 +130,7 @@ func (s *PgStorageServer) Check(dir, address string) (found bool, chunked *rssto
 		if !rows.Next() {
 			return
 		}
-		chunked = &rsstorage.ChunksInfo{}
+		chunked = &types.ChunksInfo{}
 	}
 
 	// For regular (not chunked) assets, this loads the OID for the asset. For
@@ -196,7 +197,7 @@ func (s *PgStorageServer) Check(dir, address string) (found bool, chunked *rssto
 	return
 }
 
-func (s *PgStorageServer) Get(dir, address string) (f io.ReadCloser, chunks *rsstorage.ChunksInfo, sz int64, lastMod time.Time, found bool, err error) {
+func (s *StorageServer) Get(dir, address string) (f io.ReadCloser, chunks *types.ChunksInfo, sz int64, lastMod time.Time, found bool, err error) {
 	var chunked bool
 	// Look up the large object (see if it exists) in our mapping table
 	location := path.Join(s.class, dir, address)
@@ -283,11 +284,11 @@ func (s *PgStorageServer) Get(dir, address string) (f io.ReadCloser, chunks *rss
 	return
 }
 
-func (s *PgStorageServer) Flush(dir, address string) {
+func (s *StorageServer) Flush(dir, address string) {
 	// No-op
 }
 
-func (s *PgStorageServer) PutChunked(resolve rsstorage.Resolver, dir, address string, sz uint64) (string, string, error) {
+func (s *StorageServer) PutChunked(resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
 	if address == "" {
 		return "", "", fmt.Errorf("cache only supports pre-addressed chunked put commands")
 	}
@@ -302,20 +303,20 @@ func (s *PgStorageServer) PutChunked(resolve rsstorage.Resolver, dir, address st
 	return dir, address, nil
 }
 
-func (s *PgStorageServer) Dir() string {
+func (s *StorageServer) Dir() string {
 	return "pg:" + s.class
 }
 
-func (s *PgStorageServer) Type() rsstorage.StorageType {
+func (s *StorageServer) Type() types.StorageType {
 	return rsstorage.StorageTypePostgres
 }
 
-func (s *PgStorageServer) CalculateUsage() (types.Usage, error) {
+func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 	// Currently unused.
-	return types.Usage{}, fmt.Errorf("server PgStorageServer does not implement CalculateUsage")
+	return types.Usage{}, fmt.Errorf("server postgres.StorageServer does not implement CalculateUsage")
 }
 
-func (s *PgStorageServer) Put(resolve rsstorage.Resolver, dir, address string) (dirOut, addrOut string, err error) {
+func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (dirOut, addrOut string, err error) {
 
 	var permanentLocation string
 
@@ -401,7 +402,7 @@ func (s *PgStorageServer) Put(resolve rsstorage.Resolver, dir, address string) (
 	return
 }
 
-func (s *PgStorageServer) Remove(dir, address string) (err error) {
+func (s *StorageServer) Remove(dir, address string) (err error) {
 
 	ok, chunked, _, _, err := s.Check(dir, address)
 	if err != nil {
@@ -415,14 +416,14 @@ func (s *PgStorageServer) Remove(dir, address string) (err error) {
 		// Delete chunks
 		for i := uint64(1); i <= chunked.NumChunks; i++ {
 			chunk := fmt.Sprintf("%08d", i)
-			addr := rsstorage.NotEmptyJoin([]string{s.class, dir, address, chunk}, "/")
+			addr := internal.NotEmptyJoin([]string{s.class, dir, address, chunk}, "/")
 			err = s.rem(addr)
 			if err != nil {
 				return err
 			}
 		}
 		// Delete "info.json"
-		addr := rsstorage.NotEmptyJoin([]string{s.class, dir, address, "info.json"}, "/")
+		addr := internal.NotEmptyJoin([]string{s.class, dir, address, "info.json"}, "/")
 		err = s.rem(addr)
 	} else {
 		location := path.Join(s.class, dir, address)
@@ -432,7 +433,7 @@ func (s *PgStorageServer) Remove(dir, address string) (err error) {
 	return
 }
 
-func (s *PgStorageServer) rem(location string) (err error) {
+func (s *StorageServer) rem(location string) (err error) {
 
 	native, err := s.pool.Acquire(context.Background())
 	if err != nil {
@@ -473,9 +474,9 @@ func (s *PgStorageServer) rem(location string) (err error) {
 	return
 }
 
-func (s *PgStorageServer) Enumerate() (items []rsstorage.PersistentStorageItem, err error) {
+func (s *StorageServer) Enumerate() (items []types.StoredItem, err error) {
 	query := `SELECT address FROM large_objects ORDER BY address`
-	items = make([]rsstorage.PersistentStorageItem, 0)
+	items = make([]types.StoredItem, 0)
 	var rows pgx.Rows
 	if rows, err = s.pool.Query(context.Background(), query); err == sql.ErrNoRows {
 		err = nil
@@ -503,7 +504,7 @@ func (s *PgStorageServer) Enumerate() (items []rsstorage.PersistentStorageItem, 
 			if dir == "." {
 				dir = ""
 			}
-			items = append(items, rsstorage.PersistentStorageItem{
+			items = append(items, types.StoredItem{
 				Dir:     dir,
 				Address: filepath.Base(relPath),
 			})
@@ -514,7 +515,7 @@ func (s *PgStorageServer) Enumerate() (items []rsstorage.PersistentStorageItem, 
 	return
 }
 
-func (s *PgStorageServer) move(dir, address string, server rsstorage.PersistentStorageServer) (err error) {
+func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer) (err error) {
 	parts, err := s.parts(dir, address)
 	if err != nil {
 		return
@@ -546,7 +547,7 @@ func (s *PgStorageServer) move(dir, address string, server rsstorage.PersistentS
 	return
 }
 
-func (s *PgStorageServer) parts(dir, address string) ([]rsstorage.CopyPart, error) {
+func (s *StorageServer) parts(dir, address string) ([]rsstorage.CopyPart, error) {
 	ok, chunked, _, _, err := s.Check(dir, address)
 	if err != nil {
 		return nil, err
@@ -570,10 +571,10 @@ func (s *PgStorageServer) parts(dir, address string) ([]rsstorage.CopyPart, erro
 	}
 }
 
-func (s *PgStorageServer) Move(dir, address string, server rsstorage.PersistentStorageServer) error {
+func (s *StorageServer) Move(dir, address string, server rsstorage.StorageServer) error {
 	copy := true
 	switch server.(type) {
-	case *PgStorageServer:
+	case *StorageServer:
 		// Attempt move
 		err := s.move(dir, address, server)
 		if err == nil {
@@ -601,7 +602,7 @@ func (s *PgStorageServer) Move(dir, address string, server rsstorage.PersistentS
 	return nil
 }
 
-func (s *PgStorageServer) Copy(dir, address string, server rsstorage.PersistentStorageServer) error {
+func (s *StorageServer) Copy(dir, address string, server rsstorage.StorageServer) error {
 	f, chunked, sz, _, ok, err := s.Get(dir, address)
 	if err == nil && !ok {
 		return fmt.Errorf("the PostgreSQL large object with dir=%s and address=%s to copy does not exist", dir, address)
@@ -609,14 +610,14 @@ func (s *PgStorageServer) Copy(dir, address string, server rsstorage.PersistentS
 		return err
 	}
 
-	install := func(file io.ReadCloser) rsstorage.Resolver {
+	install := func(file io.ReadCloser) types.Resolver {
 		return func(writer io.Writer) (string, string, error) {
 			_, err := io.Copy(writer, file)
 			return "", "", err
 		}
 	}
 
-	// Use the server Base() in case the server is wrapped, e.g., `MetadataPersistentStorageServer`
+	// Use the server Base() in case the server is wrapped, e.g., `MetadataStorageServer`
 	if chunked != nil {
 		_, _, err = server.Base().PutChunked(install(f), dir, address, uint64(sz))
 	} else {
@@ -625,11 +626,11 @@ func (s *PgStorageServer) Copy(dir, address string, server rsstorage.PersistentS
 	return err
 }
 
-func (s *PgStorageServer) Locate(dir, address string) string {
+func (s *StorageServer) Locate(dir, address string) string {
 	location := path.Join(s.class, dir, address)
 	return location
 }
 
-func (s *PgStorageServer) Base() rsstorage.PersistentStorageServer {
+func (s *StorageServer) Base() rsstorage.StorageServer {
 	return s
 }
