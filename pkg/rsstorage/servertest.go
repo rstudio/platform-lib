@@ -1,5 +1,7 @@
 package rsstorage
 
+// Copyright (C) 2022 by RStudio, PBC
+
 import (
 	"bytes"
 	"fmt"
@@ -9,8 +11,6 @@ import (
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
-
-// Copyright (C) 2022 by RStudio, PBC
 
 type GetResult struct {
 	GetReader  io.ReadCloser
