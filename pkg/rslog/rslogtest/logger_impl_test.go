@@ -11,6 +11,14 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+var loggerMock *LoggerMock
+
+func init() {
+	loggerMock = &LoggerMock{}
+	rslog.DefaultLoggerFactory = &mockFactory{logger: loggerMock}
+	rslog.RegisterRegions(map[rslog.ProductRegion]string{})
+}
+
 type LoggerImplTestSuite struct {
 	suite.Suite
 }
@@ -87,8 +95,7 @@ func (f *mockFactory) DefaultLogger() rslog.Logger {
 }
 
 func (s *LoggerImplTestSuite) TestSetDefaultLogger() {
-	loggerMock := &LoggerMock{}
-	rslog.DefaultLoggerFactory = &mockFactory{logger: loggerMock}
+
 	lgr := rslog.DefaultLogger()
 
 	msg := "some message"

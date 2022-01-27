@@ -20,14 +20,8 @@ const (
 	Session
 )
 
-func init() {
-	rslog.RegisterRegions(map[rslog.ProductRegion]string{})
-}
-
 type DebugLoggerSuite struct {
 	suite.Suite
-
-	loggerMock *LoggerMock
 }
 
 func TestDebugLoggerSuite(t *testing.T) {
@@ -59,6 +53,10 @@ func (s *DebugLoggerSuite) TestInitLog() {
 }
 
 func (s *DebugLoggerSuite) TestNewDebugLogger() {
+	loggerMock.On("WithFields", rslog.Fields{"region": ""}).Return(loggerMock)
+	loggerMock.On("WithFields", rslog.Fields{"id": "654-987"}).Return(loggerMock)
+	loggerMock.On("WithField", "sub_region", "balancer").Return(loggerMock)
+
 	lgr := rslog.NewDebugLogger(Proxy)
 	defer rslog.Disable(Proxy)
 	s.Equal(lgr.Enabled(), false)
