@@ -39,7 +39,7 @@ func NewPgStorageServer(class string, chunkSize uint64, waiter rsstorage.ChunkWa
 		class:       class,
 		pool:        pool,
 		debugLogger: debugLogger,
-		chunker: &rsstorage.DefaultChunkUtils{
+		chunker: &internal.DefaultChunkUtils{
 			ChunkSize:   chunkSize,
 			Server:      pgs,
 			Waiter:      waiter,
@@ -69,7 +69,7 @@ func pgxCommit(tx pgx.Tx, debugLogger rsstorage.DebugLogger, desc string, err *e
 
 // Extends pgx.LargeObject to commit the transaction and release the pool
 // connection when the reader is closed
-type LargeObjectCloser struct {
+type largeObjectCloser struct {
 	*pgx.LargeObject
 	pool     *pgxpool.Pool
 	conn     *pgxpool.Conn
@@ -80,7 +80,7 @@ type LargeObjectCloser struct {
 	debugLogger rsstorage.DebugLogger
 }
 
-func (f *LargeObjectCloser) Close() error {
+func (f *largeObjectCloser) Close() error {
 	// Create a nil error and commit the transaction
 	var err error
 	pgxCommit(f.tx, f.debugLogger, fmt.Sprintf("%s %s", f.op, f.location), &err)
@@ -93,8 +93,8 @@ func (f *LargeObjectCloser) Close() error {
 	return nil
 }
 
-func newLargeObjectCloser(lo *pgx.LargeObject, pool *pgxpool.Pool, conn *pgxpool.Conn, tx pgx.Tx, debuglogger rsstorage.DebugLogger, op, location string) *LargeObjectCloser {
-	return &LargeObjectCloser{
+func newLargeObjectCloser(lo *pgx.LargeObject, pool *pgxpool.Pool, conn *pgxpool.Conn, tx pgx.Tx, debuglogger rsstorage.DebugLogger, op, location string) *largeObjectCloser {
+	return &largeObjectCloser{
 		LargeObject: lo,
 		pool:        pool,
 		conn:        conn,
@@ -511,7 +511,7 @@ func (s *StorageServer) Enumerate() (items []types.StoredItem, err error) {
 		}
 	}
 
-	items = rsstorage.FilterChunks(items)
+	items = internal.FilterChunks(items)
 	return
 }
 

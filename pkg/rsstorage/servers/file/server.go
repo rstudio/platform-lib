@@ -17,13 +17,14 @@ import (
 	"github.com/minio/minio/pkg/disk"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
 type StorageServer struct {
 	dir          string
 	class        string
-	fileIO       FileIO
+	fileIO       fileIO
 	chunker      rsstorage.ChunkUtils
 	cacheTimeout time.Duration
 	debugLogger  rsstorage.DebugLogger
@@ -42,7 +43,7 @@ func NewFileStorageServer(dir string, chunkSize uint64, waiter rsstorage.ChunkWa
 		fileIO:       &defaultFileIO{},
 		debugLogger:  debugLogger,
 		cacheTimeout: cacheTimeout,
-		chunker: &rsstorage.DefaultChunkUtils{
+		chunker: &internal.DefaultChunkUtils{
 			ChunkSize:   chunkSize,
 			Server:      fs,
 			Waiter:      waiter,
@@ -106,7 +107,7 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 	elapsed := timeInfo.Sub(start)
 	s.debugLogger.Debugf("Calculated disk info for %s in %s.\n", s.dir, elapsed)
 
-	actual, err := DiskUsage(s.dir, s.cacheTimeout)
+	actual, err := diskUsage(s.dir, s.cacheTimeout)
 	if err != nil {
 		return types.Usage{}, fmt.Errorf("error calculating disk usage for %s: %s.\n", s.dir, err)
 	}
@@ -124,9 +125,9 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 	return usage, nil
 }
 
-// DiskUsage will walk the specified path in a filesystem and
+// diskUsage will walk the specified path in a filesystem and
 // aggregate the size of the contained files.
-func DiskUsage(duPath string, cacheTimeout time.Duration) (size datasize.ByteSize, err error) {
+func diskUsage(duPath string, cacheTimeout time.Duration) (size datasize.ByteSize, err error) {
 	timeout := time.Now().Add(cacheTimeout)
 	sizep := &size
 
@@ -136,7 +137,7 @@ func DiskUsage(duPath string, cacheTimeout time.Duration) (size datasize.ByteSiz
 		}
 
 		if time.Now().After(timeout) {
-			return errors.New("timeout in DiskUsage")
+			return errors.New("timeout in diskUsage")
 		}
 
 		if !info.IsDir() {
@@ -310,7 +311,7 @@ func (s *StorageServer) Enumerate() ([]types.StoredItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	return rsstorage.FilterChunks(items), nil
+	return internal.FilterChunks(items), nil
 }
 
 func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer) error {
@@ -398,10 +399,10 @@ func (s *StorageServer) Base() rsstorage.StorageServer {
 	return s
 }
 
-type FileIO interface {
+type fileIO interface {
 	MkdirAll(name string, perm os.FileMode) error
-	Open(name string) (FileIOFile, error)
-	OpenStaging(dir, prefix string) (f FileIOFile, err error)
+	Open(name string) (fileIOFile, error)
+	OpenStaging(dir, prefix string) (f fileIOFile, err error)
 	Move(stagedAt, permanent string) error
 	Remove(location string) error
 	RemoveAll(location string) error
@@ -409,7 +410,7 @@ type FileIO interface {
 	Stat(name string) (os.FileInfo, error)
 }
 
-type FileIOFile interface {
+type fileIOFile interface {
 	Name() string
 	Close() error
 	Read(p []byte) (n int, err error)
@@ -428,11 +429,11 @@ func (f *defaultFileIO) MkdirAll(name string, perm os.FileMode) error {
 	return os.MkdirAll(name, perm)
 }
 
-func (f *defaultFileIO) Open(name string) (FileIOFile, error) {
+func (f *defaultFileIO) Open(name string) (fileIOFile, error) {
 	return os.Open(name)
 }
 
-func (f *defaultFileIO) OpenStaging(dir, prefix string) (FileIOFile, error) {
+func (f *defaultFileIO) OpenStaging(dir, prefix string) (fileIOFile, error) {
 	return ioutil.TempFile(dir, prefix)
 }
 

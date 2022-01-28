@@ -99,7 +99,7 @@ func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) 
 
 // This test will only validate File storage when used without Postgres and MinIO. To test
 // all services, use the `make test-integration` target. To run these tests only, use:
-// `MODULE=pkg/rsstorage/integration_test just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage/integration_test -check.f=ChunksIntegrationSuite`
+// `MODULE=pkg/rsstorage/internal/integration_test just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage/internal/integration_test -check.f=ChunksIntegrationSuite`
 func (s *ChunksIntegrationSuite) TestWriteChunked(c *check.C) {
 	serverSet := s.NewServerSet(c, "chunks", "")
 	for key, server := range serverSet {
@@ -118,7 +118,7 @@ func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer rsstorage.Storage
 		Ch: make(chan bool, 1),
 	}
 
-	cw := &rsstorage.DefaultChunkUtils{
+	cw := &internal.DefaultChunkUtils{
 		ChunkSize: 5,
 		Server:    chunkServer,
 		Waiter:    wn,
@@ -229,7 +229,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 	debugLogger := &servertest.TestLogger{}
 	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
 
-	cw := &rsstorage.DefaultChunkUtils{
+	cw := &internal.DefaultChunkUtils{
 		ChunkSize:   chunkSize,
 		Server:      fileServer,
 		Waiter:      wn,
@@ -323,7 +323,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 	debugLogger := &servertest.TestLogger{}
 	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
 
-	cw := &rsstorage.DefaultChunkUtils{
+	cw := &internal.DefaultChunkUtils{
 		ChunkSize:   chunkSize,
 		Server:      fileServer,
 		PollTimeout: time.Millisecond * 100,

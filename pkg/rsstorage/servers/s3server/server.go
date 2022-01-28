@@ -48,7 +48,7 @@ func NewS3StorageServer(bucket, prefix string, svc S3Wrapper, chunkSize uint64, 
 		svc:    svc,
 		move:   svc.MoveObject,
 		copy:   svc.CopyObject,
-		chunker: &rsstorage.DefaultChunkUtils{
+		chunker: &internal.DefaultChunkUtils{
 			ChunkSize:   chunkSize,
 			Server:      s3s,
 			Waiter:      waiter,
@@ -327,7 +327,7 @@ func (s *StorageServer) Enumerate() ([]types.StoredItem, error) {
 		})
 	}
 
-	return rsstorage.FilterChunks(items), nil
+	return internal.FilterChunks(items), nil
 }
 
 func (s *StorageServer) moveOrCopy(dir, address string, server rsstorage.StorageServer, fn moveOrCopyFn) error {

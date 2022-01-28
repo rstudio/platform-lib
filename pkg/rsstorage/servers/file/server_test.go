@@ -18,6 +18,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/internal/servertest"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
@@ -57,7 +58,7 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 	c.Check(server, check.DeepEquals, &StorageServer{
 		dir:    "test",
 		fileIO: &defaultFileIO{},
-		chunker: &rsstorage.DefaultChunkUtils{
+		chunker: &internal.DefaultChunkUtils{
 			ChunkSize: 4096,
 			Server: &StorageServer{
 				dir:          "test",
@@ -81,9 +82,9 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 }
 
 type fakeFileIO struct {
-	open           FileIOFile
+	open           fileIOFile
 	openErr        error
-	openStaging    FileIOFile
+	openStaging    fileIOFile
 	openStagingErr error
 	renamed        int
 	stagingToPerm  error
@@ -106,11 +107,11 @@ func (f *fakeFileIO) MkdirAll(name string, perm os.FileMode) error {
 	return f.mkdir
 }
 
-func (f *fakeFileIO) Open(name string) (FileIOFile, error) {
+func (f *fakeFileIO) Open(name string) (fileIOFile, error) {
 	return f.open, f.openErr
 }
 
-func (f *fakeFileIO) OpenStaging(dir, prefix string) (FileIOFile, error) {
+func (f *fakeFileIO) OpenStaging(dir, prefix string) (fileIOFile, error) {
 	return f.openStaging, f.openStagingErr
 }
 
@@ -749,7 +750,7 @@ func (s *FileEnumerationSuite) TestEnumerate(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	server.chunker = &rsstorage.DefaultChunkUtils{
+	server.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,
 		Server:    server,
 		Waiter:    wn,
@@ -859,7 +860,7 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	serverSource.chunker = &rsstorage.DefaultChunkUtils{
+	serverSource.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,
 		Server:    serverSource,
 		Waiter:    wn,
@@ -870,7 +871,7 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 		fileIO:      &defaultFileIO{},
 		debugLogger: debugLogger,
 	}
-	serverDest.chunker = &rsstorage.DefaultChunkUtils{
+	serverDest.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,
 		Server:    serverDest,
 		Waiter:    wn,
@@ -1027,7 +1028,7 @@ func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	serverSource.chunker = &rsstorage.DefaultChunkUtils{
+	serverSource.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,
 		Server:    serverSource,
 		Waiter:    wn,
@@ -1038,7 +1039,7 @@ func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
 		fileIO:      &defaultFileIO{},
 		debugLogger: debugLogger,
 	}
-	serverDest.chunker = &rsstorage.DefaultChunkUtils{
+	serverDest.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,
 		Server:    serverDest,
 		Waiter:    wn,

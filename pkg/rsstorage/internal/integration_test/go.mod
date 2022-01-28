@@ -1,4 +1,4 @@
-module github.com/rstudio/platform-lib/pkg/rsstorage/integration_test
+module github.com/rstudio/platform-lib/pkg/rsstorage/internal/integration_test
 
 go 1.17
 
@@ -15,10 +15,10 @@ require (
 )
 
 replace (
-	github.com/rstudio/platform-lib/pkg/rsstorage => ../
-	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file => ../servers/file
-	github.com/rstudio/platform-lib/pkg/rsstorage/servers/postgres => ../servers/postgres
-	github.com/rstudio/platform-lib/pkg/rsstorage/servers/s3server => ../servers/s3server
+	github.com/rstudio/platform-lib/pkg/rsstorage => ../../
+	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file => ../../servers/file
+	github.com/rstudio/platform-lib/pkg/rsstorage/servers/postgres => ../../servers/postgres
+	github.com/rstudio/platform-lib/pkg/rsstorage/servers/s3server => ../../servers/s3server
 )
 
 require (

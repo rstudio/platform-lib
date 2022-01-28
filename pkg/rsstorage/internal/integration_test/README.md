@@ -1,4 +1,4 @@
-# `/pkg/rsstorage/integration_test`
+# `/pkg/rsstorage/internal/integration_test`
 
 ## Description
 
@@ -15,5 +15,5 @@ These tests can be run with:
 just test-integration
 
 # All tests in this module
-MODULE=pkg/rsstorage/integration_test just test-integration
+MODULE=pkg/rsstorage/internal/integration_test just test-integration
 ```

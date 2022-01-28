@@ -97,7 +97,7 @@ func (s *PgCacheServerSuite) TestCheckChunkedOk(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	server.chunker = &rsstorage.DefaultChunkUtils{
+	server.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 320,
 		Server:    server,
 		Waiter:    wn,
@@ -162,7 +162,7 @@ func (s *PgCacheServerSuite) TestGetChunkedOk(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	server.chunker = &rsstorage.DefaultChunkUtils{
+	server.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 512,
 		Server:    server,
 		Waiter:    wn,
@@ -302,7 +302,7 @@ func (s *PgCacheServerSuite) TestRemoveChunkedOk(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	server.chunker = &rsstorage.DefaultChunkUtils{
+	server.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 512,
 		Server:    server,
 		Waiter:    wn,
@@ -355,7 +355,7 @@ func (s *PgCacheServerSuite) TestEnumerate(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	server.chunker = &rsstorage.DefaultChunkUtils{
+	server.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,
 		Server:    server,
 		Waiter:    wn,
@@ -434,7 +434,7 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	sourceServer.chunker = &rsstorage.DefaultChunkUtils{
+	sourceServer.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,
 		Server:    sourceServer,
 		Waiter:    wn,
@@ -445,7 +445,7 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 		class:       "cran",
 		debugLogger: debugLogger,
 	}
-	destServer.chunker = &rsstorage.DefaultChunkUtils{
+	destServer.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,
 		Server:    destServer,
 		Waiter:    wn,
@@ -585,7 +585,7 @@ func (s *PgCacheServerSuite) TestMove(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	sourceServer.chunker = &rsstorage.DefaultChunkUtils{
+	sourceServer.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,
 		Server:    sourceServer,
 		Waiter:    wn,
@@ -596,7 +596,7 @@ func (s *PgCacheServerSuite) TestMove(c *check.C) {
 		class:       "cran",
 		debugLogger: debugLogger,
 	}
-	destServer.chunker = &rsstorage.DefaultChunkUtils{
+	destServer.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,
 		Server:    destServer,
 		Waiter:    wn,
