@@ -4,10 +4,10 @@ package cmd
 
 import (
 	"errors"
-	"github.com/rstudio/platform-lib/pkg/rslog"
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/spf13/cobra"
 )
 

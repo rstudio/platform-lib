@@ -3,9 +3,9 @@ package rslogtest
 // Copyright (C) 2021 by RStudio, PBC.
 
 import (
-	"github.com/rstudio/platform-lib/pkg/rslog"
 	"testing"
 
+	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )

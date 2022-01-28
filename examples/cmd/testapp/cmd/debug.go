@@ -4,8 +4,8 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/rstudio/platform-lib/pkg/rslog"
 
+	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/spf13/cobra"
 )
 
