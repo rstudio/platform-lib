@@ -7,7 +7,7 @@ require (
 	github.com/fortytw2/leaktest v1.3.0
 	github.com/google/uuid v1.3.0
 	github.com/jarcoal/httpmock v1.1.0
-	github.com/rstudio/platform-lib/pkg/rsstorage v1.0.2
+	github.com/rstudio/platform-lib/pkg/rsstorage v0.1.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 )
 
