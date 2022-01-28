@@ -174,6 +174,7 @@ func (l logrusEntryWrapper) Logf(msg string, args ...interface{}) {
 
 var defaultLogger Logger
 var once = &sync.Once{}
+var mutex sync.RWMutex
 
 func ensureDefaultLoggerReadLock() *sync.RWMutex {
 	// Set the default logger only once.

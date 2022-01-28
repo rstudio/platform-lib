@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/rstudio/platform-lib/pkg/rslog"
 	"log"
 	"regexp"
 	"time"
@@ -19,6 +18,7 @@ import (
 	// Must import github.com/jackc/pgx/v4/stdlib for sqlx support.
 	_ "github.com/jackc/pgx/v4/stdlib"
 
+	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listenerfactory"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local"

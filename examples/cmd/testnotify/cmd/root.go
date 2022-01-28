@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/spf13/cobra"
+
+	"github.com/rstudio/platform-lib/pkg/rslog"
 )
 
 const (
