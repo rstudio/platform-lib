@@ -56,6 +56,7 @@ build:
 # run linters
 lint:
     ./scripts/fmt-check.sh
+    ./scripts/header-check.sh
     ./scripts/test-wiring.sh
 
 # Builds Go code using docker. Useful when using a MacOS or Windows native IDE. First,
