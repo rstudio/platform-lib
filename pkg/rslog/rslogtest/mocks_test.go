@@ -1,5 +1,7 @@
 package rslogtest
 
+// Copyright (C) 2022 by RStudio, PBC.
+
 import (
 	"github.com/stretchr/testify/suite"
 	"testing"
