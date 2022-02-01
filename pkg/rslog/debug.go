@@ -178,8 +178,9 @@ func (l *debugLogger) Tracef(message string, args ...interface{}) {
 func (l *debugLogger) WithFields(fields Fields) DebugLogger {
 	newLgr := l.Logger.WithFields(fields)
 	dbglgr := &debugLogger{
-		Logger: newLgr,
-		region: l.region,
+		Logger:  newLgr,
+		region:  l.region,
+		enabled: l.enabled,
 	}
 	registerLoggerCb(l.region, dbglgr.enable)
 	return dbglgr
@@ -190,8 +191,9 @@ func (l *debugLogger) WithFields(fields Fields) DebugLogger {
 func (l *debugLogger) WithSubRegion(subregion string) DebugLogger {
 	newLgr := l.Logger.WithField("sub_region", subregion)
 	dbglgr := &debugLogger{
-		Logger: newLgr,
-		region: l.region,
+		Logger:  newLgr,
+		region:  l.region,
+		enabled: l.enabled,
 	}
 	registerLoggerCb(l.region, dbglgr.enable)
 	return dbglgr

@@ -53,6 +53,7 @@ func (s *DebugLoggerSuite) TestInitLog() {
 }
 
 func (s *DebugLoggerSuite) TestNewDebugLogger() {
+	loggerMock.On("Debugf", "test call %s", mock.Anything).Return(loggerMock)
 	loggerMock.On("WithFields", rslog.Fields{"region": ""}).Return(loggerMock)
 	loggerMock.On("WithFields", rslog.Fields{"id": "654-987"}).Return(loggerMock)
 	loggerMock.On("WithField", "sub_region", "balancer").Return(loggerMock)
@@ -62,15 +63,32 @@ func (s *DebugLoggerSuite) TestNewDebugLogger() {
 	s.Equal(lgr.Enabled(), false)
 
 	rslog.Enable(Proxy)
+	lgr.Debugf("test call %s", "base parent")
 	s.Equal(lgr.Enabled(), true)
+	s.Equal(loggerMock.LastCall(), "test call base parent")
 
 	// Logger with fields should be under same region, new callback
 	fieldslgr := lgr.WithFields(rslog.Fields{"id": "654-987"})
+	fieldslgr.Debugf("test call %s", "with-fields")
 	s.Equal(fieldslgr.Enabled(), true)
+	s.Equal(loggerMock.LastCall(), "test call with-fields")
 
 	// SubRegion Logger should be under same region, new callback
 	sublgr := lgr.WithSubRegion("balancer")
+	sublgr.Debugf("test call %s", "subregion")
 	s.Equal(sublgr.Enabled(), true)
+	s.Equal(loggerMock.LastCall(), "test call subregion")
+
+	// Last call, no new calls after disable
+	lgr.Debugf("test call %s", "LAST")
+	s.Equal(loggerMock.LastCall(), "test call LAST")
+
+	rslog.Disable(Proxy)
+	lgr.Debugf("test call %s", "base parent")
+	fieldslgr.Debugf("test call %s", "with-fields")
+	sublgr.Debugf("test call %s", "subregion")
+
+	s.Equal(loggerMock.LastCall(), "test call LAST")
 
 	// For a totally different region
 	another := rslog.NewDebugLogger(LDAP)
