@@ -40,7 +40,6 @@ type LoggerMock struct {
 // allowing to be called with any message and arguments
 func (m *LoggerMock) AllowAny(methods ...string) {
 	for _, method := range methods {
-		//todo: I wonder if these should be types rather than string inputs
 		if method == "Fatal" {
 			m.On(method, mock.Anything)
 		} else {
