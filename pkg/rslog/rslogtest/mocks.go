@@ -9,7 +9,6 @@ import (
 	"regexp"
 
 	"github.com/rstudio/platform-lib/pkg/rslog"
-	"github.com/rstudio/platform-lib/pkg/rslog/debug"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -177,12 +176,12 @@ func (m *DebugLoggerMock) Enabled() bool {
 	return args.Get(0).(bool)
 }
 
-func (m *DebugLoggerMock) WithFields(fields rslog.Fields) debug.DebugLogger {
+func (m *DebugLoggerMock) WithFields(fields rslog.Fields) rslog.DebugLogger {
 	args := m.Called(fields)
-	return args.Get(0).(debug.DebugLogger)
+	return args.Get(0).(rslog.DebugLogger)
 }
 
-func (m *DebugLoggerMock) WithSubRegion(subregion string) debug.DebugLogger {
+func (m *DebugLoggerMock) WithSubRegion(subregion string) rslog.DebugLogger {
 	args := m.Called(subregion)
-	return args.Get(0).(debug.DebugLogger)
+	return args.Get(0).(rslog.DebugLogger)
 }

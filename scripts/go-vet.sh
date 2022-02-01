@@ -5,7 +5,7 @@ __EXITCODE=0
 
 CURDIR=$(pwd)
 
-for MODULE in $(find . -name go.mod | xargs dirname); do
+for MODULE in $(find . -name go.mod | xargs -n1 dirname); do
     echo "Vetting module ${MODULE}"
     if [ ! -f "${MODULE}/go.mod" ] ; then
         echo "Skipping module ${MODULE}, as it does not contain go.mod."

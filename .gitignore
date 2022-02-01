@@ -24,3 +24,6 @@ out/
 **/vendor
 # Directory used while generating NOTICE.md
 tempvendor
+
+#goland
+.idea/
