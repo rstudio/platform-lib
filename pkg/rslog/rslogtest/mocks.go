@@ -40,7 +40,11 @@ type LoggerMock struct {
 // allowing to be called with any message and arguments
 func (m *LoggerMock) AllowAny(methods ...string) {
 	for _, method := range methods {
-		m.On(method, mock.AnythingOfType("string"), mock.Anything)
+		if method == "Fatal" {
+			m.On(method, mock.Anything)
+		} else {
+			m.On(method, mock.AnythingOfType("string"), mock.Anything)
+		}
 	}
 }
 
@@ -117,6 +121,7 @@ func (m *LoggerMock) Errorf(msg string, args ...interface{}) {
 }
 
 func (m *LoggerMock) Fatal(args ...interface{}) {
+	m.stringCalls = append(m.stringCalls, fmt.Sprint(args...))
 	m.Called(args)
 }
 
