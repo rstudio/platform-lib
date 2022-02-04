@@ -133,7 +133,7 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 		EnableSharedConfig: true,
 		DisableSSL:         true,
 		S3ForcePathStyle:   true,
-	})
+	}, "")
 	c.Assert(err, check.IsNil)
 
 	// Create S3 bucket
@@ -409,7 +409,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 		Endpoint:         endpoint,
 		DisableSSL:       disableSSL,
 		S3ForcePathStyle: forcePathStyle,
-	})
+	}, "")
 	c.Assert(err, check.IsNil)
 
 	// Create S3 bucket if using local MinIO Server
@@ -534,7 +534,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		Endpoint:         endpoint,
 		DisableSSL:       disableSSL,
 		S3ForcePathStyle: forcePathStyle,
-	})
+	}, "")
 	c.Assert(err, check.IsNil)
 
 	// Create S3 bucket if using local MinIO Server

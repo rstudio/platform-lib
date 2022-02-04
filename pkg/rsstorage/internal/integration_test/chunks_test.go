@@ -62,7 +62,7 @@ func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) 
 		EnableSharedConfig: true,
 		DisableSSL:         true,
 		S3ForcePathStyle:   true,
-	})
+	}, "")
 	c.Assert(err, check.IsNil)
 
 	// Create S3 bucket

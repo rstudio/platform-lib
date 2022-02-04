@@ -36,12 +36,20 @@ type defaultS3Wrapper struct {
 	session *session.Session
 }
 
-func NewS3Wrapper(configInput *rsstorage.ConfigS3) (S3Wrapper, error) {
+func NewS3Wrapper(configInput *rsstorage.ConfigS3, keyID string) (S3Wrapper, error) {
 	// Create a session
 	options := getS3Options(configInput)
 	sess, err := session.NewSessionWithOptions(options)
 	if err != nil {
 		return nil, fmt.Errorf("Error starting AWS session: %s", err)
+	}
+
+	if keyID != "" {
+		svc := &encryptedS3Service{
+			keyID: keyID,
+		}
+		svc.session = sess
+		return svc, nil
 	}
 
 	return &defaultS3Wrapper{
@@ -118,11 +126,25 @@ func (s *defaultS3Wrapper) Upload(input *s3manager.UploadInput, ctx context.Cont
 func (s *defaultS3Wrapper) copyObject(svc *s3.S3, bucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
 	copier := NewCopierWithClient(svc)
 
+	// Note: We have to perform this HEAD request on the old temporary file to ensure that any and all metadata fields
+	// get copied over. This isn't a problem for smaller objects, but when _some_ size is exceeded, these fields are
+	// no longer copied. There's some references to this problem here:
+	// https://github.com/aws/aws-sdk-go/pull/2653#issuecomment-617684878
+	head, err := s.HeadObject(&s3.HeadObjectInput{
+		Key:    aws.String(oldKey),
+		Bucket: aws.String(bucket),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("Something went wrong checking an object on S3. You may want to check your configuration, copy error: %s", err.Error())
+	}
+
 	// First, copy the object
 	out, err := copier.Copy(&s3.CopyObjectInput{
-		Bucket:     aws.String(newBucket),
-		Key:        aws.String(newKey),
-		CopySource: aws.String(internal.NotEmptyJoin([]string{bucket, oldKey}, "/")),
+		Bucket:            aws.String(newBucket),
+		Key:               aws.String(newKey),
+		CopySource:        aws.String(internal.NotEmptyJoin([]string{bucket, oldKey}, "/")),
+		MetadataDirective: aws.String(s3.MetadataDirectiveReplace),
+		Metadata:          head.Metadata,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("Something went wrong moving an object on S3. You may want to check your configuration, copy error: %s", err.Error())

@@ -37,7 +37,7 @@ func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination st
 		if cfg.S3 == nil {
 			return nil, fmt.Errorf("Missing [S3Storage \"%s\"] configuration section", class)
 		}
-		s3Service, err := s3server.NewS3Wrapper(cfg.S3)
+		s3Service, err := s3server.NewS3Wrapper(cfg.S3, "")
 		if err != nil {
 			return nil, fmt.Errorf("Error starting S3 session for '%s': %s", class, err)
 		}
