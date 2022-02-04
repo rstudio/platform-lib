@@ -129,6 +129,7 @@ type ConfigS3 struct {
 	Profile            string
 	Region             string
 	Endpoint           string
+	KeyID              string
 	SkipValidation     bool
 	DisableSSL         bool
 	S3ForcePathStyle   bool

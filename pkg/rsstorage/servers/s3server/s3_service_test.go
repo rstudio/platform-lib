@@ -132,7 +132,7 @@ func (s *S3WrapperSuite) TestMoveObject(c *check.C) {
 	wrapper := &defaultS3Wrapper{session: sess}
 
 	_, err = wrapper.MoveObject("foo", "foo", "foo2", "newFoo")
-	expected := "Something went wrong moving an object on S3. You may want to check your configuration, copy error: NotFound: Not Found\tstatus code: 404, request id: , host id: "
+	expected := "Something went wrong checking an object on S3. You may want to check your configuration, copy error: NotFound: Not Found\tstatus code: 404, request id: , host id: "
 	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
 }
 
@@ -152,7 +152,7 @@ func (s *S3WrapperSuite) TestCopyObject(c *check.C) {
 	wrapper := &defaultS3Wrapper{session: sess}
 
 	_, err = wrapper.CopyObject("foo", "foo", "foo2", "newFoo")
-	expected := "Something went wrong moving an object on S3. You may want to check your configuration, copy error: NotFound: Not Found\tstatus code: 404, request id: , host id: "
+	expected := "Something went wrong checking an object on S3. You may want to check your configuration, copy error: NotFound: Not Found\tstatus code: 404, request id: , host id: "
 	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
 }
 
@@ -235,7 +235,7 @@ func (s *S3WrapperSuite) TestSetStorageS3Validate(c *check.C) {
 		Region:     "testregion",
 		DisableSSL: false,
 	}
-	svc, err := NewS3Wrapper(s3)
+	svc, err := NewS3Wrapper(s3, "")
 	c.Assert(err, check.IsNil)
 
 	wn := &servertest.DummyWaiterNotifier{}

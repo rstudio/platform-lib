@@ -169,6 +169,7 @@ func (c Copier) CopyWithContext(ctx aws.Context, input *s3.CopyObjectInput, opti
 	for _, opt := range options {
 		opt(&it.cfg)
 	}
+
 	it.cfg.RequestOptions = append(it.cfg.RequestOptions, request.WithAppendUserAgent("S3Manager"))
 
 	return it.copy()
