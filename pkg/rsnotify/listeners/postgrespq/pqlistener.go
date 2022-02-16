@@ -178,6 +178,10 @@ func (l *PqListener) notify(n *pq.Notification, errs chan error, items chan list
 		errs <- fmt.Errorf("error unmarshalling message data type: %s", err)
 		return
 	}
+	if l.matcher.Type(dataType) == nil {
+		errs <- fmt.Errorf("no matcher type found for %d", dataType)
+		return
+	}
 
 	// Get an object of the correct type
 	input = reflect.New(reflect.ValueOf(l.matcher.Type(dataType)).Elem().Type()).Interface().(listener.Notification)
