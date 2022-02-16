@@ -34,3 +34,10 @@ func Notify(channelName string, n interface{}, pool *pgxpool.Pool) error {
 	_, err = pool.Exec(context.Background(), query, msg)
 	return err
 }
+
+func NotifyRaw(channelName string, msg string, pool *pgxpool.Pool) error {
+	query := fmt.Sprintf(
+		"select pg_notify('%s', $1)", channelName)
+	_, err := pool.Exec(context.Background(), query, msg)
+	return err
+}

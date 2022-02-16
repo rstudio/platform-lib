@@ -182,15 +182,22 @@ func (l *PgxListener) notify(n *pgconn.Notification, errs chan error, items chan
 	err := json.Unmarshal(payloadBytes, &tmp)
 	if err != nil {
 		errs <- fmt.Errorf("error unmarshalling raw message: %s", err)
+		return
 	}
 
 	// Unmarshal request data type
 	var dataType uint8
 	if tmp[l.matcher.Field()] == nil {
 		errs <- fmt.Errorf("message does not contain data type field %s", l.matcher.Field())
+		return
 	}
 	if err = json.Unmarshal(*tmp[l.matcher.Field()], &dataType); err != nil {
 		errs <- fmt.Errorf("error unmarshalling message data type: %s", err)
+		return
+	}
+	if l.matcher.Type(dataType) == nil {
+		errs <- fmt.Errorf("no matcher type found for %d", dataType)
+		return
 	}
 
 	// Get an object of the correct type

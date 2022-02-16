@@ -3,7 +3,10 @@ package postgrespgx
 // Copyright (C) 2022 by RStudio, PBC.
 
 import (
+	"encoding/json"
+	"errors"
 	"log"
+	"strings"
 	"testing"
 
 	"github.com/fortytw2/leaktest"
@@ -66,6 +69,11 @@ func (s *PgxNotifySuite) TestNewPgxListener(c *check.C) {
 
 func (s *PgxNotifySuite) notify(channel string, n interface{}, c *check.C) {
 	err := Notify(channel, n, s.pool)
+	c.Assert(err, check.IsNil)
+}
+
+func (s *PgxNotifySuite) notifyRaw(channel string, message string, c *check.C) {
+	err := NotifyRaw(channel, message, s.pool)
 	c.Assert(err, check.IsNil)
 }
 
@@ -174,6 +182,101 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 		Val:                 "second-test",
 	}, c)
 	c.Assert(err, check.IsNil)
+
+	// Wait for test to complete
+	<-done
+
+	// Clean up
+	l.Stop()
+}
+
+func (s *PgxNotifySuite) TestNotificationsErrors(c *check.C) {
+	defer leaktest.Check(c)()
+
+	matcher := listener.NewMatcher("NotifyType")
+	matcher.Register(2, &testNotification{})
+
+	// A notification that is invalid JSON and cannot be unmarshaled
+	tnBytesInvalid := "{!"
+
+	// A notification that does not contain the NotifyType field
+	tnNoTypeField := struct {
+		Value string
+	}{
+		Value: "test",
+	}
+
+	// A notification whose data type field cannot be unmarshalled to a uint8
+	tnBytesInvalidTypeData := `{"NotifyType":{"name":"jon"}}`
+
+	// A notification of an unregistered type
+	tnWrongType := testNotification{
+		GenericNotification: listener.GenericNotification{NotifyType: 4},
+		Val:                 "test-notification",
+	}
+
+	// A notification of a registered type that matches a failing marshaller
+	tnMarshallerFails := &testNotification{
+		GenericNotification: listener.GenericNotification{
+			NotifyType: 2,
+		},
+		Val: "test",
+	}
+
+	// A notification with a valid type, but that fails unmarshalling to the expected type
+	tnBytesCannotUnmarshal := `{"NotifyType":2,"Val":{"is":"unexpected_object"}}`
+
+	// Register a marshaller that will fail
+	unmarshallers := map[uint8]listener.Unmarshaller{
+		2: func(n listener.Notification, rawMap map[string]*json.RawMessage) error {
+			return errors.New("unmarshal error")
+		},
+	}
+
+	l := NewPgxListener("test-a", s.pool, matcher, unmarshallers, nil)
+
+	// Listen for notifications
+	data, errs, err := l.Listen()
+	c.Assert(err, check.IsNil)
+	done := make(chan struct{})
+	counts := make(map[string]bool)
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-data:
+				log.Printf("unexpected good data")
+				c.FailNow()
+			case e := <-errs:
+				errStr := e.Error()
+				switch {
+				case strings.HasPrefix(errStr, "error unmarshalling raw message"):
+					counts["firstUnmarshal"] = true
+				case strings.HasPrefix(errStr, "message does not contain data type field NotifyType"):
+					counts["missingType"] = true
+				case strings.HasPrefix(errStr, "error unmarshalling message data type"):
+					counts["badType"] = true
+				case strings.HasPrefix(errStr, "no matcher type found for 4"):
+					counts["noMatcher"] = true
+				case strings.HasPrefix(errStr, "error unmarshalling JSON:"):
+					counts["secondUnmarshal"] = true
+				case strings.HasPrefix(errStr, "error unmarshalling with custom unmarshaller: unmarshal error"):
+					counts["unmarshalerFails"] = true
+				}
+				if len(counts) == 6 {
+					return
+				}
+			}
+		}
+	}()
+
+	// Send data across the main test channel. All should err.
+	s.notifyRaw("test-a", tnBytesInvalid, c)
+	s.notify("test-a", &tnNoTypeField, c)
+	s.notifyRaw("test-a", tnBytesInvalidTypeData, c)
+	s.notify("test-a", &tnWrongType, c)
+	s.notifyRaw("test-a", tnBytesCannotUnmarshal, c)
+	s.notify("test-a", &tnMarshallerFails, c)
 
 	// Wait for test to complete
 	<-done
