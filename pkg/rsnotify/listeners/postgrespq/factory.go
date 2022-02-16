@@ -31,11 +31,11 @@ func (l *PqListenerFactory) Shutdown() {
 	}
 }
 
-func (l *PqListenerFactory) New(channelName string, dataType listener.Notification) listener.Listener {
+func (l *PqListenerFactory) New(channelName string, matcher listener.TypeMatcher) listener.Listener {
 	// Ensure that the channel name is safe for PostgreSQL
 	channelName = listenerutils.SafeChannelName(channelName)
 
-	listener := NewPqListener(channelName, dataType, l.factory, l.Unmarshallers, l.debugLogger)
+	listener := NewPqListener(channelName, l.factory, matcher, l.Unmarshallers, l.debugLogger)
 	l.listeners = append(l.listeners, listener)
 	return listener
 }

@@ -28,16 +28,16 @@ func NewPgxListenerFactory(pool *pgxpool.Pool, debugLogger listener.DebugLogger)
 }
 
 func (l *PgxListenerFactory) Shutdown() {
-	for _, listener := range l.listeners {
-		listener.Stop()
+	for _, ll := range l.listeners {
+		ll.Stop()
 	}
 }
 
-func (l *PgxListenerFactory) New(channelName string, dataType listener.Notification) listener.Listener {
+func (l *PgxListenerFactory) New(channelName string, matcher listener.TypeMatcher) listener.Listener {
 	// Ensure that the channel name is safe for PostgreSQL
 	channelName = listenerutils.SafeChannelName(channelName)
 
-	listener := NewPgxListener(channelName, dataType, l.pool, l.Unmarshallers, l.debugLogger)
-	l.listeners = append(l.listeners, listener)
-	return listener
+	pgxListener := NewPgxListener(channelName, l.pool, matcher, l.Unmarshallers, l.debugLogger)
+	l.listeners = append(l.listeners, pgxListener)
+	return pgxListener
 }

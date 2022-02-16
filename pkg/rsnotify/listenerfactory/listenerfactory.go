@@ -9,7 +9,7 @@ import (
 )
 
 type ListenerFactory interface {
-	New(channel string, dataType listener.Notification) listener.Listener
+	New(channel string, matcher listener.TypeMatcher) listener.Listener
 	RegisterUnmarshaler(dataType uint8, unmarshaler listener.Unmarshaller)
 	Shutdown()
 }

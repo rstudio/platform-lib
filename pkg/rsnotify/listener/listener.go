@@ -2,8 +2,10 @@ package listener
 
 // Copyright (C) 2022 by RStudio, PBC.
 
+import "encoding/json"
+
 const (
-	// Sizing for the channel to prevent blocking when distributing
+	// MaxChannelSize sizes for the channel to prevent blocking when distributing
 	// notifications to listeners.
 	MaxChannelSize = 100
 )
@@ -29,7 +31,13 @@ const (
 	ChannelFollower = "follower"
 )
 
-type Unmarshaller func(n Notification, data []byte) error
+type Unmarshaller func(n Notification, rawMap map[string]*json.RawMessage) error
+
+type TypeMatcher interface {
+	Field() string
+	Register(notifyType uint8, dataType interface{})
+	Type(notifyType uint8) interface{}
+}
 
 type Notification interface {
 	Type() uint8
@@ -44,7 +52,7 @@ type Listener interface {
 }
 
 type Logger interface {
-	Debugf(msg string, args ...interface{})
+	Debugf(msg string, argslistenerfactory ...interface{})
 }
 
 type DebugLogger interface {
@@ -68,4 +76,28 @@ func (n *GenericNotification) Guid() string {
 
 func (n *GenericNotification) Data() interface{} {
 	return n.NotifyData
+}
+
+type GenericMatcher struct {
+	field string
+	types map[uint8]interface{}
+}
+
+func (m *GenericMatcher) Field() string {
+	return m.field
+}
+
+func (m *GenericMatcher) Type(notifyType uint8) interface{} {
+	return m.types[notifyType]
+}
+
+func (m *GenericMatcher) Register(notifyType uint8, dataType interface{}) {
+	m.types[notifyType] = dataType
+}
+
+func NewMatcher(field string) *GenericMatcher {
+	return &GenericMatcher{
+		field: field,
+		types: make(map[uint8]interface{}),
+	}
 }

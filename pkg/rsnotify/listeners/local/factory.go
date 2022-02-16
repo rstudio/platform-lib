@@ -23,6 +23,6 @@ func NewListenerFactory(llf *ListenerProvider) *ListenerFactory {
 
 func (l *ListenerFactory) Shutdown() {}
 
-func (l *ListenerFactory) New(channelName string, dataType listener.Notification) listener.Listener {
+func (l *ListenerFactory) New(channelName string, matcher listener.TypeMatcher) listener.Listener {
 	return l.llf.New(channelName)
 }

@@ -21,6 +21,16 @@ var _ = check.Suite(&PgxNotifySuite{})
 
 func TestPackage(t *testing.T) { check.TestingT(t) }
 
+type testNotification struct {
+	listener.GenericNotification
+	Val string
+}
+
+type testNotificationAlt struct {
+	listener.GenericNotification
+	Val uint64
+}
+
 func (s *PgxNotifySuite) SetUpSuite(c *check.C) {
 	if testing.Short() {
 		c.Skip("skipping pgx notification tests because -short was provided")
@@ -41,23 +51,20 @@ func (s *PgxNotifySuite) TearDownSuite(c *check.C) {
 
 func (s *PgxNotifySuite) TestNewPgxListener(c *check.C) {
 	unmarshallers := make(map[uint8]listener.Unmarshaller)
+	matcher := listener.NewMatcher("NotifyType")
+	matcher.Register(2, &testNotification{})
 	lgr := &listener.TestLogger{}
-	l := NewPgxListener("test-a", &testNotification{}, s.pool, unmarshallers, lgr)
+	l := NewPgxListener("test-a", s.pool, matcher, unmarshallers, lgr)
 	c.Check(l, check.DeepEquals, &PgxListener{
 		name:          "test-a",
 		pool:          s.pool,
-		t:             &testNotification{},
+		matcher:       matcher,
 		unmarshallers: unmarshallers,
 		debugLogger:   lgr,
 	})
 }
 
-type testNotification struct {
-	listener.GenericNotification
-	Val string
-}
-
-func (s *PgxNotifySuite) notify(channel string, n *testNotification, c *check.C) {
+func (s *PgxNotifySuite) notify(channel string, n interface{}, c *check.C) {
 	err := Notify(channel, n, s.pool)
 	c.Assert(err, check.IsNil)
 }
@@ -65,27 +72,41 @@ func (s *PgxNotifySuite) notify(channel string, n *testNotification, c *check.C)
 func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	defer leaktest.Check(c)()
 
+	matcher := listener.NewMatcher("NotifyType")
+	matcher.Register(2, &testNotification{})
+	matcher.Register(3, &testNotificationAlt{})
+
 	tn := testNotification{
-		Val: "test-notification",
+		GenericNotification: listener.GenericNotification{NotifyType: 2},
+		Val:                 "test-notification",
 	}
 
 	unmarshallers := make(map[uint8]listener.Unmarshaller)
 
-	l := NewPgxListener("test-a", &tn, s.pool, unmarshallers, nil)
+	l := NewPgxListener("test-a", s.pool, matcher, unmarshallers, nil)
 
 	// Listen for notifications
 	data, errs, err := l.Listen()
 	c.Assert(err, check.IsNil)
 	done := make(chan struct{})
-	count := 0
+	count1 := 0
+	count2 := 0
 	go func() {
 		defer close(done)
 		for {
 			select {
 			case i := <-data:
-				c.Assert(i.(*testNotification).Val, check.Equals, "test-notification")
-				count++
-				if count == 2 {
+				switch m := i.(type) {
+				case *testNotification:
+					c.Assert(m.Val, check.Equals, "test-notification")
+					count1++
+				case *testNotificationAlt:
+					c.Assert(m.Val, check.Equals, uint64(999))
+					count2++
+				}
+				if count1 == 2 && count2 == 1 {
+					// Return when we've received 2 notifications of *testNotification type
+					// and 1 notification of the *testNotificationAlt type
 					return
 				}
 			case e := <-errs:
@@ -98,9 +119,17 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	// Send some data across the main test channel.
 	s.notify("test-a", &tn, c)
 	// Send some data across a different channel. This should not be seen
-	s.notify("test-b", &testNotification{Val: "different-test"}, c)
+	s.notify("test-b", &testNotification{
+		GenericNotification: listener.GenericNotification{NotifyType: 2},
+		Val:                 "different-test",
+	}, c)
 	// Send more data across the main test channel.
 	s.notify("test-a", &tn, c)
+	// Send data of an alternate type across the main test channel
+	s.notify("test-a", &testNotificationAlt{
+		GenericNotification: listener.GenericNotification{NotifyType: 3},
+		Val:                 999,
+	}, c)
 	c.Assert(err, check.IsNil)
 
 	// Wait for test to complete
@@ -140,7 +169,10 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	}()
 
 	// This notification should be received.
-	s.notify("test-a", &testNotification{Val: "second-test"}, c)
+	s.notify("test-a", &testNotification{
+		GenericNotification: listener.GenericNotification{NotifyType: 2},
+		Val:                 "second-test",
+	}, c)
 	c.Assert(err, check.IsNil)
 
 	// Wait for test to complete
@@ -153,13 +185,17 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 func (s *PgxNotifySuite) TestNotificationsBlock(c *check.C) {
 	defer leaktest.Check(c)()
 
+	matcher := listener.NewMatcher("NotifyType")
+	matcher.Register(3, &testNotification{})
+
 	tn := testNotification{
-		Val: "test-notification",
+		GenericNotification: listener.GenericNotification{NotifyType: 3},
+		Val:                 "test-notification",
 	}
 
 	unmarshallers := make(map[uint8]listener.Unmarshaller)
 
-	l := NewPgxListener("test-a", &tn, s.pool, unmarshallers, nil)
+	l := NewPgxListener("test-a", s.pool, matcher, unmarshallers, nil)
 
 	// Listen for notifications
 	data, errs, err := l.Listen()
@@ -192,7 +228,10 @@ func (s *PgxNotifySuite) TestNotificationsBlock(c *check.C) {
 		// Send some data across the main test channel.
 		s.notify("test-a", &tn, c)
 		// Send some data across a different channel. This should not be seen
-		s.notify("test-b", &testNotification{Val: "different-test"}, c)
+		s.notify("test-b", &testNotification{
+			GenericNotification: listener.GenericNotification{NotifyType: 3},
+			Val:                 "different-test",
+		}, c)
 	}
 
 	// Block receiving any notifications until all have been sent
