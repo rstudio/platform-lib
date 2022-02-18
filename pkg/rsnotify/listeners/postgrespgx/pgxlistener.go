@@ -19,26 +19,24 @@ import (
 )
 
 type PgxListener struct {
-	name          string
-	pool          *pgxpool.Pool
-	conn          *pgxpool.Conn
-	cancel        context.CancelFunc
-	exit          chan struct{}
-	unmarshallers map[uint8]listener.Unmarshaller
-	matcher       listener.TypeMatcher
-	ip            string
-	debugLogger   listener.DebugLogger
+	name        string
+	pool        *pgxpool.Pool
+	conn        *pgxpool.Conn
+	cancel      context.CancelFunc
+	exit        chan struct{}
+	matcher     listener.TypeMatcher
+	ip          string
+	debugLogger listener.DebugLogger
 }
 
 // NewPgxListener creates a new listener.
 // Only intended to be called from a listener factory's `New` method.
-func NewPgxListener(name string, pool *pgxpool.Pool, matcher listener.TypeMatcher, unmarshallers map[uint8]listener.Unmarshaller, debugLogger listener.DebugLogger) *PgxListener {
+func NewPgxListener(name string, pool *pgxpool.Pool, matcher listener.TypeMatcher, debugLogger listener.DebugLogger) *PgxListener {
 	return &PgxListener{
-		name:          name,
-		pool:          pool,
-		debugLogger:   debugLogger,
-		unmarshallers: unmarshallers,
-		matcher:       matcher,
+		name:        name,
+		pool:        pool,
+		debugLogger: debugLogger,
+		matcher:     matcher,
 	}
 }
 
@@ -208,14 +206,6 @@ func (l *PgxListener) notify(n *pgconn.Notification, errs chan error, items chan
 	if err != nil {
 		errs <- fmt.Errorf("error unmarshalling JSON: %s", err)
 		return
-	}
-	if unmarshaler, ok := l.unmarshallers[input.Type()]; ok {
-		err = unmarshaler(input, tmp)
-		if err != nil {
-			errs <- fmt.Errorf("error unmarshalling with custom unmarshaller: %s", err)
-			return
-		}
-		l.Debugf("Unmarshalled notification of type %d with registered unmarshaller", input.Type())
 	}
 	items <- input
 }

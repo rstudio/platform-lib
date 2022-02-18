@@ -17,10 +17,6 @@ func (t *TestNotification) Guid() string {
 	return t.GuidVal
 }
 
-func (t *TestNotification) Data() interface{} {
-	return t.Val
-}
-
 type TestLogger struct {
 	enabled bool
 }

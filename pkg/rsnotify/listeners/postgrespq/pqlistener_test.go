@@ -3,8 +3,6 @@ package postgrespq
 // Copyright (C) 2022 by RStudio, PBC.
 
 import (
-	"encoding/json"
-	"errors"
 	"log"
 	"strings"
 	"testing"
@@ -79,17 +77,16 @@ func (s *PqNotifySuite) TearDownSuite(c *check.C) {
 }
 
 func (s *PqNotifySuite) TestNewPqListener(c *check.C) {
-	unmarshallers := make(map[uint8]listener.Unmarshaller)
 	matcher := listener.NewMatcher("NotifyType")
 	matcher.Register(2, &testNotification{})
 	lgr := &listener.TestLogger{}
-	l := NewPqListener("test-a", s.factory, matcher, unmarshallers, lgr)
+	chName := c.TestName()
+	l := NewPqListener(chName, s.factory, matcher, lgr)
 	c.Check(l, check.DeepEquals, &PqListener{
-		name:          "test-a",
-		factory:       s.factory,
-		matcher:       matcher,
-		unmarshallers: unmarshallers,
-		debugLogger:   lgr,
+		name:        chName,
+		factory:     s.factory,
+		matcher:     matcher,
+		debugLogger: lgr,
 	})
 }
 
@@ -105,9 +102,8 @@ func (s *PqNotifySuite) TestNotificationsNormal(c *check.C) {
 		Val:                 "test-notification",
 	}
 
-	unmarshallers := make(map[uint8]listener.Unmarshaller)
-
-	l := NewPqListener("test-a", s.factory, matcher, unmarshallers, nil)
+	chName := c.TestName()
+	l := NewPqListener(chName, s.factory, matcher, nil)
 
 	// Listen for notifications
 	data, errs, err := l.Listen()
@@ -141,16 +137,16 @@ func (s *PqNotifySuite) TestNotificationsNormal(c *check.C) {
 	}()
 
 	// Send some data across the main test channel.
-	s.notify("test-a", &tn, c)
+	s.notify(chName, &tn, c)
 	// Send some data across a different channel. This should not be seen
-	s.notify("test-b", &testNotification{
+	s.notify("test-wrong-channel", &testNotification{
 		GenericNotification: listener.GenericNotification{NotifyType: 2},
 		Val:                 "different-test",
 	}, c)
 	// Send more data across the main test channel.
-	s.notify("test-a", &tn, c)
+	s.notify(chName, &tn, c)
 	// Send data of an alternate type across the main test channel
-	s.notify("test-a", &testNotificationAlt{
+	s.notify(chName, &testNotificationAlt{
 		GenericNotification: listener.GenericNotification{NotifyType: 3},
 		Val:                 999,
 	}, c)
@@ -169,9 +165,9 @@ func (s *PqNotifySuite) TestNotificationsNormal(c *check.C) {
 	l.Stop()
 
 	// Attempt more notifications after stopping. These should not be received.
-	s.notify("test-a", &tn, c)
+	s.notify(chName, &tn, c)
 	c.Assert(err, check.IsNil)
-	s.notify("test-a", &tn, c)
+	s.notify(chName, &tn, c)
 	c.Assert(err, check.IsNil)
 
 	// Start again, and listen for more notifications
@@ -193,7 +189,7 @@ func (s *PqNotifySuite) TestNotificationsNormal(c *check.C) {
 	}()
 
 	// This notification should be received.
-	s.notify("test-a", &testNotification{
+	s.notify(chName, &testNotification{
 		GenericNotification: listener.GenericNotification{NotifyType: 2},
 		Val:                 "second-test",
 	}, c)
@@ -231,25 +227,11 @@ func (s *PqNotifySuite) TestNotificationsErrors(c *check.C) {
 		Val:                 "test-notification",
 	}
 
-	// A notification of a registered type that matches a failing marshaller
-	tnMarshallerFails := &testNotification{
-		GenericNotification: listener.GenericNotification{
-			NotifyType: 2,
-		},
-		Val: "test",
-	}
-
 	// A notification with a valid type, but that fails unmarshalling to the expected type
 	tnBytesCannotUnmarshal := `{"NotifyType":2,"Val":{"is":"unexpected_object"}}`
 
-	// Register a marshaller that will fail
-	unmarshallers := map[uint8]listener.Unmarshaller{
-		2: func(n listener.Notification, rawMap map[string]*json.RawMessage) error {
-			return errors.New("unmarshal error")
-		},
-	}
-
-	l := NewPqListener("test-a", s.factory, matcher, unmarshallers, nil)
+	chName := c.TestName()
+	l := NewPqListener(chName, s.factory, matcher, nil)
 
 	// Listen for notifications
 	data, errs, err := l.Listen()
@@ -276,10 +258,8 @@ func (s *PqNotifySuite) TestNotificationsErrors(c *check.C) {
 					counts["noMatcher"] = true
 				case strings.HasPrefix(errStr, "error unmarshalling JSON:"):
 					counts["secondUnmarshal"] = true
-				case strings.HasPrefix(errStr, "error unmarshalling with custom unmarshaller: unmarshal error"):
-					counts["unmarshalerFails"] = true
 				}
-				if len(counts) == 6 {
+				if len(counts) == 5 {
 					return
 				}
 			}
@@ -287,12 +267,11 @@ func (s *PqNotifySuite) TestNotificationsErrors(c *check.C) {
 	}()
 
 	// Send data across the main test channel. All should err.
-	s.notifyRaw("test-a", tnBytesInvalid, c)
-	s.notify("test-a", &tnNoTypeField, c)
-	s.notifyRaw("test-a", tnBytesInvalidTypeData, c)
-	s.notify("test-a", &tnWrongType, c)
-	s.notifyRaw("test-a", tnBytesCannotUnmarshal, c)
-	s.notify("test-a", &tnMarshallerFails, c)
+	s.notifyRaw(chName, tnBytesInvalid, c)
+	s.notify(chName, &tnNoTypeField, c)
+	s.notifyRaw(chName, tnBytesInvalidTypeData, c)
+	s.notify(chName, &tnWrongType, c)
+	s.notifyRaw(chName, tnBytesCannotUnmarshal, c)
 
 	// Wait for test to complete
 	<-done
@@ -312,9 +291,8 @@ func (s *PqNotifySuite) TestNotificationsBlock(c *check.C) {
 		Val:                 "test-notification",
 	}
 
-	unmarshallers := make(map[uint8]listener.Unmarshaller)
-
-	l := NewPqListener("test-a", s.factory, matcher, unmarshallers, nil)
+	chName := c.TestName()
+	l := NewPqListener(chName, s.factory, matcher, nil)
 
 	// Listen for notifications
 	data, errs, err := l.Listen()
@@ -345,9 +323,9 @@ func (s *PqNotifySuite) TestNotificationsBlock(c *check.C) {
 	// Send some data across the main test channel.
 	for i := 0; i < 100; i++ {
 		// Send some data across the main test channel.
-		s.notify("test-a", &tn, c)
+		s.notify(chName, &tn, c)
 		// Send some data across a different channel. This should not be seen
-		s.notify("test-b", &testNotification{
+		s.notify("test-wrong-channel", &testNotification{
 			GenericNotification: listener.GenericNotification{NotifyType: 3},
 			Val:                 "different-test",
 		}, c)

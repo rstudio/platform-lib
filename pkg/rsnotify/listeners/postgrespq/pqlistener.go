@@ -21,25 +21,23 @@ type PqRetrieveListenerFactory interface {
 }
 
 type PqListener struct {
-	name          string
-	factory       PqRetrieveListenerFactory
-	conn          *pq.Listener
-	cancel        context.CancelFunc
-	exit          chan struct{}
-	unmarshallers map[uint8]listener.Unmarshaller
-	matcher       listener.TypeMatcher
-	ip            string
-	debugLogger   listener.DebugLogger
+	name        string
+	factory     PqRetrieveListenerFactory
+	conn        *pq.Listener
+	cancel      context.CancelFunc
+	exit        chan struct{}
+	matcher     listener.TypeMatcher
+	ip          string
+	debugLogger listener.DebugLogger
 }
 
 // Only intended to be called from listenerfactory.go's `New` method.
-func NewPqListener(name string, factory PqRetrieveListenerFactory, matcher listener.TypeMatcher, unmarshallers map[uint8]listener.Unmarshaller, debugLogger listener.DebugLogger) *PqListener {
+func NewPqListener(name string, factory PqRetrieveListenerFactory, matcher listener.TypeMatcher, debugLogger listener.DebugLogger) *PqListener {
 	return &PqListener{
-		name:          name,
-		factory:       factory,
-		debugLogger:   debugLogger,
-		unmarshallers: unmarshallers,
-		matcher:       matcher,
+		name:        name,
+		factory:     factory,
+		debugLogger: debugLogger,
+		matcher:     matcher,
 	}
 }
 
@@ -191,14 +189,6 @@ func (l *PqListener) notify(n *pq.Notification, errs chan error, items chan list
 	if err != nil {
 		errs <- fmt.Errorf("error unmarshalling JSON: %s", err)
 		return
-	}
-	if unmarshaler, ok := l.unmarshallers[input.Type()]; ok {
-		err = unmarshaler(input, tmp)
-		if err != nil {
-			errs <- fmt.Errorf("error unmarshalling with custom unmarshaller: %s", err)
-			return
-		}
-		l.Debugf("Unmarshalled notification of type %d with registered unmarshaller", input.Type())
 	}
 	items <- input
 }

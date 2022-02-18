@@ -4,20 +4,15 @@ package local
 
 import (
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/listenerfactory"
 )
 
 type ListenerFactory struct {
-	listenerfactory.CommonListenerFactory
 	llf *ListenerProvider
 }
 
 func NewListenerFactory(llf *ListenerProvider) *ListenerFactory {
 	return &ListenerFactory{
 		llf: llf,
-		CommonListenerFactory: listenerfactory.CommonListenerFactory{
-			Unmarshallers: make(map[uint8]listener.Unmarshaller),
-		},
 	}
 }
 

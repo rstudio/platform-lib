@@ -27,3 +27,6 @@ tempvendor
 
 #goland
 .idea/
+
+# Go cache
+.go-cache
