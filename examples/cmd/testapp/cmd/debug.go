@@ -22,11 +22,22 @@ var DebugCmd = &cobra.Command{
 	Short:   "Command to debug log some information",
 	Example: "",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		debugLogger := rslog.NewDebugLogger(TestDebug)
-		// Log a debug-level debug message for the `TestDebug` product region.
-		debugLogger.Debugf(fmt.Sprintf("Debug Message: %s", message))
-		// Also log a trace-level debug message for the `TestDebug` product region.
-		debugLogger.Tracef(fmt.Sprintf("Trace Message: %s", message))
+		go func() {
+			debugLogger := rslog.NewDebugLogger(TestDebug)
+			// Log a debug-level debug message for the `TestDebug` product region.
+			debugLogger.Debugf(fmt.Sprintf("Debug Message: %s", message))
+			// Also log a trace-level debug message for the `TestDebug` product region.
+			debugLogger.Tracef(fmt.Sprintf("Trace Message: %s", message))
+		}()
+
+		go func() {
+			debugLogger := rslog.NewDebugLogger(TestDebug)
+			// Log a debug-level debug message for the `TestDebug` product region.
+			debugLogger.Debugf(fmt.Sprintf("Second Debug Message: %s", message))
+			// Also log a trace-level debug message for the `TestDebug` product region.
+			debugLogger.Tracef(fmt.Sprintf("Second Trace Message: %s", message))
+		}()
+
 		return nil
 	},
 }
