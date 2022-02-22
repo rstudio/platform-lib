@@ -3,7 +3,7 @@ package listener
 // Copyright (C) 2022 by RStudio, PBC.
 
 const (
-	// MaxChannelSize sizes for the channel to prevent blocking when distributing
+	// MaxChannelSize sizes the channel to prevent blocking when distributing
 	// notifications to listeners.
 	MaxChannelSize = 100
 )
@@ -26,7 +26,7 @@ type Listener interface {
 }
 
 type Logger interface {
-	Debugf(msg string, argslistenerfactory ...interface{})
+	Debugf(msg string, args ...interface{})
 }
 
 type DebugLogger interface {
