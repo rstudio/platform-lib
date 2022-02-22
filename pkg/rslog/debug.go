@@ -148,6 +148,9 @@ func NewDebugLogger(region ProductRegion) *debugLogger {
 }
 
 func registerLoggerCb(region ProductRegion, cb func(bool)) {
+	debugMutex.Lock()
+	defer debugMutex.Unlock()
+
 	regionCallbacks[region] = append(regionCallbacks[region], cb)
 }
 
