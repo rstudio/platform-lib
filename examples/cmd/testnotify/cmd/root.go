@@ -30,12 +30,13 @@ func init() {
 }
 
 type testNotification struct {
-	Message string
-	UUID    string
+	MessageType uint8
+	Message     string
+	UUID        string
 }
 
 func (t *testNotification) Type() uint8 {
-	return 1
+	return t.MessageType
 }
 
 func (t *testNotification) Guid() string {

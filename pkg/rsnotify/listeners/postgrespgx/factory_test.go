@@ -7,7 +7,6 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/listenerfactory"
 )
 
 type ListenerFactorySuite struct{}
@@ -21,8 +20,5 @@ func (s *ListenerFactorySuite) TestNewListener(c *check.C) {
 	c.Check(l2, check.DeepEquals, &PgxListenerFactory{
 		pool:        pool,
 		debugLogger: lgr,
-		CommonListenerFactory: listenerfactory.CommonListenerFactory{
-			Unmarshallers: make(map[uint8]listener.Unmarshaller),
-		},
 	})
 }

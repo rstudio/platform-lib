@@ -36,6 +36,10 @@ var (
 	filter  string
 )
 
+const (
+	TestNotificationType = uint8(1)
+)
+
 func init() {
 	debugLogger = rslog.NewDebugLogger(RegionNotify)
 
@@ -102,7 +106,10 @@ func setup(drv string) (string, listenerfactory.ListenerFactory, *local.Listener
 }
 
 func notify(drv string, msg string, prov *local.ListenerProvider, stop chan bool) {
-	n := &testNotification{Message: msg}
+	n := &testNotification{
+		MessageType: TestNotificationType,
+		Message:     msg,
+	}
 	switch drv {
 	case "local":
 		localNotify("main", prov, n, stop)
@@ -113,7 +120,9 @@ func notify(drv string, msg string, prov *local.ListenerProvider, stop chan bool
 
 func listen(fact listenerfactory.ListenerFactory, rFilter *regexp.Regexp) error {
 	stop := make(chan bool)
-	bc, err := broadcaster.NewNotificationBroadcaster(fact.New("main", &testNotification{}), stop)
+	matcher := listener.NewMatcher("MessageType")
+	matcher.Register(TestNotificationType, &testNotification{})
+	bc, err := broadcaster.NewNotificationBroadcaster(fact.New("main", matcher), stop)
 	if err != nil {
 		return fmt.Errorf("error connecting to pool: %s", err)
 	}
@@ -122,7 +131,7 @@ func listen(fact listenerfactory.ListenerFactory, rFilter *regexp.Regexp) error 
 	var listenOnce bool
 	if rFilter != nil {
 		listenOnce = true
-		ch = bc.SubscribeOne((&testNotification{}).Type(), func(n listener.Notification) bool {
+		ch = bc.SubscribeOne(TestNotificationType, func(n listener.Notification) bool {
 			var result bool
 			if tn, ok := n.(*testNotification); ok {
 				result = rFilter.MatchString(tn.Message)
@@ -130,7 +139,7 @@ func listen(fact listenerfactory.ListenerFactory, rFilter *regexp.Regexp) error 
 			return result
 		})
 	} else {
-		ch = bc.Subscribe((&testNotification{}).Type())
+		ch = bc.Subscribe(TestNotificationType)
 	}
 	for {
 		select {

@@ -15,30 +15,28 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4/pgxpool"
-
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
 )
 
 type PgxListener struct {
-	name          string
-	pool          *pgxpool.Pool
-	conn          *pgxpool.Conn
-	t             listener.Notification
-	cancel        context.CancelFunc
-	exit          chan struct{}
-	unmarshallers map[uint8]listener.Unmarshaller
-	ip            string
-	debugLogger   listener.DebugLogger
+	name        string
+	pool        *pgxpool.Pool
+	conn        *pgxpool.Conn
+	cancel      context.CancelFunc
+	exit        chan struct{}
+	matcher     listener.TypeMatcher
+	ip          string
+	debugLogger listener.DebugLogger
 }
 
-// Only intended to be called from listenerfactory.go's `New` method.
-func NewPgxListener(name string, i listener.Notification, pool *pgxpool.Pool, unmarshallers map[uint8]listener.Unmarshaller, debugLogger listener.DebugLogger) *PgxListener {
+// NewPgxListener creates a new listener.
+// Only intended to be called from a listener factory's `New` method.
+func NewPgxListener(name string, pool *pgxpool.Pool, matcher listener.TypeMatcher, debugLogger listener.DebugLogger) *PgxListener {
 	return &PgxListener{
-		name:          name,
-		pool:          pool,
-		t:             i,
-		debugLogger:   debugLogger,
-		unmarshallers: unmarshallers,
+		name:        name,
+		pool:        pool,
+		debugLogger: debugLogger,
+		matcher:     matcher,
 	}
 }
 
@@ -113,7 +111,7 @@ func (l *PgxListener) wait(ctx context.Context, items chan listener.Notification
 			return
 		}
 
-		l.notify(n, l.t, errs, items)
+		l.notify(n, errs, items)
 	}
 }
 
@@ -170,23 +168,44 @@ func (l *PgxListener) Debugf(msg string, args ...interface{}) {
 	}
 }
 
-func (l *PgxListener) notify(n *pgconn.Notification, i interface{}, errs chan error, items chan listener.Notification) {
+func (l *PgxListener) notify(n *pgconn.Notification, errs chan error, items chan listener.Notification) {
 	// A notification was received! Unmarshal it into the correct type and send it.
 	var input listener.Notification
-	input = reflect.New(reflect.ValueOf(i).Elem().Type()).Interface().(listener.Notification)
+
+	// Convert postgres message payload to byte array
 	payloadBytes := []byte(n.Payload)
-	err := json.Unmarshal(payloadBytes, input)
+
+	// Unmarshal the payload to a raw message
+	var tmp map[string]*json.RawMessage
+	err := json.Unmarshal(payloadBytes, &tmp)
+	if err != nil {
+		errs <- fmt.Errorf("error unmarshalling raw message: %s", err)
+		return
+	}
+
+	// Unmarshal request data type
+	var dataType uint8
+	if tmp[l.matcher.Field()] == nil {
+		errs <- fmt.Errorf("message does not contain data type field %s", l.matcher.Field())
+		return
+	}
+	if err = json.Unmarshal(*tmp[l.matcher.Field()], &dataType); err != nil {
+		errs <- fmt.Errorf("error unmarshalling message data type: %s", err)
+		return
+	}
+	if l.matcher.Type(dataType) == nil {
+		errs <- fmt.Errorf("no matcher type found for %d", dataType)
+		return
+	}
+
+	// Get an object of the correct type
+	input = reflect.New(reflect.ValueOf(l.matcher.Type(dataType)).Elem().Type()).Interface().(listener.Notification)
+
+	// Unmarshal the payload
+	err = json.Unmarshal(payloadBytes, input)
 	if err != nil {
 		errs <- fmt.Errorf("error unmarshalling JSON: %s", err)
 		return
-	}
-	if unmarshaller, ok := l.unmarshallers[input.Type()]; ok {
-		err = unmarshaller(input, payloadBytes)
-		if err != nil {
-			errs <- fmt.Errorf("error unmarshalling with custom unmarshaller: %s", err)
-			return
-		}
-		l.Debugf("Unmarshalled notification of type %d with registered unmarshaller", input.Type())
 	}
 	items <- input
 }

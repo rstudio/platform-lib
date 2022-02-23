@@ -35,3 +35,10 @@ func Notify(channelName string, n interface{}, db *sqlx.DB) error {
 	_, err = db.Exec(query, msg)
 	return err
 }
+
+func NotifyRaw(channelName string, msg string, db *sqlx.DB) error {
+	query := fmt.Sprintf(
+		"select pg_notify('%s', $1)", channelName)
+	_, err := db.Exec(query, msg)
+	return err
+}

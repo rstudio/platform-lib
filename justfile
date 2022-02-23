@@ -40,6 +40,7 @@ test-integration *args:
     test_args=${test_args:-./...}
     ${dc} run \
         -e TEST_ARGS="$test_args" \
+        -e GOCACHE=/platform-lib/.go-cache \
         -e DEF_TEST_ARGS="-v" \
         -e MODULE=${MODULE:-""} \
         lib ./scripts/test.sh
@@ -64,6 +65,7 @@ lint:
 build-docker:
     docker run {{ interactive }} --rm \
         -v {{justfile_directory()}}/:/build \
+        -e GOCACHE=/platform-lib/.go-cache \
         -w /build \
         rstudio/platform-lib:lib-build just build
 
