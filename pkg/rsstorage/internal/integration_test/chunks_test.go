@@ -88,7 +88,7 @@ func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) 
 	debugLogger := &servertest.TestLogger{}
 	pgServer := postgres.NewPgStorageServer(class, 100*1024, wn, wn, s.pool, debugLogger)
 	s3Server := s3server.NewS3StorageServer(class, "", s3Svc, 100*1024, wn, wn)
-	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
+	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute, time.Minute)
 
 	return map[string]rsstorage.StorageServer{
 		"file":     rsstorage.NewMetadataStorageServer("file", fileServer, cstore),
@@ -227,7 +227,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	debugLogger := &servertest.TestLogger{}
-	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
+	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute, time.Minute)
 
 	cw := &internal.DefaultChunkUtils{
 		ChunkSize:   chunkSize,
@@ -321,7 +321,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 	}
 
 	debugLogger := &servertest.TestLogger{}
-	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute)
+	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, "chunks", debugLogger, time.Minute, time.Minute)
 
 	cw := &internal.DefaultChunkUtils{
 		ChunkSize:   chunkSize,
