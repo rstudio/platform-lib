@@ -18,6 +18,8 @@ var DefaultLoggerFactory LoggerFactory
 type LoggerFactoryImpl struct{}
 
 func (f *LoggerFactoryImpl) DefaultLogger() Logger {
+	// Ignoring error because it only can return error from the builder,
+	// and the builder in use here with the LogOutputStdout option, doesn't return error
 	lgr, _ := NewLoggerImpl(LoggerOptionsImpl{
 		Output: []OutputDest{
 			{
@@ -32,11 +34,15 @@ func (f *LoggerFactoryImpl) DefaultLogger() Logger {
 	return lgr
 }
 
-func (f *LoggerFactoryImpl) TerminalLogger(l LogLevel) Logger {
+type TerminalLoggerFactory struct {
+	LogLevel LogLevel
+}
+
+func (f *TerminalLoggerFactory) DefaultLogger() Logger {
 	// Ignoring error because it only can return error from the builder, and the builder in use here, doesn't return error
 	lgr, _ := NewLoggerImpl(LoggerOptionsImpl{
 		Format: TextFormat,
-		Level:  l,
+		Level:  f.LogLevel,
 	}, StderrOutputBuilder{})
 	return lgr
 }
@@ -213,27 +219,22 @@ func UpdateDefaultLogger(options LoggerOptionsImpl, outputBuilder OutputBuilder)
 // to support switching to a legacy logger.
 // TODO: Remove this when all applications have fully moved to the new logging standard.
 func ReplaceDefaultLogger(logger Logger) {
+	// Doing this to avoid the ensureDefaultLoggerReadLock
+	// to overwrite the logger setted here
+	once.Do(func() {})
+
 	mutex.Lock()
 	defer mutex.Unlock()
 	defaultLogger = logger
 }
 
-// UseTerminalLogger makes the default logger have its output to STDERR
-// with enhanced text formatting
+// UseTerminalLogger sets the DefaultLoggerFactory variable with a TerminalLoggerFactory instance.
+// It makes the default logger have its output to STDERR with enhanced text formatting.
+// Make sure to call it before any call to DefaultLogger or package logging function
+// because the logger instance will be created for the first time that the DefaultLogger function
+// is called.
 func UseTerminalLogger(l LogLevel) {
-	once.Do(func() {
-		mutex.Lock()
-		defer mutex.Unlock()
-
-		// Create default factory if not already set
-		if DefaultLoggerFactory == nil {
-			DefaultLoggerFactory = &LoggerFactoryImpl{}
-		}
-
-		// Set default logger
-		defaultLogger = DefaultLoggerFactory.TerminalLogger(l)
-	})
-
+	DefaultLoggerFactory = &TerminalLoggerFactory{l}
 }
 
 func DefaultLogger() Logger {

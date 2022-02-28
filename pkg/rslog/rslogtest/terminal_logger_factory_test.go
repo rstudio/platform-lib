@@ -11,18 +11,20 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type LoggerFactoryImplSuite struct {
+type TerminalLoggerFactorySuite struct {
 	suite.Suite
 }
 
-func TestLoggerFactoryImplSuite(t *testing.T) {
-	suite.Run(t, &LoggerFactoryImplSuite{})
+func TestTerminalLoggerFactorySuite(t *testing.T) {
+	suite.Run(t, &TerminalLoggerFactorySuite{})
 }
 
-func (s *LoggerFactoryImplSuite) TestTerminalLogger() {
-	factory := rslog.LoggerFactoryImpl{}
+func (s *TerminalLoggerFactorySuite) TestTerminalLoggerFactory() {
+	factory := &rslog.TerminalLoggerFactory{
+		LogLevel: rslog.InfoLevel,
+	}
 
-	lgr := factory.TerminalLogger(rslog.InfoLevel)
+	lgr := factory.DefaultLogger()
 
 	s.NotNil(lgr)
 	s.IsType(&rslog.LoggerImpl{}, lgr)

@@ -40,17 +40,6 @@ func (f *factory) DefaultLogger() rslog.Logger {
 	return lgr
 }
 
-func (f *factory) TerminalLogger(l rslog.LogLevel) rslog.Logger {
-	lgr, err := rslog.NewLoggerImpl(rslog.LoggerOptionsImpl{
-		Level: l,
-	}, rslog.StderrOutputBuilder{})
-
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	return lgr
-}
-
 var debugLogger rslog.DebugLogger
 
 const (
