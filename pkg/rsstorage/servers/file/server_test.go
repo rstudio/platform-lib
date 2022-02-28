@@ -714,6 +714,62 @@ func (s *FileStorageServerSuite) TestUsageTimeout(c *check.C) {
 	c.Assert(fsUsage.UsedBytes, check.Equals, 0*datasize.KB)
 }
 
+func (s *FileStorageServerSuite) TestDiskUsage(c *check.C) {
+	testFiles := 10
+	testStr := []byte("hello world")
+
+	expectedSize := 0
+
+	for i := 0; i < testFiles; i++ {
+		f, _ := os.CreateTemp("testdata", "*")
+		f.Write(testStr)
+		expectedSize += len(testStr)
+
+		defer os.Remove(f.Name())
+	}
+
+	sz, err := diskUsage("testdata", time.Minute, time.Minute)
+	c.Assert(err, check.IsNil)
+	c.Check(uint64(sz), check.Equals, uint64(expectedSize))
+}
+
+func (s *FileStorageServerSuite) TestDiskUsageLoop(c *check.C) {
+	c.Skip("unsure how to create infinite loop")
+	nestedPath := filepath.Join("testdata", "nested")
+
+	err := os.Mkdir(nestedPath, 0644)
+	c.Assert(err, check.IsNil)
+
+	defer os.Remove(nestedPath)
+
+	symlinkPath := filepath.Join("testdata", "symlinked")
+	defer os.Remove(symlinkPath)
+
+	err = os.Symlink(nestedPath, symlinkPath)
+	c.Assert(err, check.IsNil)
+
+	_, err = diskUsage("testdata", time.Minute, time.Minute)
+	c.Assert(err, check.IsNil)
+}
+
+func (s *FileStorageServerSuite) TestDiskUsageWalkTimeout(c *check.C) {
+	testFiles := 10
+	testStr := []byte("hello world")
+
+	expectedSize := 0
+
+	for i := 0; i < testFiles; i++ {
+		f, _ := os.CreateTemp("testdata", "*")
+		f.Write(testStr)
+		expectedSize += len(testStr)
+
+		defer os.Remove(f.Name())
+	}
+
+	_, err := diskUsage("testdata", time.Minute, time.Nanosecond)
+	c.Assert(err, check.Equals, walktimeoutErr)
+}
+
 var _ = check.Suite(&FileEnumerationSuite{})
 
 type FileEnumerationSuite struct {

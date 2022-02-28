@@ -188,6 +188,10 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 	start := time.Now()
 
 	for {
+		if walkTimeout > 0 && time.Now().Sub(start) > walkTimeout {
+			return 0, walktimeoutErr
+		}
+
 		select {
 		case <-cacheTimeoutTimer.C:
 			return 0, cacheTimeoutErr
@@ -199,10 +203,6 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 			return
 		default:
 			time.Sleep(walkCheckTime)
-		}
-
-		if walkTimeout > 0 && time.Now().Sub(start) > walkTimeout {
-			return 0, walktimeoutErr
 		}
 	}
 }
