@@ -140,6 +140,9 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 // diskUsage will walk the specified path in a filesystem and
 // aggregate the size of the contained files.
 func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size datasize.ByteSize, err error) {
+	stop := make(chan bool)
+	defer close(stop)
+
 	sizeChan := make(chan datasize.ByteSize)
 	errChan := make(chan error)
 
@@ -150,6 +153,12 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 		err = filepath.Walk(duPath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
+			}
+
+			select {
+			case <-stop:
+				return nil
+			default:
 			}
 
 			if _, ok := visited[path]; ok {
@@ -164,6 +173,10 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 
 			return nil
 		})
+
+		if err != nil {
+			errChan <- err
+		}
 
 		close(sizeChan)
 		close(errChan)
