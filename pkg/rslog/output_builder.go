@@ -122,12 +122,10 @@ func (b outputBuilder) Build(outputs ...OutputDest) (io.Writer, error) {
 
 func (b outputBuilder) build(output LogOutputType, logFilePath string) (io.Writer, error) {
 	switch output {
-	case LogOutputDefault:
+	case LogOutputDefault, LogOutputStderr:
 		return b.fileSystem.Stderr(), nil
 	case LogOutputStdout:
 		return b.fileSystem.Stdout(), nil
-	case LogOutputStderr:
-		return b.fileSystem.Stderr(), nil
 	case LogOutputFile:
 		return b.createLogFile(logFilePath)
 	default:
