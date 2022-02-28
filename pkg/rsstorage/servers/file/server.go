@@ -144,7 +144,8 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 	defer close(stop)
 
 	sizeChan := make(chan datasize.ByteSize)
-	errChan := make(chan error)
+	// errChan should have a buffer of two items to prevent deadlock between `<-stop` and `errChan<-err`
+	errChan := make(chan error, 2)
 
 	go func(stop <-chan bool, sizeChan chan<- datasize.ByteSize, errChan chan<- error) {
 		err = filepath.Walk(duPath, func(path string, info os.FileInfo, err error) error {
@@ -348,7 +349,8 @@ func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error
 	defer close(stop)
 
 	itemChan := make(chan *types.StoredItem)
-	errChan := make(chan error)
+	// errChan should have a buffer of two items to prevent deadlock between `<-stop` and `errChan<-err`
+	errChan := make(chan error, 2)
 
 	go func(stop <-chan bool, itemChan chan<- *types.StoredItem, errChan chan<- error) {
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
