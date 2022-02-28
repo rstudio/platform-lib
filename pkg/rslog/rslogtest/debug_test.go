@@ -32,11 +32,11 @@ func (s *DebugLoggerSuite) TestInitLog() {
 	s.False(rslog.Enabled(Proxy))
 
 	// Singular region enabled.
-	rslog.InitLogs([]rslog.ProductRegion{Proxy})
+	rslog.InitDebugLogs([]rslog.ProductRegion{Proxy})
 	s.True(rslog.Enabled(Proxy))
 
 	// multiple regions enabled (using translation and normalization)
-	rslog.InitLogs([]rslog.ProductRegion{
+	rslog.InitDebugLogs([]rslog.ProductRegion{
 		Proxy,
 		RProc,
 		Router,
@@ -45,8 +45,8 @@ func (s *DebugLoggerSuite) TestInitLog() {
 	s.True(rslog.Enabled(RProc))
 	s.True(rslog.Enabled(Router))
 
-	// calling InitLogs resets what is enabled.
-	rslog.InitLogs(nil)
+	// calling InitDebugLogs resets what is enabled.
+	rslog.InitDebugLogs(nil)
 	s.False(rslog.Enabled(Proxy))
 	s.False(rslog.Enabled(RProc))
 	s.False(rslog.Enabled(Router))

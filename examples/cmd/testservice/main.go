@@ -65,7 +65,7 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 
 	// Initialize debug logging
-	rslog.InitLogs([]rslog.ProductRegion{
+	rslog.InitDebugLogs([]rslog.ProductRegion{
 		RegionTest,
 	})
 	rslog.RegisterRegions(map[rslog.ProductRegion]string{
