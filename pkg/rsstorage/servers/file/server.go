@@ -146,10 +146,7 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 	sizeChan := make(chan datasize.ByteSize)
 	errChan := make(chan error)
 
-	go func(sizeChan chan datasize.ByteSize, errChan chan error) {
-		// prevent infinite loops
-		visited := map[string]interface{}{}
-
+	go func(stop <-chan bool, sizeChan chan<- datasize.ByteSize, errChan chan<- error) {
 		err = filepath.Walk(duPath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -160,12 +157,6 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 				return nil
 			default:
 			}
-
-			if _, ok := visited[path]; ok {
-				return fmt.Errorf("diskUsage: encountered loop while walking directory, filepath: %s", path)
-			}
-
-			visited[path] = true
 
 			if !info.IsDir() {
 				sizeChan <- datasize.ByteSize(info.Size())
@@ -180,7 +171,7 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 
 		close(sizeChan)
 		close(errChan)
-	}(sizeChan, errChan)
+	}(stop, sizeChan, errChan)
 
 	cacheTimeoutTimer := time.NewTimer(cacheTimeout)
 	defer cacheTimeoutTimer.Stop()
@@ -342,32 +333,82 @@ func (s *StorageServer) Remove(dir, address string) error {
 }
 
 func (s *StorageServer) Enumerate() ([]types.StoredItem, error) {
-	items := make([]types.StoredItem, 0)
-	err := filepath.Walk(s.dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.Printf("Error enumerating storage for directory %s: %s", s.dir, err)
-			return nil
-		}
-		if !info.IsDir() {
-			relPath, err := filepath.Rel(s.dir, path)
-			if err != nil {
-				return err
-			}
-			dir := filepath.Dir(relPath)
-			if dir == "." {
-				dir = ""
-			}
-			items = append(items, types.StoredItem{
-				Dir:     dir,
-				Address: info.Name(),
-			})
-		}
-		return nil
-	})
+	items, err := enumerate(s.dir, s.walkTimeout)
 	if err != nil {
+		log.Printf("Error enumerating storage: %s", err)
+
 		return nil, err
 	}
+
 	return internal.FilterChunks(items), nil
+}
+
+func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error) {
+	stop := make(chan bool)
+	defer close(stop)
+
+	itemChan := make(chan *types.StoredItem)
+	errChan := make(chan error)
+
+	go func(stop <-chan bool, itemChan chan<- *types.StoredItem, errChan chan<- error) {
+		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				log.Printf("Error enumerating storage for directory %s: %s", dir, err)
+				return nil
+			}
+
+			if !info.IsDir() {
+				relPath, err := filepath.Rel(dir, path)
+				if err != nil {
+					return err
+				}
+
+				dir := filepath.Dir(relPath)
+				if dir == "." {
+					dir = ""
+				}
+
+				itemChan <- &types.StoredItem{
+					Dir:     dir,
+					Address: info.Name(),
+				}
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			errChan <- err
+		}
+
+		close(itemChan)
+		close(errChan)
+	}(stop, itemChan, errChan)
+
+	items := make([]types.StoredItem, 0)
+	start := time.Now()
+
+	for {
+		if walkTimeout > 0 && time.Now().Sub(start) > walkTimeout {
+			return nil, walktimeoutErr
+		}
+
+		select {
+		case item := <-itemChan:
+			if item != nil {
+				items = append(items, *item)
+				start = time.Now()
+			}
+		case err := <-errChan:
+			if err != nil {
+				return nil, err
+			}
+
+			return items, nil
+		default:
+			time.Sleep(walkCheckTime)
+		}
+	}
 }
 
 func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer) error {
