@@ -33,6 +33,7 @@ func (f *LoggerFactoryImpl) DefaultLogger() Logger {
 }
 
 func (f *LoggerFactoryImpl) TerminalLogger(l LogLevel) Logger {
+	// Ignoring error because it only can return error from the builder, and the builder in use here, doesn't return error
 	lgr, _ := NewLoggerImpl(LoggerOptionsImpl{
 		Format: TextFormat,
 		Level:  l,
