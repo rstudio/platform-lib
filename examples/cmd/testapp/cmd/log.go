@@ -36,11 +36,11 @@ var LogCmd = &cobra.Command{
 
 var TerminalLogCmd = &cobra.Command{
 	Use:     "terminal-log",
-	Short:   "Command to log some information",
+	Short:   "Command to log some information using the terminal logging style",
 	Example: "",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		rslog.UseTerminalLogger(rslog.InfoLevel)
-		rslog.Infof(message)
+		rslog.WithField("some-field", "some-value").Infof(message)
 		return nil
 	},
 }
