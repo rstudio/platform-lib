@@ -33,6 +33,7 @@ type Logger interface {
 
 type LoggerFactory interface {
 	DefaultLogger() Logger
+	TerminalLogger(l LogLevel) Logger
 }
 
 type Fields map[string]interface{}

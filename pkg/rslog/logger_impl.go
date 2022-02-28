@@ -32,14 +32,16 @@ func (f *LoggerFactoryImpl) DefaultLogger() Logger {
 	return lgr
 }
 
-type LoggerImpl struct {
-	*logrus.Logger
+func (f *LoggerFactoryImpl) TerminalLogger(l LogLevel) Logger {
+	lgr, _ := NewLoggerImpl(LoggerOptionsImpl{
+		Format: TextFormat,
+		Level:  l,
+	}, StderrOutputBuilder{})
+	return lgr
 }
 
-type OutputDest struct {
-	Output      LogOutputType
-	Filepath    string
-	DefaultFile string
+type LoggerImpl struct {
+	*logrus.Logger
 }
 
 type LoggerOptionsImpl struct {
@@ -51,19 +53,15 @@ type LoggerOptionsImpl struct {
 func NewLoggerImpl(options LoggerOptionsImpl,
 	outputBuilder OutputBuilder,
 ) (*LoggerImpl, error) {
-	var output []io.Writer
 
 	l := logrus.New()
 
-	for _, out := range options.Output {
-		wrtr, err := outputBuilder.Build(out.Output, out.Filepath)
-		if err != nil {
-			return nil, err
-		}
-		output = append(output, wrtr)
+	writer, err := outputBuilder.Build(options.Output...)
+	if err != nil {
+		return nil, err
 	}
 
-	l.SetOutput(io.MultiWriter(output...))
+	l.SetOutput(writer)
 	l.SetFormatter(getFormatter(options.Format))
 	l.SetLevel(getLevel(options.Level))
 
@@ -197,18 +195,14 @@ func ensureDefaultLoggerReadLock() *sync.RWMutex {
 
 // UpdateDefaultLogger should be the only way to update the default logger.
 func UpdateDefaultLogger(options LoggerOptionsImpl, outputBuilder OutputBuilder) error {
-	var output []io.Writer
-	for _, out := range options.Output {
-		w, err := outputBuilder.Build(out.Output, out.Filepath)
-		if err != nil {
-			return err
-		}
-		output = append(output, w)
+	w, err := outputBuilder.Build(options.Output...)
+	if err != nil {
+		return err
 	}
 
 	lock := ensureDefaultLoggerReadLock()
 	defer lock.RUnlock()
-	defaultLogger.SetOutput(io.MultiWriter(output...))
+	defaultLogger.SetOutput(w)
 	defaultLogger.SetFormatter(options.Format)
 	defaultLogger.SetLevel(options.Level)
 	return nil
@@ -221,6 +215,24 @@ func ReplaceDefaultLogger(logger Logger) {
 	mutex.Lock()
 	defer mutex.Unlock()
 	defaultLogger = logger
+}
+
+// UseTerminalLogger makes the default logger have its output to STDERR
+// with enhanced text formatting
+func UseTerminalLogger(l LogLevel) {
+	once.Do(func() {
+		mutex.Lock()
+		defer mutex.Unlock()
+
+		// Create default factory if not already set
+		if DefaultLoggerFactory == nil {
+			DefaultLoggerFactory = &LoggerFactoryImpl{}
+		}
+
+		// Set default logger
+		defaultLogger = DefaultLoggerFactory.TerminalLogger(l)
+	})
+
 }
 
 func DefaultLogger() Logger {

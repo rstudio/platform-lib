@@ -20,7 +20,7 @@ func init() {
 	LogCmd.Flags().StringVar(&message, "message", "default message", "The message to log.")
 	CaptureLogCmd.Flags().BoolVar(&withMetadata, "withMetadata", false, "The option to turn on or off the metadata in the capturing logger")
 
-	RootCmd.AddCommand(LogCmd, CaptureLogCmd, CompositeLogCmd)
+	RootCmd.AddCommand(LogCmd, TerminalLogCmd, CaptureLogCmd, CompositeLogCmd)
 }
 
 var LogCmd = &cobra.Command{
@@ -29,6 +29,17 @@ var LogCmd = &cobra.Command{
 	Example: "",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Log an info-level message
+		rslog.Infof(message)
+		return nil
+	},
+}
+
+var TerminalLogCmd = &cobra.Command{
+	Use:     "terminal-log",
+	Short:   "Command to log some information",
+	Example: "",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		rslog.UseTerminalLogger(rslog.InfoLevel)
 		rslog.Infof(message)
 		return nil
 	},
