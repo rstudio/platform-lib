@@ -21,28 +21,40 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
+const (
+	walkCheckTime = 250 * time.Millisecond
+)
+
+var (
+	cacheTimeoutErr = errors.New("cacheTimeout reached walking file storage server")
+	walktimeoutErr  = errors.New("walkTimeout reached walking file storage server")
+)
+
 type StorageServer struct {
 	dir          string
 	class        string
 	fileIO       fileIO
 	chunker      rsstorage.ChunkUtils
 	cacheTimeout time.Duration
+	walkTimeout  time.Duration
 	debugLogger  rsstorage.DebugLogger
 }
 
-func NewFileStorageServer(dir string, chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, class string, debugLogger rsstorage.DebugLogger, cacheTimeout time.Duration) rsstorage.StorageServer {
+func NewFileStorageServer(dir string, chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, class string, debugLogger rsstorage.DebugLogger, cacheTimeout, walkTimeout time.Duration) rsstorage.StorageServer {
 	fs := &StorageServer{
 		dir:          dir,
 		fileIO:       &defaultFileIO{},
 		class:        class,
 		debugLogger:  debugLogger,
 		cacheTimeout: cacheTimeout,
+		walkTimeout:  walkTimeout,
 	}
 	return &StorageServer{
 		dir:          dir,
 		fileIO:       &defaultFileIO{},
 		debugLogger:  debugLogger,
 		cacheTimeout: cacheTimeout,
+		walkTimeout:  walkTimeout,
 		chunker: &internal.DefaultChunkUtils{
 			ChunkSize:   chunkSize,
 			Server:      fs,
@@ -107,7 +119,7 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 	elapsed := timeInfo.Sub(start)
 	s.debugLogger.Debugf("Calculated disk info for %s in %s.\n", s.dir, elapsed)
 
-	actual, err := diskUsage(s.dir, s.cacheTimeout)
+	actual, err := diskUsage(s.dir, s.cacheTimeout, s.walkTimeout)
 	if err != nil {
 		return types.Usage{}, fmt.Errorf("error calculating disk usage for %s: %s.\n", s.dir, err)
 	}
@@ -127,28 +139,59 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 
 // diskUsage will walk the specified path in a filesystem and
 // aggregate the size of the contained files.
-func diskUsage(duPath string, cacheTimeout time.Duration) (size datasize.ByteSize, err error) {
-	timeout := time.Now().Add(cacheTimeout)
-	sizep := &size
+func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size datasize.ByteSize, err error) {
+	sizeChan := make(chan datasize.ByteSize)
+	errChan := make(chan error)
 
-	err = filepath.Walk(duPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	go func(sizeChan chan datasize.ByteSize, errChan chan error) {
+		// prevent infinite loops
+		visited := map[string]interface{}{}
+
+		err = filepath.Walk(duPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if _, ok := visited[path]; ok {
+				return fmt.Errorf("diskUsage: encountered loop while walking directory, filepath: %s", path)
+			}
+
+			visited[path] = true
+
+			if !info.IsDir() {
+				sizeChan <- datasize.ByteSize(info.Size())
+			}
+
+			return nil
+		})
+
+		close(sizeChan)
+		close(errChan)
+	}(sizeChan, errChan)
+
+	cacheTimeoutTimer := time.NewTimer(cacheTimeout)
+	defer cacheTimeoutTimer.Stop()
+
+	start := time.Now()
+
+	for {
+		select {
+		case <-cacheTimeoutTimer.C:
+			return 0, cacheTimeoutErr
+		case sz := <-sizeChan:
+			size += sz
+			start = time.Now()
+		// Success case error will return `nil`
+		case err = <-errChan:
+			return
+		default:
+			time.Sleep(walkCheckTime)
 		}
 
-		if time.Now().After(timeout) {
-			return errors.New("timeout in diskUsage")
+		if time.Now().Sub(start) > walkTimeout {
+			return 0, walktimeoutErr
 		}
-
-		if !info.IsDir() {
-			*sizep += datasize.ByteSize(info.Size())
-		}
-
-		return nil
-	})
-	size = *sizep
-
-	return
+	}
 }
 
 func (s *StorageServer) Get(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {

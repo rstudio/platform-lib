@@ -53,7 +53,7 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 		Ch: make(chan bool, 1),
 	}
 	debugLogger := &servertest.TestLogger{}
-	server := NewFileStorageServer("test", 4096, wn, wn, "classname", debugLogger, time.Minute)
+	server := NewFileStorageServer("test", 4096, wn, wn, "classname", debugLogger, time.Minute, time.Minute)
 
 	c.Check(server, check.DeepEquals, &StorageServer{
 		dir:    "test",
