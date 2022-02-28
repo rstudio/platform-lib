@@ -64,6 +64,7 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 				dir:          "test",
 				fileIO:       &defaultFileIO{},
 				cacheTimeout: time.Minute,
+				walkTimeout:  time.Minute,
 				class:        "classname",
 				debugLogger:  debugLogger,
 			},
@@ -73,6 +74,7 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 			MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
 		},
 		cacheTimeout: time.Minute,
+		walkTimeout:  time.Minute,
 		class:        "classname",
 		debugLogger:  debugLogger,
 	})

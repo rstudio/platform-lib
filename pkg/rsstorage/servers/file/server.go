@@ -188,7 +188,7 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 			time.Sleep(walkCheckTime)
 		}
 
-		if time.Now().Sub(start) > walkTimeout {
+		if walkTimeout > 0 && time.Now().Sub(start) > walkTimeout {
 			return 0, walktimeoutErr
 		}
 	}
