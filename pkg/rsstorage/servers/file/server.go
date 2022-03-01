@@ -141,14 +141,14 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 // diskUsage will walk the specified path in a filesystem and
 // aggregate the size of the contained files.
 func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size datasize.ByteSize, err error) {
-	stop := make(chan bool)
+	stop := make(chan struct{})
 	defer close(stop)
 
 	sizeChan := make(chan datasize.ByteSize)
 	// errChan should have a buffer of two items to prevent deadlock between `<-stop` and `errChan<-err`
 	errChan := make(chan error, 2)
 
-	go func(stop <-chan bool, sizeChan chan<- datasize.ByteSize, errChan chan<- error) {
+	go func(stop <-chan struct{}, sizeChan chan<- datasize.ByteSize, errChan chan<- error) {
 		err = filepath.Walk(duPath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -349,14 +349,14 @@ func (s *StorageServer) Enumerate() ([]types.StoredItem, error) {
 }
 
 func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error) {
-	stop := make(chan bool)
+	stop := make(chan struct{})
 	defer close(stop)
 
 	itemChan := make(chan *types.StoredItem)
 	// errChan should have a buffer of two items to prevent deadlock between `<-stop` and `errChan<-err`
 	errChan := make(chan error, 2)
 
-	go func(stop <-chan bool, itemChan chan<- *types.StoredItem, errChan chan<- error) {
+	go func(stop <-chan struct{}, itemChan chan<- *types.StoredItem, errChan chan<- error) {
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				log.Printf("Error enumerating storage for directory %s: %s", dir, err)
