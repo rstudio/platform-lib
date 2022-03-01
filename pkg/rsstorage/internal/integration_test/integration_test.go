@@ -160,7 +160,7 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 	debugLogger := &servertest.TestLogger{}
 	pgServer := postgres.NewPgStorageServer(class, 100*1024, wn, wn, s.pool, debugLogger)
 	s3Server := s3server.NewS3StorageServer(class, "", s3Svc, 100*1024, wn, wn)
-	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, class, debugLogger, time.Minute)
+	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, class, debugLogger, time.Minute, time.Minute)
 
 	return map[string]rsstorage.StorageServer{
 		"file":     rsstorage.NewMetadataStorageServer("file", fileServer, cstore),

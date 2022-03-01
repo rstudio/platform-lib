@@ -4,6 +4,7 @@ package integrationtest
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 
@@ -32,7 +33,7 @@ func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination st
 			return nil, fmt.Errorf("Missing [FileStorage \"%s\"] configuration section", class)
 		}
 		//todo bioc: configurable size here
-		server = file.NewFileStorageServer(cfg.File.Location, cfg.ChunkSizeBytes, waiter, notifier, class, debugLogger, cfg.CacheTimeout)
+		server = file.NewFileStorageServer(cfg.File.Location, cfg.ChunkSizeBytes, waiter, notifier, class, debugLogger, cfg.CacheTimeout, 30*time.Second)
 	case "s3":
 		if cfg.S3 == nil {
 			return nil, fmt.Errorf("Missing [S3Storage \"%s\"] configuration section", class)

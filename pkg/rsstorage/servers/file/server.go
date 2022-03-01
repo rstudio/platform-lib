@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"os"
@@ -21,28 +22,41 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
 
+const (
+	walkCheckTime      = 250 * time.Millisecond
+	defaultWalkTimeout = 5 * time.Minute
+)
+
+var (
+	cacheTimeoutErr = errors.New("cacheTimeout reached walking file storage server")
+	walktimeoutErr  = errors.New("walkTimeout reached walking file storage server")
+)
+
 type StorageServer struct {
 	dir          string
 	class        string
 	fileIO       fileIO
 	chunker      rsstorage.ChunkUtils
 	cacheTimeout time.Duration
+	walkTimeout  time.Duration
 	debugLogger  rsstorage.DebugLogger
 }
 
-func NewFileStorageServer(dir string, chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, class string, debugLogger rsstorage.DebugLogger, cacheTimeout time.Duration) rsstorage.StorageServer {
+func NewFileStorageServer(dir string, chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, class string, debugLogger rsstorage.DebugLogger, cacheTimeout, walkTimeout time.Duration) rsstorage.StorageServer {
 	fs := &StorageServer{
 		dir:          dir,
 		fileIO:       &defaultFileIO{},
 		class:        class,
 		debugLogger:  debugLogger,
 		cacheTimeout: cacheTimeout,
+		walkTimeout:  walkTimeout,
 	}
 	return &StorageServer{
 		dir:          dir,
 		fileIO:       &defaultFileIO{},
 		debugLogger:  debugLogger,
 		cacheTimeout: cacheTimeout,
+		walkTimeout:  walkTimeout,
 		chunker: &internal.DefaultChunkUtils{
 			ChunkSize:   chunkSize,
 			Server:      fs,
@@ -107,7 +121,7 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 	elapsed := timeInfo.Sub(start)
 	s.debugLogger.Debugf("Calculated disk info for %s in %s.\n", s.dir, elapsed)
 
-	actual, err := diskUsage(s.dir, s.cacheTimeout)
+	actual, err := diskUsage(s.dir, s.cacheTimeout, s.walkTimeout)
 	if err != nil {
 		return types.Usage{}, fmt.Errorf("error calculating disk usage for %s: %s.\n", s.dir, err)
 	}
@@ -127,28 +141,67 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 
 // diskUsage will walk the specified path in a filesystem and
 // aggregate the size of the contained files.
-func diskUsage(duPath string, cacheTimeout time.Duration) (size datasize.ByteSize, err error) {
-	timeout := time.Now().Add(cacheTimeout)
-	sizep := &size
+func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size datasize.ByteSize, err error) {
+	stop := make(chan struct{})
+	defer close(stop)
 
-	err = filepath.Walk(duPath, func(path string, info os.FileInfo, err error) error {
+	sizeChan := make(chan datasize.ByteSize)
+	// errChan should have a buffer of two items to prevent deadlock between `<-stop` and `errChan<-err`
+	errChan := make(chan error, 2)
+
+	go func(stop <-chan struct{}, sizeChan chan<- datasize.ByteSize, errChan chan<- error) {
+		defer close(sizeChan)
+		defer close(errChan)
+
+		err = filepath.Walk(duPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			select {
+			case <-stop:
+				return nil
+			default:
+			}
+
+			if !info.IsDir() {
+				sizeChan <- datasize.ByteSize(info.Size())
+			}
+
+			return nil
+		})
+
 		if err != nil {
-			return err
+			errChan <- err
 		}
+	}(stop, sizeChan, errChan)
 
-		if time.Now().After(timeout) {
-			return errors.New("timeout in diskUsage")
+	cacheTimeoutTimer := time.NewTimer(cacheTimeout)
+	defer cacheTimeoutTimer.Stop()
+
+	if walkTimeout == 0 {
+		walkTimeout = defaultWalkTimeout
+	}
+
+	walkTimeoutTimer := time.NewTimer(walkTimeout)
+	defer walkTimeoutTimer.Stop()
+
+	for {
+		select {
+		case <-cacheTimeoutTimer.C:
+			return 0, cacheTimeoutErr
+		case sz := <-sizeChan:
+			size += sz
+
+			walkTimeoutTimer.Stop()
+			walkTimeoutTimer.Reset(walkTimeout)
+		case err = <-errChan:
+			// Success case error will return `nil`
+			return
+		case <-walkTimeoutTimer.C:
+			return 0, walktimeoutErr
 		}
-
-		if !info.IsDir() {
-			*sizep += datasize.ByteSize(info.Size())
-		}
-
-		return nil
-	})
-	size = *sizep
-
-	return
+	}
 }
 
 func (s *StorageServer) Get(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
@@ -286,32 +339,87 @@ func (s *StorageServer) Remove(dir, address string) error {
 }
 
 func (s *StorageServer) Enumerate() ([]types.StoredItem, error) {
-	items := make([]types.StoredItem, 0)
-	err := filepath.Walk(s.dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			log.Printf("Error enumerating storage for directory %s: %s", s.dir, err)
-			return nil
-		}
-		if !info.IsDir() {
-			relPath, err := filepath.Rel(s.dir, path)
-			if err != nil {
-				return err
-			}
-			dir := filepath.Dir(relPath)
-			if dir == "." {
-				dir = ""
-			}
-			items = append(items, types.StoredItem{
-				Dir:     dir,
-				Address: info.Name(),
-			})
-		}
-		return nil
-	})
+	items, err := enumerate(s.dir, s.walkTimeout)
 	if err != nil {
+		log.Printf("Error enumerating storage: %s", err)
+
 		return nil, err
 	}
+
 	return internal.FilterChunks(items), nil
+}
+
+func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error) {
+	stop := make(chan struct{})
+	defer close(stop)
+
+	itemChan := make(chan *types.StoredItem)
+	// errChan should have a buffer of two items to prevent deadlock between `<-stop` and `errChan<-err`
+	errChan := make(chan error, 2)
+
+	go func(stop <-chan struct{}, itemChan chan<- *types.StoredItem, errChan chan<- error) {
+		defer close(itemChan)
+		defer close(errChan)
+
+		err := filepath.WalkDir(dir, func(path string, info fs.DirEntry, err error) error {
+			if err != nil {
+				log.Printf("Error enumerating storage for directory %s: %s", dir, err)
+				return nil
+			}
+
+			if !info.IsDir() {
+				relPath, err := filepath.Rel(dir, path)
+				if err != nil {
+					return err
+				}
+
+				dir := filepath.Dir(relPath)
+				if dir == "." {
+					dir = ""
+				}
+
+				itemChan <- &types.StoredItem{
+					Dir:     dir,
+					Address: info.Name(),
+				}
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			errChan <- err
+		}
+	}(stop, itemChan, errChan)
+
+	items := make([]types.StoredItem, 0)
+
+	if walkTimeout == 0 {
+		walkTimeout = defaultWalkTimeout
+	}
+
+	walkTimeoutTimer := time.NewTimer(walkTimeout)
+	defer walkTimeoutTimer.Stop()
+
+	for {
+		select {
+		case item := <-itemChan:
+			if item != nil {
+				items = append(items, *item)
+			}
+
+			walkTimeoutTimer.Stop()
+			walkTimeoutTimer.Reset(walkTimeout)
+		case err := <-errChan:
+			if err != nil {
+				return nil, err
+			}
+
+			return items, nil
+		case <-walkTimeoutTimer.C:
+			return nil, walktimeoutErr
+		}
+	}
 }
 
 func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer) error {

@@ -53,7 +53,7 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 		Ch: make(chan bool, 1),
 	}
 	debugLogger := &servertest.TestLogger{}
-	server := NewFileStorageServer("test", 4096, wn, wn, "classname", debugLogger, time.Minute)
+	server := NewFileStorageServer("test", 4096, wn, wn, "classname", debugLogger, time.Minute, time.Minute)
 
 	c.Check(server, check.DeepEquals, &StorageServer{
 		dir:    "test",
@@ -64,6 +64,7 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 				dir:          "test",
 				fileIO:       &defaultFileIO{},
 				cacheTimeout: time.Minute,
+				walkTimeout:  time.Minute,
 				class:        "classname",
 				debugLogger:  debugLogger,
 			},
@@ -73,6 +74,7 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 			MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
 		},
 		cacheTimeout: time.Minute,
+		walkTimeout:  time.Minute,
 		class:        "classname",
 		debugLogger:  debugLogger,
 	})
@@ -712,6 +714,61 @@ func (s *FileStorageServerSuite) TestUsageTimeout(c *check.C) {
 	c.Assert(fsUsage.UsedBytes, check.Equals, 0*datasize.KB)
 }
 
+func (s *FileStorageServerSuite) TestDiskUsage(c *check.C) {
+	testFiles := 10
+	testStr := []byte("hello world")
+
+	expectedSize := 0
+
+	for i := 0; i < testFiles; i++ {
+		f, _ := os.CreateTemp("testdata", "*")
+		f.Write(testStr)
+		expectedSize += len(testStr)
+
+		defer os.Remove(f.Name())
+	}
+
+	sz, err := diskUsage("testdata", time.Minute, time.Second)
+	c.Assert(err, check.IsNil)
+	c.Check(uint64(sz), check.Equals, uint64(expectedSize))
+}
+
+func (s *FileStorageServerSuite) TestDiskUsageCacheTimeout(c *check.C) {
+	testFiles := 10
+	testStr := []byte("hello world")
+
+	expectedSize := 0
+
+	for i := 0; i < testFiles; i++ {
+		f, _ := os.CreateTemp("testdata", "*")
+		f.Write(testStr)
+		expectedSize += len(testStr)
+
+		defer os.Remove(f.Name())
+	}
+
+	_, err := diskUsage("testdata", time.Nanosecond, time.Minute)
+	c.Assert(err, check.Equals, cacheTimeoutErr)
+}
+
+func (s *FileStorageServerSuite) TestDiskUsageWalkTimeout(c *check.C) {
+	testFiles := 10
+	testStr := []byte("hello world")
+
+	expectedSize := 0
+
+	for i := 0; i < testFiles; i++ {
+		f, _ := os.CreateTemp("testdata", "*")
+		f.Write(testStr)
+		expectedSize += len(testStr)
+
+		defer os.Remove(f.Name())
+	}
+
+	_, err := diskUsage("testdata", time.Minute, time.Nanosecond)
+	c.Assert(err, check.Equals, walktimeoutErr)
+}
+
 var _ = check.Suite(&FileEnumerationSuite{})
 
 type FileEnumerationSuite struct {
@@ -803,6 +860,24 @@ func (s *FileEnumerationSuite) TestEnumerate(c *check.C) {
 			Address: "data2.json",
 		},
 	})
+}
+
+func (s *FileEnumerationSuite) TestEnumerateWalkTimeout(c *check.C) {
+	testFiles := 10
+	testStr := []byte("hello world")
+
+	expectedSize := 0
+
+	for i := 0; i < testFiles; i++ {
+		f, _ := os.CreateTemp("testdata", "*")
+		f.Write(testStr)
+		expectedSize += len(testStr)
+
+		defer os.Remove(f.Name())
+	}
+
+	_, err := enumerate("testdata", time.Nanosecond)
+	c.Assert(err, check.Equals, walktimeoutErr)
 }
 
 var _ = check.Suite(&FileCopyMoveSuite{})
