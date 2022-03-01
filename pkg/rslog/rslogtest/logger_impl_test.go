@@ -37,7 +37,8 @@ var outputDest = []rslog.OutputDest{
 
 func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 	outputMock := &OutputBuilderMock{}
-	outputMock.On("Build", rslog.LogOutputFile, "/custom/dir/server.log").Return(IoWriterMock{}, nil)
+	expectedOutput := &IoWriterMock{}
+	outputMock.On("Build", outputDest).Return(expectedOutput, nil)
 
 	result, err := rslog.NewLoggerImpl(
 		rslog.LoggerOptionsImpl{
@@ -48,7 +49,7 @@ func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 		outputMock,
 	)
 	s.Nil(err)
-	s.NotNil(result.Out)
+	s.Equal(expectedOutput, result.Out)
 	s.IsType(&logrus.TextFormatter{}, result.Formatter)
 
 	result, err = rslog.NewLoggerImpl(
@@ -74,7 +75,7 @@ func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 	s.IsType(&logrus.TextFormatter{}, result.Formatter)
 
 	errdBuildMock := &OutputBuilderMock{}
-	errdBuildMock.On("Build", rslog.LogOutputFile, "/custom/dir/server.log").Return(IoWriterMock{}, fmt.Errorf("output build error"))
+	errdBuildMock.On("Build", outputDest).Return(IoWriterMock{}, fmt.Errorf("output build error"))
 	result, err = rslog.NewLoggerImpl(
 		rslog.LoggerOptionsImpl{
 			Output: outputDest,
@@ -91,6 +92,10 @@ type mockFactory struct {
 }
 
 func (f *mockFactory) DefaultLogger() rslog.Logger {
+	return f.logger
+}
+
+func (f *mockFactory) TerminalLogger(_ rslog.LogLevel) rslog.Logger {
 	return f.logger
 }
 
@@ -142,35 +147,6 @@ func (s *LoggerImplTestSuite) TestSetDefaultLogger() {
 	s.Equal(entryResultWithFields, eMock)
 
 	s.Equal(rslog.DefaultLogger(), lgr)
-}
-
-func (s *LoggerImplTestSuite) TestMultipleOutput() {
-	outputMock := &OutputBuilderMock{}
-	outputMock.On("Build", rslog.LogOutputStdout, "").Return(IoWriterMock{}, nil)
-	outputMock.On("Build", rslog.LogOutputFile, "/custom/dir/server.log").Return(IoWriterMock{}, nil)
-
-	multiOutput := []rslog.OutputDest{
-		{
-			Output:      rslog.LogOutputFile,
-			Filepath:    "/custom/dir/server.log",
-			DefaultFile: "/var/log/rstudio/rstudio-xyz/rstudio-xyz.log",
-		},
-		{
-			Output: rslog.LogOutputStdout,
-		},
-	}
-
-	result, err := rslog.NewLoggerImpl(
-		rslog.LoggerOptionsImpl{
-			Output: multiOutput,
-			Format: rslog.TextFormat,
-			Level:  rslog.InfoLevel,
-		},
-		outputMock,
-	)
-	s.Nil(err)
-	s.NotNil(result.Out)
-	outputMock.AssertExpectations(s.T())
 }
 
 func (s *LoggerImplTestSuite) TestOutputFormatUnmarshalText() {
@@ -259,7 +235,7 @@ func (s *LoggerImplTestSuite) TestNewLoggerImplLevel() {
 
 			outputMock := &OutputBuilderMock{}
 			expectedWriter := IoWriterMock{}
-			outputMock.On("Build", rslog.LogOutputFile, "/custom/dir/server.log").Return(expectedWriter, nil)
+			outputMock.On("Build", outputDest).Return(expectedWriter, nil)
 
 			lgr, err := rslog.NewLoggerImpl(
 				rslog.LoggerOptionsImpl{
@@ -348,7 +324,7 @@ func (s *LoggerImplTestSuite) TestOnConfigReload() {
 	outputMock := &OutputBuilderMock{}
 	expectedWriter := IoWriterMock{}
 
-	outputMock.On("Build", rslog.LogOutputFile, "/custom/dir/server.log").Return(expectedWriter, nil)
+	outputMock.On("Build", outputDest).Return(expectedWriter, nil)
 
 	log, err := rslog.NewLoggerImpl(
 		rslog.LoggerOptionsImpl{

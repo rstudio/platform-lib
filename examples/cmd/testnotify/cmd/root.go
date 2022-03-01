@@ -21,7 +21,7 @@ const (
 func init() {
 
 	// Initialize debug logging
-	rslog.InitLogs([]rslog.ProductRegion{
+	rslog.InitDebugLogs([]rslog.ProductRegion{
 		RegionNotify,
 	})
 	rslog.RegisterRegions(map[rslog.ProductRegion]string{

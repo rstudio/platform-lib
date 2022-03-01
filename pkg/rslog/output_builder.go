@@ -50,7 +50,9 @@ func (t *LogOutputType) UnmarshalText(text []byte) (err error) {
 type FileSystem interface {
 	Stat(path string) (os.FileInfo, error)
 	MkdirAll(path string, perm os.FileMode) error
-	OpenFile(name string, flag int, perm os.FileMode) (*os.File, error)
+	OpenFile(name string, flag int, perm os.FileMode) (io.Writer, error)
+	Stdout() io.Writer
+	Stderr() io.Writer
 }
 
 func NewOSFileSystem() FileSystem {
@@ -67,12 +69,26 @@ func (o osFileSystem) Stat(path string) (os.FileInfo, error) {
 	return os.Stat(path)
 }
 
-func (o osFileSystem) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) {
+func (o osFileSystem) OpenFile(name string, flag int, perm os.FileMode) (io.Writer, error) {
 	return os.OpenFile(name, flag, perm)
 }
 
+func (o osFileSystem) Stderr() io.Writer {
+	return os.Stderr
+}
+
+func (o osFileSystem) Stdout() io.Writer {
+	return os.Stdout
+}
+
+type OutputDest struct {
+	Output      LogOutputType
+	Filepath    string
+	DefaultFile string
+}
+
 type OutputBuilder interface {
-	Build(output LogOutputType, logFilePath string) (io.Writer, error)
+	Build(outputs ...OutputDest) (io.Writer, error)
 }
 
 type outputBuilder struct {
@@ -89,14 +105,27 @@ func NewOutputLogBuilder(logCategory LogCategory, defaultFile string) OutputBuil
 	}
 }
 
-func (b outputBuilder) Build(output LogOutputType, logFilePath string) (io.Writer, error) {
+func (b outputBuilder) Build(outputs ...OutputDest) (io.Writer, error) {
+	var writers []io.Writer
+
+	for _, output := range outputs {
+		w, err := b.build(output.Output, output.Filepath)
+		if err != nil {
+			return nil, err
+		}
+
+		writers = append(writers, w)
+	}
+
+	return io.MultiWriter(writers...), nil
+}
+
+func (b outputBuilder) build(output LogOutputType, logFilePath string) (io.Writer, error) {
 	switch output {
-	case LogOutputDefault:
-		return os.Stderr, nil
+	case LogOutputDefault, LogOutputStderr:
+		return b.fileSystem.Stderr(), nil
 	case LogOutputStdout:
-		return os.Stdout, nil
-	case LogOutputStderr:
-		return os.Stderr, nil
+		return b.fileSystem.Stdout(), nil
 	case LogOutputFile:
 		return b.createLogFile(logFilePath)
 	default:
@@ -153,6 +182,12 @@ func (b outputBuilder) createLogFile(logFilePath string) (io.Writer, error) {
 
 type discardOutputBuilder struct{}
 
-func (b discardOutputBuilder) Build(_ LogOutputType, _ string) (io.Writer, error) {
+func (b discardOutputBuilder) Build(_ ...OutputDest) (io.Writer, error) {
 	return io.Discard, nil
+}
+
+type StderrOutputBuilder struct{}
+
+func (StderrOutputBuilder) Build(_ ...OutputDest) (io.Writer, error) {
+	return os.Stderr, nil
 }

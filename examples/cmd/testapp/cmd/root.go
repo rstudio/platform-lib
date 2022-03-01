@@ -45,7 +45,7 @@ func init() {
 	rslog.RegisterRegions(map[rslog.ProductRegion]string{
 		TestDebug: "test-debug",
 	})
-	rslog.InitLogs([]rslog.ProductRegion{
+	rslog.InitDebugLogs([]rslog.ProductRegion{
 		TestDebug,
 	})
 

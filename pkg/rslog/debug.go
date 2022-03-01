@@ -54,7 +54,7 @@ func RegionName(region ProductRegion) string {
 
 // Register debug regions enabled.
 // This should be called as early as possible when starting an application.
-func InitLogs(regions []ProductRegion) {
+func InitDebugLogs(regions []ProductRegion) {
 	debugMutex.Lock()
 	defer debugMutex.Unlock()
 
