@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	walkCheckTime = 250 * time.Millisecond
+	walkCheckTime      = 250 * time.Millisecond
+	defaultWalkTimeout = 5 * time.Minute
 )
 
 var (
@@ -170,31 +171,34 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 			errChan <- err
 		}
 
-		close(sizeChan)
-		close(errChan)
+		defer close(sizeChan)
+		defer close(errChan)
 	}(stop, sizeChan, errChan)
 
 	cacheTimeoutTimer := time.NewTimer(cacheTimeout)
 	defer cacheTimeoutTimer.Stop()
 
-	start := time.Now()
+	if walkTimeout == 0 {
+		walkTimeout = defaultWalkTimeout
+	}
+
+	walkTimeoutTimer := time.NewTimer(walkTimeout)
+	defer walkTimeoutTimer.Stop()
 
 	for {
-		if walkTimeout > 0 && time.Now().Sub(start) > walkTimeout {
-			return 0, walktimeoutErr
-		}
-
 		select {
 		case <-cacheTimeoutTimer.C:
 			return 0, cacheTimeoutErr
 		case sz := <-sizeChan:
 			size += sz
-			start = time.Now()
-		// Success case error will return `nil`
+
+			walkTimeoutTimer.Stop()
+			walkTimeoutTimer.Reset(walkTimeout)
 		case err = <-errChan:
+			// Success case error will return `nil`
 			return
-		default:
-			time.Sleep(walkCheckTime)
+		case <-walkTimeoutTimer.C:
+			return 0, walktimeoutErr
 		}
 	}
 }
@@ -383,32 +387,36 @@ func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error
 			errChan <- err
 		}
 
-		close(itemChan)
-		close(errChan)
+		defer close(itemChan)
+		defer close(errChan)
 	}(stop, itemChan, errChan)
 
 	items := make([]types.StoredItem, 0)
-	start := time.Now()
+
+	if walkTimeout == 0 {
+		walkTimeout = defaultWalkTimeout
+	}
+
+	walkTimeoutTimer := time.NewTimer(walkTimeout)
+	defer walkTimeoutTimer.Stop()
 
 	for {
-		if walkTimeout > 0 && time.Now().Sub(start) > walkTimeout {
-			return nil, walktimeoutErr
-		}
-
 		select {
 		case item := <-itemChan:
 			if item != nil {
 				items = append(items, *item)
-				start = time.Now()
 			}
+
+			walkTimeoutTimer.Stop()
+			walkTimeoutTimer.Reset(walkTimeout)
 		case err := <-errChan:
 			if err != nil {
 				return nil, err
 			}
 
 			return items, nil
-		default:
-			time.Sleep(walkCheckTime)
+		case <-walkTimeoutTimer.C:
+			return nil, walktimeoutErr
 		}
 	}
 }

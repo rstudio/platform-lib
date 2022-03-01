@@ -728,7 +728,7 @@ func (s *FileStorageServerSuite) TestDiskUsage(c *check.C) {
 		defer os.Remove(f.Name())
 	}
 
-	sz, err := diskUsage("testdata", time.Minute, time.Minute)
+	sz, err := diskUsage("testdata", time.Minute, time.Second)
 	c.Assert(err, check.IsNil)
 	c.Check(uint64(sz), check.Equals, uint64(expectedSize))
 }
