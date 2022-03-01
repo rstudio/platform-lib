@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"os"
@@ -360,7 +361,7 @@ func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error
 		defer close(itemChan)
 		defer close(errChan)
 
-		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		err := filepath.WalkDir(dir, func(path string, info fs.DirEntry, err error) error {
 			if err != nil {
 				log.Printf("Error enumerating storage for directory %s: %s", dir, err)
 				return nil
