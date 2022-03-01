@@ -149,6 +149,9 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 	errChan := make(chan error, 2)
 
 	go func(stop <-chan struct{}, sizeChan chan<- datasize.ByteSize, errChan chan<- error) {
+		defer close(sizeChan)
+		defer close(errChan)
+
 		err = filepath.Walk(duPath, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
@@ -170,9 +173,6 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 		if err != nil {
 			errChan <- err
 		}
-
-		defer close(sizeChan)
-		defer close(errChan)
 	}(stop, sizeChan, errChan)
 
 	cacheTimeoutTimer := time.NewTimer(cacheTimeout)
@@ -357,6 +357,9 @@ func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error
 	errChan := make(chan error, 2)
 
 	go func(stop <-chan struct{}, itemChan chan<- *types.StoredItem, errChan chan<- error) {
+		defer close(itemChan)
+		defer close(errChan)
+
 		err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				log.Printf("Error enumerating storage for directory %s: %s", dir, err)
@@ -386,9 +389,6 @@ func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error
 		if err != nil {
 			errChan <- err
 		}
-
-		defer close(itemChan)
-		defer close(errChan)
 	}(stop, itemChan, errChan)
 
 	items := make([]types.StoredItem, 0)
