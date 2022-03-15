@@ -18,7 +18,7 @@ type IPCache struct {
 func (c *IPCache) IP() string {
 	gotIP := c.reporter.IP()
 	if gotIP != c.cachedValue {
-		// enumerate IPs and determine if cached value is still value
+		// enumerate IPs and determine if cached value is still valid
 		if !c.stillValidIP(c.cachedValue) {
 			c.cachedValue = gotIP
 		}
@@ -33,27 +33,19 @@ func (p *IPCache) stillValidIP(IP string) bool {
 		return false
 	}
 
-	interfaces, err := net.Interfaces()
+	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return false
 	}
-
-	for _, inter := range interfaces {
-		addrs, err := inter.Addrs()
-		if err != nil {
-			return false
-		}
-
-		for _, addr := range addrs {
-			switch v := addr.(type) {
-			case *net.IPNet:
-				if v.Contains(ip) {
-					return true
-				}
-			case *net.IPAddr:
-				if v.IP.Equal(ip) {
-					return true
-				}
+	for _, addr := range addrs {
+		switch v := addr.(type) {
+		case *net.IPNet:
+			if v.IP.Equal(ip) {
+				return true
+			}
+		case *net.IPAddr: // only on Windows
+			if v.IP.Equal(ip) {
+				return true
 			}
 		}
 	}
