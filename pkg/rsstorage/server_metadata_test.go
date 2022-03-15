@@ -72,7 +72,11 @@ func (s *cacheStore) CacheObjectMarkUse(cacheName, key string, accessTime time.T
 func (s *MetadataServerSuite) TestNew(c *check.C) {
 	parentServer := &DummyStorageServer{}
 	cstore := &cacheStore{}
-	server := NewMetadataStorageServer("test", parentServer, cstore)
+	server := NewMetadataStorageServer(MetadataStorageServerArgs{
+		Name:   "test",
+		Server: parentServer,
+		Store:  cstore,
+	})
 	c.Check(server, check.DeepEquals, &MetadataStorageServer{
 		StorageServer: parentServer,
 		name:          "test",

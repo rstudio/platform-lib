@@ -63,15 +63,23 @@ type PgxListener struct {
 	ipReporter  listener.IPReporter
 }
 
+type PgxListenerArgs struct {
+	Name        string
+	Pool        *pgxpool.Pool
+	Matcher     listener.TypeMatcher
+	DebugLogger listener.DebugLogger
+	IpReporter  listener.IPReporter
+}
+
 // NewPgxListener creates a new listener.
 // Only intended to be called from a listener factory's `New` method.
-func NewPgxListener(name string, pool *pgxpool.Pool, matcher listener.TypeMatcher, debugLogger listener.DebugLogger, iprep listener.IPReporter) *PgxListener {
+func NewPgxListener(args PgxListenerArgs) *PgxListener {
 	return &PgxListener{
-		name:        name,
-		pool:        pool,
-		debugLogger: debugLogger,
-		matcher:     matcher,
-		ipReporter:  iprep,
+		name:        args.Name,
+		pool:        args.Pool,
+		debugLogger: args.DebugLogger,
+		matcher:     args.Matcher,
+		ipReporter:  args.IpReporter,
 	}
 }
 

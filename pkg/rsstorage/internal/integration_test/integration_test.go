@@ -158,14 +158,48 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 	}
 
 	debugLogger := &servertest.TestLogger{}
-	pgServer := postgres.NewPgStorageServer(class, 100*1024, wn, wn, s.pool, debugLogger)
-	s3Server := s3server.NewS3StorageServer(class, "", s3Svc, 100*1024, wn, wn)
-	fileServer := file.NewFileStorageServer(dir, 100*1024, wn, wn, class, debugLogger, time.Minute, time.Minute)
+	pgServer := postgres.NewStorageServer(postgres.StorageServerArgs{
+		ChunkSize:   100 * 1024,
+		Waiter:      wn,
+		Notifier:    wn,
+		Class:       class,
+		DebugLogger: debugLogger,
+		Pool:        s.pool,
+	})
+	s3Server := s3server.NewStorageServer(s3server.StorageServerArgs{
+		Bucket:    class,
+		Svc:       s3Svc,
+		ChunkSize: 100 * 1024,
+		Waiter:    wn,
+		Notifier:  wn,
+	})
+	fileServer := file.NewStorageServer(file.StorageServerArgs{
+		Dir:          dir,
+		ChunkSize:    100 * 1024,
+		Waiter:       wn,
+		Notifier:     wn,
+		Class:        class,
+		DebugLogger:  debugLogger,
+		CacheTimeout: time.Minute,
+		WalkTimeout:  time.Minute,
+	})
 
 	return map[string]rsstorage.StorageServer{
-		"file":     rsstorage.NewMetadataStorageServer("file", fileServer, cstore),
-		"s3":       rsstorage.NewMetadataStorageServer("s3", s3Server, cstore),
-		"postgres": rsstorage.NewMetadataStorageServer("pg", pgServer, cstore),
+		"file": rsstorage.NewMetadataStorageServer(rsstorage.MetadataStorageServerArgs{
+			Name:   "file",
+			Server: fileServer,
+			Store:  cstore,
+		}),
+		"s3": rsstorage.NewMetadataStorageServer(rsstorage.MetadataStorageServerArgs{
+			Name:   "s3",
+			Server: s3Server,
+			Store:  cstore,
+		}),
+		"postgres": rsstorage.NewMetadataStorageServer(rsstorage.MetadataStorageServerArgs{
+			Name:   "pg",
+			Server: pgServer,
+			Store:  cstore,
+		}),
 	}
 }
 
@@ -436,7 +470,14 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	s3Server := s3server.NewS3StorageServer(bucket, "integration-test", s3Svc, 100*1024, wn, wn)
+	s3Server := s3server.NewStorageServer(s3server.StorageServerArgs{
+		Bucket:    bucket,
+		Prefix:    "integration-test",
+		Svc:       s3Svc,
+		ChunkSize: 100 * 1024,
+		Waiter:    wn,
+		Notifier:  wn,
+	})
 
 	// This channel gets notified/closed after we start writing some data to the writer,
 	// but before the write fails.
@@ -561,7 +602,14 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	s3Server := s3server.NewS3StorageServer(bucket, "integration-test", s3Svc, 100*1024, wn, wn)
+	s3Server := s3server.NewStorageServer(s3server.StorageServerArgs{
+		Bucket:    bucket,
+		Prefix:    "integration-test",
+		Svc:       s3Svc,
+		ChunkSize: 100 * 1024,
+		Waiter:    wn,
+		Notifier:  wn,
+	})
 
 	// This channel gets notified/closed after we start writing some data to the writer,
 	// but before the write fails.

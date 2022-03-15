@@ -43,7 +43,7 @@ func (s *QueueSqliteSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	s.tmp = tmp.Name()
 
-	llf := local.NewListenerProviderWithLogger(&fakeDebugLogger{})
+	llf := local.NewListenerProvider(local.ListenerProviderArgs{DebugLogger: &fakeDebugLogger{}})
 	s.store = Open(s.tmp, llf, rslog.NewDebugLogger(0))
 }
 

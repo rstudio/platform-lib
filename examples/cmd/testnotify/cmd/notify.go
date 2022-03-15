@@ -87,7 +87,7 @@ func setup(drv string) (string, listenerfactory.ListenerFactory, *local.Listener
 	var prov *local.ListenerProvider
 	switch drv {
 	case "local":
-		prov = local.NewListenerProvider()
+		prov = local.NewListenerProvider(local.ListenerProviderArgs{})
 		fact = local.NewListenerFactory(prov)
 	case "pgx":
 		pool, err := pgxpool.Connect(context.Background(), connstr)
@@ -95,11 +95,11 @@ func setup(drv string) (string, listenerfactory.ListenerFactory, *local.Listener
 			return drv, nil, nil, fmt.Errorf("error connecting to pool: %s", err)
 		}
 		ipReporter := postgrespgx.NewPgxIPReporter(pool)
-		fact = postgrespgx.NewPgxListenerFactory(pool, debugLogger, ipReporter)
+		fact = postgrespgx.NewListenerFactory(postgrespgx.ListenerFactoryArgs{Pool: pool, DebugLogger: debugLogger, IpReporter: ipReporter})
 	case "pq":
 		drv = "postgres"
 		pqListenerFactory := &pqlistener{ConnStr: connstr}
-		fact = postgrespq.NewPqListenerFactory(pqListenerFactory, debugLogger)
+		fact = postgrespq.NewListenerFactory(postgrespq.ListenerFactoryArgs{Factory: pqListenerFactory, DebugLogger: debugLogger})
 	default:
 		return drv, nil, nil, fmt.Errorf("invalid --driver argument value")
 	}

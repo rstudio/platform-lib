@@ -34,25 +34,34 @@ type StorageServer struct {
 	chunker rsstorage.ChunkUtils
 }
 
-func NewS3StorageServer(bucket, prefix string, svc S3Wrapper, chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier) rsstorage.StorageServer {
+type StorageServerArgs struct {
+	Bucket    string
+	Prefix    string
+	Svc       S3Wrapper
+	ChunkSize uint64
+	Waiter    rsstorage.ChunkWaiter
+	Notifier  rsstorage.ChunkNotifier
+}
+
+func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
 	s3s := &StorageServer{
-		bucket: bucket,
-		prefix: prefix,
-		svc:    svc,
-		move:   svc.MoveObject,
-		copy:   svc.CopyObject,
+		bucket: args.Bucket,
+		prefix: args.Prefix,
+		svc:    args.Svc,
+		move:   args.Svc.MoveObject,
+		copy:   args.Svc.CopyObject,
 	}
 	return &StorageServer{
-		bucket: bucket,
-		prefix: prefix,
-		svc:    svc,
-		move:   svc.MoveObject,
-		copy:   svc.CopyObject,
+		bucket: args.Bucket,
+		prefix: args.Prefix,
+		svc:    args.Svc,
+		move:   args.Svc.MoveObject,
+		copy:   args.Svc.CopyObject,
 		chunker: &internal.DefaultChunkUtils{
-			ChunkSize:   chunkSize,
+			ChunkSize:   args.ChunkSize,
 			Server:      s3s,
-			Waiter:      waiter,
-			Notifier:    notifier,
+			Waiter:      args.Waiter,
+			Notifier:    args.Notifier,
 			PollTimeout: rsstorage.DefaultChunkPollTimeout,
 			MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
 		},

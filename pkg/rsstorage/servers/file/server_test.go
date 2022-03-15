@@ -53,7 +53,16 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 		Ch: make(chan bool, 1),
 	}
 	debugLogger := &servertest.TestLogger{}
-	server := NewFileStorageServer("test", 4096, wn, wn, "classname", debugLogger, time.Minute, time.Minute)
+	server := NewStorageServer(StorageServerArgs{
+		Dir:          "test",
+		ChunkSize:    4096,
+		Waiter:       wn,
+		Notifier:     wn,
+		Class:        "classname",
+		DebugLogger:  debugLogger,
+		CacheTimeout: time.Minute,
+		WalkTimeout:  time.Minute * 2,
+	})
 
 	c.Check(server, check.DeepEquals, &StorageServer{
 		dir:    "test",
@@ -64,7 +73,7 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 				dir:          "test",
 				fileIO:       &defaultFileIO{},
 				cacheTimeout: time.Minute,
-				walkTimeout:  time.Minute,
+				walkTimeout:  time.Minute * 2,
 				class:        "classname",
 				debugLogger:  debugLogger,
 			},
@@ -74,7 +83,7 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 			MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
 		},
 		cacheTimeout: time.Minute,
-		walkTimeout:  time.Minute,
+		walkTimeout:  time.Minute * 2,
 		class:        "classname",
 		debugLogger:  debugLogger,
 	})

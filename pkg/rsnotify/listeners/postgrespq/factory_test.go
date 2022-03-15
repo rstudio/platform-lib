@@ -15,8 +15,11 @@ var _ = check.Suite(&ListenerFactorySuite{})
 func (s *ListenerFactorySuite) TestNewListener(c *check.C) {
 	lgr := &listener.TestLogger{}
 	fakeFactory := &testFactory{}
-	l3 := NewPqListenerFactory(fakeFactory, lgr)
-	c.Check(l3, check.DeepEquals, &PqListenerFactory{
+	l3 := NewListenerFactory(ListenerFactoryArgs{
+		Factory:     fakeFactory,
+		DebugLogger: lgr,
+	})
+	c.Check(l3, check.DeepEquals, &ListenerFactory{
 		factory:     fakeFactory,
 		debugLogger: lgr,
 	})

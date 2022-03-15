@@ -164,7 +164,14 @@ func (s *fakeS3) Upload(input *s3manager.UploadInput, ctx context.Context, optio
 func (s *S3StorageServerSuite) TestNew(c *check.C) {
 	svc := &fakeS3{}
 	wn := &servertest.DummyWaiterNotifier{}
-	server := NewS3StorageServer("test", "prefix", svc, 4096, wn, wn)
+	server := NewStorageServer(StorageServerArgs{
+		Bucket:    "test",
+		Prefix:    "prefix",
+		Svc:       svc,
+		ChunkSize: 4096,
+		Waiter:    wn,
+		Notifier:  wn,
+	})
 	c.Assert(server.(*StorageServer).move, check.NotNil)
 	c.Assert(server.(*StorageServer).copy, check.NotNil)
 	c.Assert(server.(*StorageServer).chunker, check.NotNil)
@@ -955,7 +962,14 @@ func (s *S3StorageServerSuite) TestLocate(c *check.C) {
 func (s *S3StorageServerSuite) TestUsage(c *check.C) {
 	svc := &fakeS3{}
 	wn := &servertest.DummyWaiterNotifier{}
-	server := NewS3StorageServer("testbucket", "prefix", svc, 4096, wn, wn)
+	server := NewStorageServer(StorageServerArgs{
+		Bucket:    "testbucket",
+		Prefix:    "prefix",
+		Svc:       svc,
+		ChunkSize: 4096,
+		Waiter:    wn,
+		Notifier:  wn,
+	})
 
 	usage, err := server.CalculateUsage()
 	c.Assert(usage, check.DeepEquals, types.Usage{})
@@ -969,7 +983,14 @@ func (s *S3StorageServerSuite) TestValidate(c *check.C) {
 
 	svc := &fakeS3{}
 	wn := &servertest.DummyWaiterNotifier{}
-	server := NewS3StorageServer("testbucket", "prefix", svc, 4096, wn, wn)
+	server := NewStorageServer(StorageServerArgs{
+		Bucket:    "testbucket",
+		Prefix:    "prefix",
+		Svc:       svc,
+		ChunkSize: 4096,
+		Waiter:    wn,
+		Notifier:  wn,
+	})
 
 	s3, ok := server.(*StorageServer)
 	c.Assert(ok, check.Equals, true)
@@ -980,7 +1001,14 @@ func (s *S3StorageServerSuite) TestValidate(c *check.C) {
 	svc = &fakeS3{
 		uploadErr: uploadErr,
 	}
-	server = NewS3StorageServer("testbucket", "prefix", svc, 4096, wn, wn)
+	server = NewStorageServer(StorageServerArgs{
+		Bucket:    "testbucket",
+		Prefix:    "prefix",
+		Svc:       svc,
+		ChunkSize: 4096,
+		Waiter:    wn,
+		Notifier:  wn,
+	})
 	s3, ok = server.(*StorageServer)
 	c.Assert(ok, check.Equals, true)
 	err = s3.Validate()
@@ -989,7 +1017,14 @@ func (s *S3StorageServerSuite) TestValidate(c *check.C) {
 	svc = &fakeS3{
 		headErr: headErr,
 	}
-	server = NewS3StorageServer("testbucket", "prefix", svc, 4096, wn, wn)
+	server = NewStorageServer(StorageServerArgs{
+		Bucket:    "testbucket",
+		Prefix:    "prefix",
+		Svc:       svc,
+		ChunkSize: 4096,
+		Waiter:    wn,
+		Notifier:  wn,
+	})
 	s3, ok = server.(*StorageServer)
 	c.Assert(ok, check.Equals, true)
 	err = s3.Validate()
@@ -998,7 +1033,14 @@ func (s *S3StorageServerSuite) TestValidate(c *check.C) {
 	svc = &fakeS3{
 		headErr: deleteErr,
 	}
-	server = NewS3StorageServer("testbucket", "prefix", svc, 4096, wn, wn)
+	server = NewStorageServer(StorageServerArgs{
+		Bucket:    "testbucket",
+		Prefix:    "prefix",
+		Svc:       svc,
+		ChunkSize: 4096,
+		Waiter:    wn,
+		Notifier:  wn,
+	})
 	s3, ok = server.(*StorageServer)
 	c.Assert(ok, check.Equals, true)
 	err = s3.Validate()

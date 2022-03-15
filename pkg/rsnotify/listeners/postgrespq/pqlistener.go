@@ -31,13 +31,20 @@ type PqListener struct {
 	debugLogger listener.DebugLogger
 }
 
+type PqListenerArgs struct {
+	Name        string
+	Factory     PqRetrieveListenerFactory
+	Matcher     listener.TypeMatcher
+	DebugLogger listener.DebugLogger
+}
+
 // Only intended to be called from listenerfactory.go's `New` method.
-func NewPqListener(name string, factory PqRetrieveListenerFactory, matcher listener.TypeMatcher, debugLogger listener.DebugLogger) *PqListener {
+func NewPqListener(args PqListenerArgs) *PqListener {
 	return &PqListener{
-		name:        name,
-		factory:     factory,
-		debugLogger: debugLogger,
-		matcher:     matcher,
+		name:        args.Name,
+		factory:     args.Factory,
+		debugLogger: args.DebugLogger,
+		matcher:     args.Matcher,
 	}
 }
 

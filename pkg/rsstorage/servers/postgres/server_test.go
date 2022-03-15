@@ -52,7 +52,14 @@ func (s *PgCacheServerSuite) SetUpTest(c *check.C) {
 func (s *PgCacheServerSuite) TestNew(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{}
 	debugLogger := &servertest.TestLogger{}
-	server := NewPgStorageServer("test", 100*1024, wn, wn, s.pool, debugLogger)
+	server := NewStorageServer(StorageServerArgs{
+		ChunkSize:   100 * 1024,
+		Waiter:      wn,
+		Notifier:    wn,
+		Class:       "test",
+		DebugLogger: debugLogger,
+		Pool:        s.pool,
+	})
 	c.Check(server.(*StorageServer).chunker, check.NotNil)
 	server.(*StorageServer).chunker = nil
 	c.Check(server, check.DeepEquals, &StorageServer{
@@ -713,7 +720,13 @@ func (s *PgCacheServerSuite) TestLocate(c *check.C) {
 func (s *PgCacheServerSuite) TestUsage(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{}
 	debugLogger := &servertest.TestLogger{}
-	server := NewPgStorageServer("testclass", 100*1024, wn, wn, nil, debugLogger)
+	server := NewStorageServer(StorageServerArgs{
+		ChunkSize:   100 * 1024,
+		Waiter:      wn,
+		Notifier:    wn,
+		Class:       "testclass",
+		DebugLogger: debugLogger,
+	})
 
 	c.Assert(server.Dir(), check.Equals, "pg:testclass")
 	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypePostgres)
