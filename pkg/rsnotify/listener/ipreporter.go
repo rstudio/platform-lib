@@ -1,8 +1,8 @@
 package listener
 
-import "net"
-
 // Copyright (C) 2022 by RStudio, PBC.
+
+import "net"
 
 type IPReporter interface {
 	IP() string
