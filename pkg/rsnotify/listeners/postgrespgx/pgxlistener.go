@@ -18,6 +18,38 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
 )
 
+type PgxIPReporter struct {
+	pool *pgxpool.Pool
+}
+
+func NewPgxIPReporter(pool *pgxpool.Pool) *PgxIPReporter {
+	return &PgxIPReporter{
+		pool: pool,
+	}
+}
+
+func (p *PgxIPReporter) IP() string {
+	ip := "0.0.0.0"
+	query := "SELECT inet_client_addr()"
+	if p.pool != nil {
+		row := p.pool.QueryRow(context.Background(), query)
+		pgIp := pgtype.Inet{}
+		err := row.Scan(&pgIp)
+		if err != nil {
+			log.Printf("Unable to determine client IP with inet_client_addr(). %s", err)
+			return ip
+		}
+		if pgIp.IPNet != nil && pgIp.IPNet.IP != nil {
+			ip = pgIp.IPNet.IP.String()
+		} else {
+			log.Printf("Unable to determine client IP with inet_client_addr().")
+		}
+	} else {
+		log.Printf("Invalid pool")
+	}
+	return ip
+}
+
 type PgxListener struct {
 	name        string
 	pool        *pgxpool.Pool
@@ -27,16 +59,18 @@ type PgxListener struct {
 	matcher     listener.TypeMatcher
 	ip          string
 	debugLogger listener.DebugLogger
+	ipReporter  listener.IPReporter
 }
 
 // NewPgxListener creates a new listener.
 // Only intended to be called from a listener factory's `New` method.
-func NewPgxListener(name string, pool *pgxpool.Pool, matcher listener.TypeMatcher, debugLogger listener.DebugLogger) *PgxListener {
+func NewPgxListener(name string, pool *pgxpool.Pool, matcher listener.TypeMatcher, debugLogger listener.DebugLogger, iprep listener.IPReporter) *PgxListener {
 	return &PgxListener{
 		name:        name,
 		pool:        pool,
 		debugLogger: debugLogger,
 		matcher:     matcher,
+		ipReporter:  iprep,
 	}
 }
 
@@ -129,19 +163,7 @@ func (l *PgxListener) acquire(ready chan struct{}) (err error) {
 	}
 
 	// Get the connection's IP
-	ipQuery := "SELECT inet_client_addr()"
-	row := l.conn.QueryRow(context.Background(), ipQuery)
-	pgIp := pgtype.Inet{}
-	err = row.Scan(&pgIp)
-	if err != nil {
-		return
-	}
-	if pgIp.IPNet != nil && pgIp.IPNet.IP != nil {
-		l.ip = pgIp.IPNet.IP.String()
-	} else {
-		log.Printf("Unable to determine client IP with inet_client_addr().")
-		l.ip = "0.0.0.0"
-	}
+	l.ip = l.ipReporter.IP()
 
 	_, err = l.conn.Exec(context.Background(), fmt.Sprintf("LISTEN \"%s\"", l.name))
 	if err != nil {

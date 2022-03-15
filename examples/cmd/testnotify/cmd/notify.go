@@ -94,7 +94,8 @@ func setup(drv string) (string, listenerfactory.ListenerFactory, *local.Listener
 		if err != nil {
 			return drv, nil, nil, fmt.Errorf("error connecting to pool: %s", err)
 		}
-		fact = postgrespgx.NewPgxListenerFactory(pool, debugLogger)
+		ipReporter := postgrespgx.NewPgxIPReporter(pool)
+		fact = postgrespgx.NewPgxListenerFactory(pool, debugLogger, ipReporter)
 	case "pq":
 		drv = "postgres"
 		pqListenerFactory := &pqlistener{ConnStr: connstr}
