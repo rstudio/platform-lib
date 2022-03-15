@@ -30,9 +30,9 @@ func (l *TestLogger) Enabled() bool {
 }
 
 type TestIPReporter struct {
-	ip string
+	Ip string
 }
 
 func (l *TestIPReporter) IP() string {
-	return l.ip
+	return l.Ip
 }

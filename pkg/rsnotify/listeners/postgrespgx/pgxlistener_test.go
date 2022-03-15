@@ -90,7 +90,9 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	}
 
 	chName := listenerutils.SafeChannelName(c.TestName())
-	ipRep := &listener.TestIPReporter{}
+	ipRep := &listener.TestIPReporter{
+		Ip: "0.0.0.0",
+	}
 	l := NewPgxListener(chName, s.pool, matcher, nil, ipRep)
 
 	// Listen for notifications
