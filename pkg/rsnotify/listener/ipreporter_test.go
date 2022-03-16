@@ -10,6 +10,12 @@ type IPReporterSuite struct{}
 
 var _ = check.Suite(&IPReporterSuite{})
 
+func (s *IPReporterSuite) TestNewIPCache(c *check.C) {
+	ipRep := &TestIPReporter{}
+	result := NewIPCache(ipRep)
+	c.Check(result, check.NotNil)
+}
+
 func (s *IPReporterSuite) TestIP(c *check.C) {
 	cases := []struct {
 		ip       string

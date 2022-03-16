@@ -22,6 +22,7 @@ type PgxIPReporter struct {
 	pool *pgxpool.Pool
 }
 
+// NewPgxIPReporter creates a new IPReporter.
 func NewPgxIPReporter(pool *pgxpool.Pool) *PgxIPReporter {
 	return &PgxIPReporter{
 		pool: pool,

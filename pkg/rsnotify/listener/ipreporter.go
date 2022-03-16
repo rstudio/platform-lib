@@ -2,7 +2,9 @@ package listener
 
 // Copyright (C) 2022 by RStudio, PBC.
 
-import "net"
+import (
+	"net"
+)
 
 type IPReporter interface {
 	IP() string
@@ -11,6 +13,13 @@ type IPReporter interface {
 type IPCache struct {
 	reporter    IPReporter
 	cachedValue string
+}
+
+// NewIPCache creates a new IPCache.
+func NewIPCache(iprep IPReporter) *IPCache {
+	return &IPCache{
+		reporter: iprep,
+	}
 }
 
 // Note that this also implements the `IPReporter` interface, so there's really no need
@@ -27,6 +36,7 @@ func (c *IPCache) IP() string {
 	return c.cachedValue
 }
 
+// Checks if IP is still valid
 func (p *IPCache) stillValidIP(IP string) bool {
 	var ip net.IP
 	if ip = net.ParseIP(IP); ip == nil {
