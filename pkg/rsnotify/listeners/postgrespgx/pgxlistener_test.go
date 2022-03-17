@@ -56,12 +56,14 @@ func (s *PgxNotifySuite) TestNewPgxListener(c *check.C) {
 	matcher.Register(2, &testNotification{})
 	lgr := &listener.TestLogger{}
 	chName := listenerutils.SafeChannelName(c.TestName())
-	l := NewPgxListener(chName, s.pool, matcher, lgr)
+	ipRep := &listener.TestIPReporter{}
+	l := NewPgxListener(chName, s.pool, matcher, lgr, ipRep)
 	c.Check(l, check.DeepEquals, &PgxListener{
 		name:        chName,
 		pool:        s.pool,
 		matcher:     matcher,
 		debugLogger: lgr,
+		ipReporter:  ipRep,
 	})
 }
 
@@ -88,7 +90,10 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	}
 
 	chName := listenerutils.SafeChannelName(c.TestName())
-	l := NewPgxListener(chName, s.pool, matcher, nil)
+	ipRep := &listener.TestIPReporter{
+		Ip: "0.0.0.0",
+	}
+	l := NewPgxListener(chName, s.pool, matcher, nil, ipRep)
 
 	// Listen for notifications
 	data, errs, err := l.Listen()
@@ -216,7 +221,8 @@ func (s *PgxNotifySuite) TestNotificationsErrors(c *check.C) {
 	tnBytesCannotUnmarshal := `{"NotifyType":2,"Val":{"is":"unexpected_object"}}`
 
 	chName := listenerutils.SafeChannelName(c.TestName())
-	l := NewPgxListener(chName, s.pool, matcher, nil)
+	ipRep := &listener.TestIPReporter{}
+	l := NewPgxListener(chName, s.pool, matcher, nil, ipRep)
 
 	// Listen for notifications
 	data, errs, err := l.Listen()
@@ -277,7 +283,8 @@ func (s *PgxNotifySuite) TestNotificationsBlock(c *check.C) {
 	}
 
 	chName := listenerutils.SafeChannelName(c.TestName())
-	l := NewPgxListener(chName, s.pool, matcher, nil)
+	ipRep := &listener.TestIPReporter{}
+	l := NewPgxListener(chName, s.pool, matcher, nil, ipRep)
 
 	// Listen for notifications
 	data, errs, err := l.Listen()

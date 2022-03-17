@@ -13,12 +13,14 @@ type PgxListenerFactory struct {
 	pool        *pgxpool.Pool
 	debugLogger listener.DebugLogger
 	listeners   []*PgxListener
+	ipReporter  listener.IPReporter
 }
 
-func NewPgxListenerFactory(pool *pgxpool.Pool, debugLogger listener.DebugLogger) *PgxListenerFactory {
+func NewPgxListenerFactory(pool *pgxpool.Pool, debugLogger listener.DebugLogger, iprep listener.IPReporter) *PgxListenerFactory {
 	return &PgxListenerFactory{
 		pool:        pool,
 		debugLogger: debugLogger,
+		ipReporter:  iprep,
 	}
 }
 
@@ -32,7 +34,7 @@ func (l *PgxListenerFactory) New(channelName string, matcher listener.TypeMatche
 	// Ensure that the channel name is safe for PostgreSQL
 	channelName = listenerutils.SafeChannelName(channelName)
 
-	pgxListener := NewPgxListener(channelName, l.pool, matcher, l.debugLogger)
+	pgxListener := NewPgxListener(channelName, l.pool, matcher, l.debugLogger, l.ipReporter)
 	l.listeners = append(l.listeners, pgxListener)
 	return pgxListener
 }

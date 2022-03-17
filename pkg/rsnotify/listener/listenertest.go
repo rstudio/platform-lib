@@ -28,3 +28,11 @@ func (l *TestLogger) Debugf(msg string, args ...interface{}) {
 func (l *TestLogger) Enabled() bool {
 	return l.enabled
 }
+
+type TestIPReporter struct {
+	Ip string
+}
+
+func (l *TestIPReporter) IP() string {
+	return l.Ip
+}
