@@ -58,7 +58,7 @@ func init() {
 }
 
 var RootCmd = &cobra.Command{
-	Use:   "testapp",
+	Use:   "testlog",
 	Short: "RStudio Go Libraries",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return errors.New("Please choose a command.")

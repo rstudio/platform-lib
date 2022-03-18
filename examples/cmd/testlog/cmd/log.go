@@ -15,7 +15,7 @@ var (
 )
 
 func init() {
-	LogCmd.Example = `  testapp log --message=hello --level=INFO
+	LogCmd.Example = `  testlog log --message=hello --level=INFO
 `
 	LogCmd.Flags().StringVar(&message, "message", "default message", "The message to log.")
 	CaptureLogCmd.Flags().BoolVar(&withMetadata, "withMetadata", false, "The option to turn on or off the metadata in the capturing logger")

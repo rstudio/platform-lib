@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/rstudio/platform-lib/examples/cmd/testapp/cmd"
+	"github.com/rstudio/platform-lib/examples/cmd/testlog/cmd"
 )
 
 func init() {

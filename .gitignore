@@ -31,3 +31,6 @@ tempvendor
 
 # Go cache
 .go-cache
+
+# Database
+data

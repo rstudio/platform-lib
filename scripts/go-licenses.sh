@@ -30,7 +30,7 @@ for MODULE in $(find . -name go.mod | xargs -n1 dirname); do
     >> ${TMP}
 
     # Copy all vendored assets to the temporary vendor directory
-    cp -R vendor/ ${TMP_VEND}/
+    cp -R vendor/* ${TMP_VEND}/
 
     # Clean up since we don't vendor for a shared lib
     rm -rf vendor

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	DebugCmd.Example = `  testapp debug --message=hello --level=TRACE
+	DebugCmd.Example = `  testlog debug --message=hello --level=TRACE
 `
 	DebugCmd.Flags().StringVar(&message, "message", "default message", "The message to log.")
 
