@@ -6,9 +6,9 @@ require (
 	github.com/fortytw2/leaktest v1.3.0
 	github.com/google/uuid v1.1.2
 	github.com/jackc/pgx/v4 v4.15.0
-	github.com/rstudio/platform-lib/pkg/rselection v1.0.0
-	github.com/rstudio/platform-lib/pkg/rsnotify v1.2.0
-	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespgx v1.2.0
+	github.com/rstudio/platform-lib/pkg/rselection v0.1.0
+	github.com/rstudio/platform-lib/pkg/rsnotify v1.4.0
+	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespgx v1.4.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 )
 
