@@ -1,4 +1,4 @@
-# rselection
+# `pkg/rselection`
 
 A lightweight leader election library intended for use with `rsnotify`. Provides
 an implementation for Postgresql (using pgx). Also provides an implementation

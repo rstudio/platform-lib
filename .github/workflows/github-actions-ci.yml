@@ -32,8 +32,8 @@ jobs:
       - name: 'Upload Artifact'
         uses: actions/upload-artifact@v2
         with:
-          name: testapp
-          path: out/testapp
+          name: testlog
+          path: out/testlog
           retention-days: 5
 
       - name: 'Test Artifact'

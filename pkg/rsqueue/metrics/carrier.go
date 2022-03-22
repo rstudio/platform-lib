@@ -22,3 +22,22 @@ type JobLifecycleWrapper interface {
 	Dequeue(queueName string, work queue.Work, err error) error
 	Finish(data interface{})
 }
+
+type EmptyCarrierFactory struct{}
+
+func (*EmptyCarrierFactory) GetCarrier(label, queueName, address string, priority, workType uint64, group int64) []byte {
+	return nil
+}
+
+type EmptyJobLifecycleWrapper struct{}
+
+func (*EmptyJobLifecycleWrapper) Start(ctx context.Context, work *queue.QueueWork) (context.Context, interface{}, error) {
+	return ctx, nil, nil
+}
+func (*EmptyJobLifecycleWrapper) Enqueue(queueName string, work queue.Work, err error) error {
+	return nil
+}
+func (*EmptyJobLifecycleWrapper) Dequeue(queueName string, work queue.Work, err error) error {
+	return nil
+}
+func (*EmptyJobLifecycleWrapper) Finish(data interface{}) {}
