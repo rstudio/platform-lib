@@ -29,21 +29,30 @@ type StorageServer struct {
 	debugLogger rsstorage.DebugLogger
 }
 
-func NewPgStorageServer(class string, chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, pool *pgxpool.Pool, debugLogger rsstorage.DebugLogger) rsstorage.StorageServer {
+type StorageServerArgs struct {
+	ChunkSize   uint64
+	Waiter      rsstorage.ChunkWaiter
+	Notifier    rsstorage.ChunkNotifier
+	Class       string
+	DebugLogger rsstorage.DebugLogger
+	Pool        *pgxpool.Pool
+}
+
+func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
 	pgs := &StorageServer{
-		class:       class,
-		pool:        pool,
-		debugLogger: debugLogger,
+		class:       args.Class,
+		pool:        args.Pool,
+		debugLogger: args.DebugLogger,
 	}
 	return &StorageServer{
-		class:       class,
-		pool:        pool,
-		debugLogger: debugLogger,
+		class:       args.Class,
+		pool:        args.Pool,
+		debugLogger: args.DebugLogger,
 		chunker: &internal.DefaultChunkUtils{
-			ChunkSize:   chunkSize,
+			ChunkSize:   args.ChunkSize,
 			Server:      pgs,
-			Waiter:      waiter,
-			Notifier:    notifier,
+			Waiter:      args.Waiter,
+			Notifier:    args.Notifier,
 			PollTimeout: rsstorage.DefaultChunkPollTimeout,
 			MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
 		},

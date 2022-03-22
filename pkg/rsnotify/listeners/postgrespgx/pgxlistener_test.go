@@ -57,7 +57,13 @@ func (s *PgxNotifySuite) TestNewPgxListener(c *check.C) {
 	lgr := &listener.TestLogger{}
 	chName := listenerutils.SafeChannelName(c.TestName())
 	ipRep := &listener.TestIPReporter{}
-	l := NewPgxListener(chName, s.pool, matcher, lgr, ipRep)
+	l := NewPgxListener(PgxListenerArgs{
+		Name:        chName,
+		Pool:        s.pool,
+		Matcher:     matcher,
+		DebugLogger: lgr,
+		IpReporter:  ipRep,
+	})
 	c.Check(l, check.DeepEquals, &PgxListener{
 		name:        chName,
 		pool:        s.pool,
@@ -93,7 +99,12 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	ipRep := &listener.TestIPReporter{
 		Ip: "0.0.0.0",
 	}
-	l := NewPgxListener(chName, s.pool, matcher, nil, ipRep)
+	l := NewPgxListener(PgxListenerArgs{
+		Name:       chName,
+		Pool:       s.pool,
+		Matcher:    matcher,
+		IpReporter: ipRep,
+	})
 
 	// Listen for notifications
 	data, errs, err := l.Listen()
@@ -222,7 +233,12 @@ func (s *PgxNotifySuite) TestNotificationsErrors(c *check.C) {
 
 	chName := listenerutils.SafeChannelName(c.TestName())
 	ipRep := &listener.TestIPReporter{}
-	l := NewPgxListener(chName, s.pool, matcher, nil, ipRep)
+	l := NewPgxListener(PgxListenerArgs{
+		Name:       chName,
+		Pool:       s.pool,
+		Matcher:    matcher,
+		IpReporter: ipRep,
+	})
 
 	// Listen for notifications
 	data, errs, err := l.Listen()
@@ -284,7 +300,12 @@ func (s *PgxNotifySuite) TestNotificationsBlock(c *check.C) {
 
 	chName := listenerutils.SafeChannelName(c.TestName())
 	ipRep := &listener.TestIPReporter{}
-	l := NewPgxListener(chName, s.pool, matcher, nil, ipRep)
+	l := NewPgxListener(PgxListenerArgs{
+		Name:       chName,
+		Pool:       s.pool,
+		Matcher:    matcher,
+		IpReporter: ipRep,
+	})
 
 	// Listen for notifications
 	data, errs, err := l.Listen()

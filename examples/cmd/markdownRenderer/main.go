@@ -106,7 +106,7 @@ func main() {
 	// Start a new local listener provider and factory. The provider knows how
 	// to create a new listener. The factory uses the provider to create new
 	// listeners when needed.
-	localListenerProvider := local.NewListenerProviderWithLogger(notifyLogger)
+	localListenerProvider := local.NewListenerProvider(local.ListenerProviderArgs{DebugLogger: notifyLogger})
 	localListenerFactory := local.NewListenerFactory(localListenerProvider)
 	defer localListenerFactory.Shutdown()
 
@@ -163,7 +163,16 @@ func main() {
 	// been written.
 	notifier := storage.NewExampleChunkNotifier(exampleStore)
 	// Create storage server for storing data on disk.
-	fileStorage := file.NewFileStorageServer("data", storageChunkSize, waiter, notifier, "rendered", storageLogger, storageCacheTimeout, storageWalkTimeout)
+	fileStorage := file.NewStorageServer(file.StorageServerArgs{
+		Dir:          "data",
+		ChunkSize:    storageChunkSize,
+		Waiter:       waiter,
+		Notifier:     notifier,
+		Class:        "rendered",
+		DebugLogger:  storageLogger,
+		CacheTimeout: storageCacheTimeout,
+		WalkTimeout:  storageWalkTimeout,
+	})
 
 	// Start NOTIFY/LISTEN functionality for the queue. Note that the database queue uses its
 	// own internal broadcaster so we can always remain subscribed to these notifications.

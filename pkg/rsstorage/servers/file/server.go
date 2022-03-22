@@ -42,30 +42,41 @@ type StorageServer struct {
 	debugLogger  rsstorage.DebugLogger
 }
 
-func NewFileStorageServer(dir string, chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, class string, debugLogger rsstorage.DebugLogger, cacheTimeout, walkTimeout time.Duration) rsstorage.StorageServer {
+type StorageServerArgs struct {
+	Dir          string
+	ChunkSize    uint64
+	Waiter       rsstorage.ChunkWaiter
+	Notifier     rsstorage.ChunkNotifier
+	Class        string
+	DebugLogger  rsstorage.DebugLogger
+	CacheTimeout time.Duration
+	WalkTimeout  time.Duration
+}
+
+func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
 	fs := &StorageServer{
-		dir:          dir,
+		dir:          args.Dir,
 		fileIO:       &defaultFileIO{},
-		class:        class,
-		debugLogger:  debugLogger,
-		cacheTimeout: cacheTimeout,
-		walkTimeout:  walkTimeout,
+		class:        args.Class,
+		debugLogger:  args.DebugLogger,
+		cacheTimeout: args.CacheTimeout,
+		walkTimeout:  args.WalkTimeout,
 	}
 	return &StorageServer{
-		dir:          dir,
+		dir:          args.Dir,
 		fileIO:       &defaultFileIO{},
-		debugLogger:  debugLogger,
-		cacheTimeout: cacheTimeout,
-		walkTimeout:  walkTimeout,
+		debugLogger:  args.DebugLogger,
+		cacheTimeout: args.CacheTimeout,
+		walkTimeout:  args.WalkTimeout,
 		chunker: &internal.DefaultChunkUtils{
-			ChunkSize:   chunkSize,
+			ChunkSize:   args.ChunkSize,
 			Server:      fs,
-			Waiter:      waiter,
-			Notifier:    notifier,
+			Waiter:      args.Waiter,
+			Notifier:    args.Notifier,
 			PollTimeout: rsstorage.DefaultChunkPollTimeout,
 			MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
 		},
-		class: class,
+		class: args.Class,
 	}
 }
 

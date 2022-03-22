@@ -17,11 +17,17 @@ type MetadataStorageServer struct {
 	name  string
 }
 
-func NewMetadataStorageServer(name string, server StorageServer, store CacheStore) StorageServer {
+type MetadataStorageServerArgs struct {
+	Name   string
+	Server StorageServer
+	Store  CacheStore
+}
+
+func NewMetadataStorageServer(args MetadataStorageServerArgs) StorageServer {
 	return &MetadataStorageServer{
-		StorageServer: server,
-		name:          name,
-		store:         store,
+		StorageServer: args.Server,
+		name:          args.Name,
+		store:         args.Store,
 	}
 }
 

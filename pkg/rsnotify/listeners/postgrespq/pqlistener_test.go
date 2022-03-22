@@ -81,7 +81,12 @@ func (s *PqNotifySuite) TestNewPqListener(c *check.C) {
 	matcher.Register(2, &testNotification{})
 	lgr := &listener.TestLogger{}
 	chName := c.TestName()
-	l := NewPqListener(chName, s.factory, matcher, lgr)
+	l := NewPqListener(PqListenerArgs{
+		Name:        chName,
+		Factory:     s.factory,
+		Matcher:     matcher,
+		DebugLogger: lgr,
+	})
 	c.Check(l, check.DeepEquals, &PqListener{
 		name:        chName,
 		factory:     s.factory,
@@ -103,7 +108,11 @@ func (s *PqNotifySuite) TestNotificationsNormal(c *check.C) {
 	}
 
 	chName := c.TestName()
-	l := NewPqListener(chName, s.factory, matcher, nil)
+	l := NewPqListener(PqListenerArgs{
+		Name:    chName,
+		Factory: s.factory,
+		Matcher: matcher,
+	})
 
 	// Listen for notifications
 	data, errs, err := l.Listen()
@@ -231,7 +240,11 @@ func (s *PqNotifySuite) TestNotificationsErrors(c *check.C) {
 	tnBytesCannotUnmarshal := `{"NotifyType":2,"Val":{"is":"unexpected_object"}}`
 
 	chName := c.TestName()
-	l := NewPqListener(chName, s.factory, matcher, nil)
+	l := NewPqListener(PqListenerArgs{
+		Name:    chName,
+		Factory: s.factory,
+		Matcher: matcher,
+	})
 
 	// Listen for notifications
 	data, errs, err := l.Listen()
@@ -292,7 +305,11 @@ func (s *PqNotifySuite) TestNotificationsBlock(c *check.C) {
 	}
 
 	chName := c.TestName()
-	l := NewPqListener(chName, s.factory, matcher, nil)
+	l := NewPqListener(PqListenerArgs{
+		Name:    chName,
+		Factory: s.factory,
+		Matcher: matcher,
+	})
 
 	// Listen for notifications
 	data, errs, err := l.Listen()

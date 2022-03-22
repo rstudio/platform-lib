@@ -18,8 +18,8 @@ func (s *ListenerFactorySuite) TestNewListener(c *check.C) {
 	lgr := &listener.TestLogger{}
 	ipRep := &listener.TestIPReporter{}
 
-	l2 := NewPgxListenerFactory(pool, lgr, ipRep)
-	c.Check(l2, check.DeepEquals, &PgxListenerFactory{
+	l2 := NewListenerFactory(ListenerFactoryArgs{Pool: pool, DebugLogger: lgr, IpReporter: ipRep})
+	c.Check(l2, check.DeepEquals, &ListenerFactory{
 		pool:        pool,
 		debugLogger: lgr,
 		ipReporter:  ipRep,

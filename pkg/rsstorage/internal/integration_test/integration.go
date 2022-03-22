@@ -21,7 +21,11 @@ func GetStorageServer(cfg *rsstorage.Config, class string, destination string, w
 		return nil, err
 	}
 
-	return rsstorage.NewMetadataStorageServer(class, server, cstore), nil
+	return rsstorage.NewMetadataStorageServer(rsstorage.MetadataStorageServerArgs{
+		Name:   class,
+		Server: server,
+		Store:  cstore,
+	}), nil
 }
 
 // getStorageServerAttempt creates storage services generically
@@ -33,7 +37,16 @@ func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination st
 			return nil, fmt.Errorf("Missing [FileStorage \"%s\"] configuration section", class)
 		}
 		//todo bioc: configurable size here
-		server = file.NewFileStorageServer(cfg.File.Location, cfg.ChunkSizeBytes, waiter, notifier, class, debugLogger, cfg.CacheTimeout, 30*time.Second)
+		server = file.NewStorageServer(file.StorageServerArgs{
+			Dir:          cfg.File.Location,
+			ChunkSize:    cfg.ChunkSizeBytes,
+			Waiter:       waiter,
+			Notifier:     notifier,
+			Class:        class,
+			DebugLogger:  debugLogger,
+			CacheTimeout: cfg.CacheTimeout,
+			WalkTimeout:  30 * time.Second,
+		})
 	case "s3":
 		if cfg.S3 == nil {
 			return nil, fmt.Errorf("Missing [S3Storage \"%s\"] configuration section", class)
@@ -43,7 +56,14 @@ func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination st
 			return nil, fmt.Errorf("Error starting S3 session for '%s': %s", class, err)
 		}
 
-		server = s3server.NewS3StorageServer(cfg.S3.Bucket, cfg.S3.Prefix, s3Service, cfg.ChunkSizeBytes, waiter, notifier)
+		server = s3server.NewStorageServer(s3server.StorageServerArgs{
+			Bucket:    cfg.S3.Bucket,
+			Prefix:    cfg.S3.Prefix,
+			Svc:       s3Service,
+			ChunkSize: cfg.ChunkSizeBytes,
+			Waiter:    waiter,
+			Notifier:  notifier,
+		})
 
 		if cfg.S3.SkipValidation {
 			break
@@ -55,7 +75,14 @@ func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination st
 			return nil, fmt.Errorf("Error validating S3 session for '%s': %s", class, err)
 		}
 	case "postgres":
-		server = postgres.NewPgStorageServer(class, cfg.ChunkSizeBytes, waiter, notifier, pool, debugLogger)
+		server = postgres.NewStorageServer(postgres.StorageServerArgs{
+			ChunkSize:   cfg.ChunkSizeBytes,
+			Waiter:      waiter,
+			Notifier:    notifier,
+			Class:       class,
+			DebugLogger: debugLogger,
+			Pool:        pool,
+		})
 	default:
 		return nil, fmt.Errorf("Invalid destination '%s' for '%s'", destination, class)
 	}

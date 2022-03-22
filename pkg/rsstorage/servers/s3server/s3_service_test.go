@@ -239,7 +239,14 @@ func (s *S3WrapperSuite) TestSetStorageS3Validate(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	wn := &servertest.DummyWaiterNotifier{}
-	s3srv := NewS3StorageServer("packages", "s3", svc, 4096, wn, wn)
+	s3srv := NewStorageServer(StorageServerArgs{
+		Bucket:    "packages",
+		Prefix:    "s3",
+		Svc:       svc,
+		ChunkSize: 4096,
+		Waiter:    wn,
+		Notifier:  wn,
+	})
 
 	err = s3srv.(*StorageServer).Validate()
 	c.Assert(err, check.NotNil)

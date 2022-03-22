@@ -19,7 +19,7 @@ func (f *fakeStore) GetLocalListenerFactory() *ListenerProvider {
 }
 
 func (s *ListenerFactorySuite) TestNewListener(c *check.C) {
-	llf := NewListenerProvider()
+	llf := NewListenerProvider(ListenerProviderArgs{})
 	cstore := &fakeStore{
 		llf: llf,
 	}

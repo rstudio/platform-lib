@@ -34,18 +34,18 @@ type ListenerProvider struct {
 	notifyTimeout time.Duration
 }
 
-func NewListenerProvider() *ListenerProvider {
-	return NewListenerProviderWithLogger(nil)
+type ListenerProviderArgs struct {
+	DebugLogger listener.DebugLogger
 }
 
-func NewListenerProviderWithLogger(debugLogger listener.DebugLogger) *ListenerProvider {
+func NewListenerProvider(args ListenerProviderArgs) *ListenerProvider {
 	return &ListenerProvider{
 		listeners: make(map[string]*Listener),
 		mutex:     &sync.RWMutex{},
 
 		notifyTimeout: 500 * time.Millisecond,
 
-		debugLogger: debugLogger,
+		debugLogger: args.DebugLogger,
 	}
 }
 
