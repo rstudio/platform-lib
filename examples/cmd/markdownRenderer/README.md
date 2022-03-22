@@ -46,23 +46,19 @@ Here is some example Markdown you can paste into the app for testing.
 ```
 # This is a header
 
-
 ## This is a subheader
 
 Here is a list
-
 
 * Day one
 * Day two
 * Day three
 
-
 Here is some code:
 
-    func Jonathan(name string) {
+    func PrintName(name string) {
       fmt.Printf("My name is %s", name)
     }
-
 
 And here is a table:
 
