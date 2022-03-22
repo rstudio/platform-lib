@@ -1,9 +1,17 @@
-# rsqueue
+# `pkg/rsqueue`
+
+## Description
+
+This module provides a database-backed queue implementation.
+
+## Examples
+
+- [markdownRenderer](../../examples/cmd/markdownRenderer/README.md)
+  demonstrates how to use `rsqueue` to schedule and complete work.
 
 ## Definitions
 
-This module provides a database-backed queue implementation. The important pieces of a working queue
-include:
+The important pieces of a working queue include:
 
 - **Queue** Implements the `queue.Queue` interface. A collection of work for a specific `name`.
 

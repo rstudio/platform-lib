@@ -39,16 +39,18 @@ import (
 // `./out/markdownRenderer`
 // `./out/markdownRenderer --address localhost:8085`
 //
-// Then, visit http://localhost:8082.
-
-// Flag vars
-var address string
+// Then, visit http://localhost:8082 or the address you specified.
 
 const (
 	storageCacheTimeout        = time.Minute
 	storageWalkTimeout         = time.Minute
 	storageChunkSize    uint64 = 1024 * 1024
 	fileCacheTimeout           = time.Second * 65
+)
+
+// These variables are bound to app flags.
+var (
+	address string
 )
 
 type dupMatcher struct{}

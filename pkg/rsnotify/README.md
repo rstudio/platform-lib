@@ -6,6 +6,16 @@ A notification library that supports listening for notifications. A broadcaster
 supports many-to-one listeners per notification, as well as waiting for a
 specific notification that matches a filter.
 
+## Examples
+
+- [markdownRenderer](../../examples/cmd/markdownRenderer/README.md)
+  demonstrates how to use `rsnotify` to provide notification support
+  for storage ([rsstorage](../rsstorage/README.md)), caching
+  ([rscache](../rscache/README.md)), and job queueing
+  ([rsqueue](../rsqueue/README.md)).
+- [testnotify](../../examples/cmd/testnotify) demonstrates sending
+  notifications locally (no database) or between processes (using Postgres).  
+
 ## Implementations
 
 Each listener implementation is a separate Go module.
