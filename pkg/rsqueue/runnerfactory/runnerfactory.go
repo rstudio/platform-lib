@@ -1,0 +1,65 @@
+package runnerfactory
+
+// Copyright (C) 2022 by RStudio, PBC
+
+import (
+	"fmt"
+	"log"
+	"sync"
+	"time"
+
+	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
+)
+
+type RunnerFactory struct {
+	runners map[uint64]queue.WorkRunner
+	types   queue.QueueSupportedTypes
+}
+
+type RunnerFactoryConfig struct {
+	SupportedTypes queue.QueueSupportedTypes
+}
+
+func NewRunnerFactory(cfg RunnerFactoryConfig) *RunnerFactory {
+	return &RunnerFactory{
+		runners: make(map[uint64]queue.WorkRunner),
+		types:   cfg.SupportedTypes,
+	}
+}
+
+func (r *RunnerFactory) Add(workType uint64, runner queue.WorkRunner) {
+	r.runners[workType] = runner
+	r.types.SetEnabled(workType, true)
+}
+
+func (r *RunnerFactory) Run(work queue.RecursableWork) error {
+
+	runner, ok := r.runners[work.WorkType]
+	if !ok {
+		return fmt.Errorf("Invalid work type %d", work.WorkType)
+	}
+
+	return runner.Run(work)
+}
+
+// Stops all the runners in the factory. After each runner is stopped,
+// it is marked as disabled so that we won't attempt to grab future
+// work for that runner from the queue.
+func (r *RunnerFactory) Stop(timeout time.Duration) error {
+
+	// Stop all runners
+	wg := &sync.WaitGroup{}
+	for key, runner := range r.runners {
+		wg.Add(1)
+		go func(key uint64, runner queue.WorkRunner) {
+			defer wg.Done()
+			err := runner.Stop(timeout)
+			if err != nil {
+				log.Printf("Error stopping runner for type %d: %s", key, err)
+			}
+			r.types.SetEnabled(key, false)
+		}(key, runner)
+	}
+	wg.Wait()
+	return nil
+}
