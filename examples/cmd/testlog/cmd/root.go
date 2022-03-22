@@ -1,6 +1,6 @@
 package cmd
 
-// Copyright (C) 2021 by RStudio, PBC.
+// Copyright (C) 2022 by RStudio, PBC.
 
 import (
 	"errors"
