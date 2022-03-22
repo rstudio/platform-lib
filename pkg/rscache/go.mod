@@ -5,8 +5,8 @@ go 1.17
 require (
 	github.com/dgraph-io/ristretto v0.1.0
 	github.com/fortytw2/leaktest v1.3.0
-	github.com/rstudio/platform-lib/pkg/rsstorage v0.2.0
-	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.2.0
+	github.com/rstudio/platform-lib/pkg/rsstorage v0.3.0
+	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.3.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 )
 

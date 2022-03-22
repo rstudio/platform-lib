@@ -7,10 +7,10 @@ require (
 	github.com/fortytw2/leaktest v1.3.0
 	github.com/google/uuid v1.3.0
 	github.com/jackc/pgx/v4 v4.14.1
-	github.com/rstudio/platform-lib/pkg/rsstorage v1.0.2
-	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v1.0.2
-	github.com/rstudio/platform-lib/pkg/rsstorage/servers/postgres v1.0.2
-	github.com/rstudio/platform-lib/pkg/rsstorage/servers/s3server v1.0.2
+	github.com/rstudio/platform-lib/pkg/rsstorage v0.3.0
+	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.3.0
+	github.com/rstudio/platform-lib/pkg/rsstorage/servers/postgres v0.3.0
+	github.com/rstudio/platform-lib/pkg/rsstorage/servers/s3server v0.3.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 )
 

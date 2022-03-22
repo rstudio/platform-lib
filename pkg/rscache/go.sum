@@ -413,10 +413,10 @@ github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFR
 github.com/rs/cors v1.7.0/go.mod h1:gFx+x8UowdsKA9AchylcLynDq+nNFfI8FkUZdN/jGCU=
 github.com/rs/xid v1.2.1/go.mod h1:+uKXf+4Djp6Md1KODXJxgGQPKngRmWyn10oCKFzNHOQ=
 github.com/rstudio/platform-lib/pkg/rsstorage v0.1.0/go.mod h1:fnzqIo5bzz8faU3IrS+VPMTKLWOuj7xVsedG8ruRO+Y=
-github.com/rstudio/platform-lib/pkg/rsstorage v0.2.0 h1:E1QX+Dok2WjDfdvlDeWWirA5ua1soIpBtiNilFYu04A=
-github.com/rstudio/platform-lib/pkg/rsstorage v0.2.0/go.mod h1:fnzqIo5bzz8faU3IrS+VPMTKLWOuj7xVsedG8ruRO+Y=
-github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.2.0 h1:Yzgr/GmYCA4gOsCeqyuK8nNQkCYT+LVo49ZqMuqPqzo=
-github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.2.0/go.mod h1:OvxdbWLDLe/witRlZBmToMDZeMarWEwhclres2mbvNY=
+github.com/rstudio/platform-lib/pkg/rsstorage v0.3.0 h1:exUZO0nrsgWkb0LtOBsjvxB73v3LwPKT/SKSs0LGOX4=
+github.com/rstudio/platform-lib/pkg/rsstorage v0.3.0/go.mod h1:fnzqIo5bzz8faU3IrS+VPMTKLWOuj7xVsedG8ruRO+Y=
+github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.3.0 h1:1+1bGsL4JtXgnfb+g9ykRUYeNBt+E3y/ULzLYEEfAMs=
+github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.3.0/go.mod h1:OvxdbWLDLe/witRlZBmToMDZeMarWEwhclres2mbvNY=
 github.com/russross/blackfriday/v2 v2.0.1/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/ryanuber/columnize v0.0.0-20160712163229-9b3edd62028f/go.mod h1:sm1tb6uqfes/u+d4ooFouqFdy9/2g9QGwK3SQygK0Ts=
 github.com/ryanuber/columnize v2.1.0+incompatible/go.mod h1:sm1tb6uqfes/u+d4ooFouqFdy9/2g9QGwK3SQygK0Ts=

@@ -322,7 +322,14 @@ func (s *MemoryCacheIntegrationSuite) TestInMemoryCaching(c *check.C) {
 	timeout := time.Second * 30
 	q := &fakeQueue{}
 	d := &fakeDebugLogger{}
-	fcs := file.NewFileStorageServer(s.tempdirhelper.Dir(), 4096, nil, nil, "test", d, time.Minute, time.Minute)
+	fcs := file.NewStorageServer(file.StorageServerArgs{
+		Dir:          s.tempdirhelper.Dir(),
+		ChunkSize:    4096,
+		Class:        "test",
+		DebugLogger:  d,
+		CacheTimeout: time.Minute,
+		WalkTimeout:  time.Minute,
+	})
 	fc := NewFileCache(fileCfg(q, &fakeDupMatcher{}, fcs, &fakeRecurser{}, timeout, d, d))
 
 	mbfc := NewMemoryBackedFileCache(memCfg(fc, mc, 10000000, d))

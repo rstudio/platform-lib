@@ -125,7 +125,7 @@ func (s *QueueTestStore) GetLocalListenerProvider() *local.ListenerProvider {
 	if s.llf != nil {
 		return s.llf
 	} else {
-		return local.NewListenerProvider()
+		return local.NewListenerProvider(local.ListenerProviderArgs{})
 	}
 }
 

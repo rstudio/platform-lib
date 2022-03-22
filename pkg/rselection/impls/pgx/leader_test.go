@@ -85,7 +85,12 @@ func (s *LeaderSuite) TestLeaderLeadStartStopSelfAware(c *check.C) {
 	matcher.Register(electiontypes.ClusterMessageTypePingResponse, &electiontypes.ClusterPingResponse{})
 	matcher.Register(electiontypes.ClusterMessageTypePing, &electiontypes.ClusterPingRequest{})
 	matcher.Register(electiontypes.ClusterMessageTypeNodes, &electiontypes.ClusterNodesNotification{})
-	plf := postgrespgx.NewPgxListener(channel+"_leader", s.pool, matcher, nil)
+	plf := postgrespgx.NewPgxListener(postgrespgx.PgxListenerArgs{
+		Name:       channel + "_leader",
+		Pool:       s.pool,
+		Matcher:    matcher,
+		IpReporter: postgrespgx.NewPgxIPReporter(s.pool),
+	})
 	defer plf.Stop()
 	awbStop := make(chan bool)
 	awb, err := broadcaster.NewNotificationBroadcaster(plf, awbStop)
@@ -179,7 +184,12 @@ func (s *LeaderSuite) TestLeaderLeadInternal(c *check.C) {
 	matcher.Register(electiontypes.ClusterMessageTypePingResponse, &electiontypes.ClusterPingResponse{})
 	matcher.Register(electiontypes.ClusterMessageTypePing, &electiontypes.ClusterPingRequest{})
 	matcher.Register(electiontypes.ClusterMessageTypeNodes, &electiontypes.ClusterNodesRequest{})
-	plf := postgrespgx.NewPgxListener(channel+"_leader", s.pool, matcher, nil)
+	plf := postgrespgx.NewPgxListener(postgrespgx.PgxListenerArgs{
+		Name:       channel + "_leader",
+		Pool:       s.pool,
+		Matcher:    matcher,
+		IpReporter: postgrespgx.NewPgxIPReporter(s.pool),
+	})
 	defer plf.Stop()
 	awbStop := make(chan bool)
 	awb, err := broadcaster.NewNotificationBroadcaster(plf, awbStop)
@@ -365,7 +375,12 @@ func (s *LeaderSuite) TestLeaderDemotion(c *check.C) {
 	matcher.Register(electiontypes.ClusterMessageTypePingResponse, &electiontypes.ClusterPingResponse{})
 	matcher.Register(electiontypes.ClusterMessageTypePing, &electiontypes.ClusterPingRequest{})
 	matcher.Register(electiontypes.ClusterMessageTypeNodes, &electiontypes.ClusterNodesNotification{})
-	plf := postgrespgx.NewPgxListener(channel+"_leader", s.pool, matcher, nil)
+	plf := postgrespgx.NewPgxListener(postgrespgx.PgxListenerArgs{
+		Name:       channel + "_leader",
+		Pool:       s.pool,
+		Matcher:    matcher,
+		IpReporter: postgrespgx.NewPgxIPReporter(s.pool),
+	})
 	defer plf.Stop()
 	awbStop := make(chan bool)
 	awb, err := broadcaster.NewNotificationBroadcaster(plf, awbStop)

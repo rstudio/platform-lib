@@ -11,16 +11,16 @@ require (
 	github.com/lib/pq v1.10.2
 	github.com/mattn/go-sqlite3 v1.14.9
 	github.com/pkg/errors v0.9.1
-	github.com/rstudio/platform-lib/pkg/rscache v0.0.0-00010101000000-000000000000
+	github.com/rstudio/platform-lib/pkg/rscache v0.1.0
 	github.com/rstudio/platform-lib/pkg/rslog v1.0.0
-	github.com/rstudio/platform-lib/pkg/rsnotify v1.2.0
-	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local v1.2.0
-	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespgx v1.2.0
-	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespq v0.0.1
-	github.com/rstudio/platform-lib/pkg/rsqueue v1.0.0
-	github.com/rstudio/platform-lib/pkg/rsqueue/impls/database v0.0.0-00010101000000-000000000000
-	github.com/rstudio/platform-lib/pkg/rsstorage v0.2.0
-	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.2.0
+	github.com/rstudio/platform-lib/pkg/rsnotify v1.4.0
+	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local v1.4.0
+	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespgx v1.4.0
+	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespq v1.4.0
+	github.com/rstudio/platform-lib/pkg/rsqueue v0.1.0
+	github.com/rstudio/platform-lib/pkg/rsqueue/impls/database v0.1.0
+	github.com/rstudio/platform-lib/pkg/rsstorage v0.3.0
+	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.3.0
 	github.com/spf13/cobra v1.2.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gorm.io/driver/sqlite v1.3.1
