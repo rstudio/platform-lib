@@ -101,7 +101,7 @@ func (s *RendererRunnerSuite) TestRunOk(c *check.C) {
 	c.Check(server.PutCalled, check.Equals, 1)
 }
 
-func (s *RendererRunnerSuite) TestResolverSuccessFiltered(c *check.C) {
+func (s *RendererRunnerSuite) TestResolverSuccess(c *check.C) {
 	server := &rsstorage.DummyStorageServer{}
 	r := NewRendererRunner(server)
 	w := bytes.NewBuffer([]byte{})
@@ -110,6 +110,6 @@ func (s *RendererRunnerSuite) TestResolverSuccessFiltered(c *check.C) {
 	_, _, err = r.getResolverText(&work)(w)
 	c.Assert(err, check.IsNil)
 
-	// Unzip the output so we can check it
+	// Check the output.
 	c.Assert(w.String(), check.Equals, expectedHtml)
 }

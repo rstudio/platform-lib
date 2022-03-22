@@ -251,8 +251,6 @@ func (s *QueueSqliteSuite) TestQueueGroups(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Now, create a queue group
-	//     the name is coded with the first word of the operation (always sync from what I can tell)
-	//     the middle doesn't matter, but the last number is the source ID.
 	group, err := s.store.QueueNewGroup("Sync-test")
 	c.Assert(err, check.IsNil)
 	c.Assert(group, check.FitsTypeOf, &QueueGroup{})
