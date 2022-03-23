@@ -5,7 +5,7 @@ git fetch --tags
 
 # Find all `go.mod` files and trim the leading "./" and the trailing "/go.mod".
 # This leaves us with the package name, like "pkg/rsqueue/impls/database".
-mods=$(find ./pkg/ -name go.mod | sed -e 's/^\.\///' | sed -e 's/\/go\.mod//')
+mods=$(find ./pkg -name go.mod | sed -e 's/^\.\///' | sed -e 's/\/go\.mod//')
 
 function versions_for_module {
   mod=$1
