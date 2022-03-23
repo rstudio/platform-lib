@@ -7,11 +7,18 @@ require (
 	github.com/fortytw2/leaktest v1.3.0
 	github.com/google/uuid v1.3.0
 	github.com/jackc/pgx/v4 v4.14.1
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
+)
+
+// Require platform-lib dependencies. Note that the versions don't matter here
+// since all get replaced by the `replace` directive below. The versions here
+// should match some valid version to make the IDE happy, but they're ignored
+// by Go when compiling.
+require (
 	github.com/rstudio/platform-lib/pkg/rsstorage v1.0.2
 	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v1.0.2
 	github.com/rstudio/platform-lib/pkg/rsstorage/servers/postgres v1.0.2
 	github.com/rstudio/platform-lib/pkg/rsstorage/servers/s3server v1.0.2
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 )
 
 // Always use the rsstorage code that is checked out.

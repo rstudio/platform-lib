@@ -37,7 +37,7 @@ func (f *fakeTaskHandler) Verify() <-chan chan bool {
 func (s *LocalLeaderSuite) TestLead(c *check.C) {
 	defer leaktest.Check(c)
 
-	lf := local.NewListenerProvider()
+	lf := local.NewListenerProvider(local.ListenerProviderArgs{})
 	l := lf.New(c.TestName())
 	defer l.Stop()
 	awbStop := make(chan bool)

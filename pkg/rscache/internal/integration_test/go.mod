@@ -5,11 +5,14 @@ go 1.17
 require (
 	github.com/dgraph-io/ristretto v0.1.0
 	github.com/fortytw2/leaktest v1.3.0
-	github.com/rstudio/platform-lib/pkg/rscache v0.1.0
 	github.com/rstudio/platform-lib/pkg/rsstorage v0.3.0
 	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.3.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 )
+
+// Requires rscache, but version doesn't matter since it is always
+// replaced (below) with what is checked out.
+require github.com/rstudio/platform-lib/pkg/rscache v0.1.1
 
 // Always use the rscache code that is checked out.
 replace github.com/rstudio/platform-lib/pkg/rscache => ../../
