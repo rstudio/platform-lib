@@ -412,13 +412,8 @@ github.com/rogpeppe/fastuuid v0.0.0-20150106093220-6724a57986af/go.mod h1:XWv6So
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rs/cors v1.7.0/go.mod h1:gFx+x8UowdsKA9AchylcLynDq+nNFfI8FkUZdN/jGCU=
 github.com/rs/xid v1.2.1/go.mod h1:+uKXf+4Djp6Md1KODXJxgGQPKngRmWyn10oCKFzNHOQ=
-github.com/rstudio/platform-lib/pkg/rscache v0.1.0 h1:7aF4tGASv+2WHM8yHNpz8C/eb9kpAmX3XGPMH6ZA0hM=
-github.com/rstudio/platform-lib/pkg/rscache v0.1.0/go.mod h1:DvNeGGs4FoMECzV7KsHfo/1A6KYKXYt+0WmR7hRPjf0=
-github.com/rstudio/platform-lib/pkg/rsstorage v0.1.0/go.mod h1:fnzqIo5bzz8faU3IrS+VPMTKLWOuj7xVsedG8ruRO+Y=
-github.com/rstudio/platform-lib/pkg/rsstorage v0.2.0/go.mod h1:fnzqIo5bzz8faU3IrS+VPMTKLWOuj7xVsedG8ruRO+Y=
 github.com/rstudio/platform-lib/pkg/rsstorage v0.3.0 h1:exUZO0nrsgWkb0LtOBsjvxB73v3LwPKT/SKSs0LGOX4=
 github.com/rstudio/platform-lib/pkg/rsstorage v0.3.0/go.mod h1:fnzqIo5bzz8faU3IrS+VPMTKLWOuj7xVsedG8ruRO+Y=
-github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.2.0/go.mod h1:OvxdbWLDLe/witRlZBmToMDZeMarWEwhclres2mbvNY=
 github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.3.1 h1:zKhXdazodx6IT/A3tsgtjv8oIorL8OdDC5ZJcMp7XUo=
 github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.3.1/go.mod h1:5arbjq7qJ2Vxq06oMsDYnKLzu6bM2CTk/7jNipaTMGE=
 github.com/russross/blackfriday/v2 v2.0.1/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
