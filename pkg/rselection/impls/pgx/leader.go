@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net"
 	"sort"
 	"strings"
 	"sync"
@@ -202,7 +201,11 @@ func (p *PgxLeader) info() string {
 	}
 	nodes := make([]string, 0)
 	for _, n := range p.nodes {
-		nodes = append(nodes, fmt.Sprintf("%s (%s)", n.Name, n.IP))
+		leadCh := " "
+		if n.Name == p.address {
+			leadCh = "*"
+		}
+		nodes = append(nodes, fmt.Sprintf("%s (%s)%s", n.Name, n.IP, leadCh))
 	}
 	sort.Strings(nodes)
 	return fmt.Sprintf("Cluster nodes:\n  %s", strings.Join(nodes, "\n  "))
@@ -252,55 +255,10 @@ func (p *PgxLeader) verify(vCh chan bool) {
 	// Ensure in-memory node list matches store list
 	for _, node := range nodes {
 		if _, ok := p.nodes[node.Key()]; !ok {
-			// If the node name is the same as this node, we need to check if the node.IP is just a different
-			// interface on the same box
-			if !p.multiInterfaceLeader(node.Name, node.IP) {
-				err = fmt.Errorf("node %s with IP %s from store not known by leader", node.Name, node.IP)
-				return
-			}
+			err = fmt.Errorf("node %s with IP %s from store not known by leader", node.Name, node.IP)
+			return
 		}
 	}
-}
-
-// Since the Postgres Pool can potentially dial from any available interface on the host machine,
-// it's possible that the leaders reported "IP" and the IP it uses to notify differ. This function
-// tests if the node is still valid despite having a different key.
-func (p *PgxLeader) multiInterfaceLeader(name, IP string) bool {
-	if p.address != name {
-		return false
-	}
-
-	var ip net.IP
-	if ip = net.ParseIP(IP); ip == nil {
-		return false
-	}
-
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		return false
-	}
-
-	for _, inter := range interfaces {
-		addrs, err := inter.Addrs()
-		if err != nil {
-			return false
-		}
-
-		for _, addr := range addrs {
-			switch v := addr.(type) {
-			case *net.IPNet:
-				if v.Contains(ip) {
-					return true
-				}
-			case *net.IPAddr:
-				if v.IP.Equal(ip) {
-					return true
-				}
-			}
-		}
-	}
-
-	return false
 }
 
 // pingNodes sends a ping request out on the follower channel. All online cluster
