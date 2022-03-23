@@ -5,11 +5,9 @@ go 1.17
 require (
 	github.com/google/uuid v1.3.0
 	github.com/jackc/pgx/v4 v4.14.1
-	github.com/rstudio/platform-lib/pkg/rsstorage v0.1.0
+	github.com/rstudio/platform-lib/pkg/rsstorage v0.3.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 )
-
-replace github.com/rstudio/platform-lib/pkg/rsstorage => ../../
 
 require (
 	github.com/c2h5oh/datasize v0.0.0-20200825124411-48ed595a09d2 // indirect
