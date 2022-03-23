@@ -119,3 +119,8 @@ stop-e2e-env:
 # generate Go dependencies' licenses file
 licenses:
     ./scripts/go-licenses.sh
+
+# enumerate latest tags for each module
+versions:
+    ./scripts/latest.sh
+
