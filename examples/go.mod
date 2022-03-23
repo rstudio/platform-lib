@@ -11,22 +11,31 @@ require (
 	github.com/lib/pq v1.10.2
 	github.com/mattn/go-sqlite3 v1.14.9
 	github.com/pkg/errors v0.9.1
-	github.com/rstudio/platform-lib/pkg/rscache v0.0.0-00010101000000-000000000000
-	github.com/rstudio/platform-lib/pkg/rslog v1.0.0
-	github.com/rstudio/platform-lib/pkg/rsnotify v1.2.0
-	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local v1.2.0
-	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespgx v1.2.0
-	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespq v0.0.1
-	github.com/rstudio/platform-lib/pkg/rsqueue v1.0.0
-	github.com/rstudio/platform-lib/pkg/rsqueue/impls/database v0.0.0-00010101000000-000000000000
-	github.com/rstudio/platform-lib/pkg/rsstorage v0.2.0
-	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.2.0
 	github.com/spf13/cobra v1.2.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gorm.io/driver/sqlite v1.3.1
 	gorm.io/gorm v1.23.2
 )
 
+// Require platform-lib dependencies. Note that the versions don't matter here
+// since all get replaced by the `replace` directive below. The versions here
+// should match some valid version to make the IDE happy, but they're ignored
+// by Go when compiling.
+require (
+	github.com/rstudio/platform-lib/pkg/rscache v0.0.0-00010101000000-000000000000
+	github.com/rstudio/platform-lib/pkg/rslog v0.0.0-00010101000000-000000000000
+	github.com/rstudio/platform-lib/pkg/rsnotify v1.4.0
+	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local v1.2.0
+	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespgx v0.0.0-00010101000000-000000000000
+	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespq v0.0.0-00010101000000-000000000000
+	github.com/rstudio/platform-lib/pkg/rsqueue v1.0.0
+	github.com/rstudio/platform-lib/pkg/rsqueue/impls/database v0.0.0-00010101000000-000000000000
+	github.com/rstudio/platform-lib/pkg/rsstorage v0.2.0
+	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.2.0
+)
+
+// We want the example app to always use the latest platform-lib dependencies
+// (from the main branch), so add replace directives for all of them.
 replace (
 	github.com/rstudio/platform-lib/pkg/rscache => ../pkg/rscache
 	github.com/rstudio/platform-lib/pkg/rslog => ../pkg/rslog
