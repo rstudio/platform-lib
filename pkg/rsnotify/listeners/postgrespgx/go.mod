@@ -7,11 +7,9 @@ require (
 	github.com/jackc/pgconn v1.10.1
 	github.com/jackc/pgtype v1.9.1
 	github.com/jackc/pgx/v4 v4.14.1
-	github.com/rstudio/platform-lib/pkg/rsnotify v1.2.0
+	github.com/rstudio/platform-lib/pkg/rsnotify v1.4.0
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 )
-
-replace github.com/rstudio/platform-lib/pkg/rsnotify => ../../
 
 require (
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect

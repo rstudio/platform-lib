@@ -6,11 +6,9 @@ require (
 	github.com/fortytw2/leaktest v1.3.0
 	github.com/jmoiron/sqlx v0.0.0-20170430194603-d9bd385d68c0
 	github.com/lib/pq v1.10.2
-	github.com/rstudio/platform-lib/pkg/rsnotify v1.2.0
+	github.com/rstudio/platform-lib/pkg/rsnotify v1.4.0
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 )
-
-replace github.com/rstudio/platform-lib/pkg/rsnotify => ../../
 
 require (
 	github.com/go-sql-driver/mysql v1.6.0 // indirect
