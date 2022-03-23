@@ -105,6 +105,12 @@ git tag v0.1.2
 git push origin v0.1.2
 ```
 
+To enumerate the latest version tag for each module, run:
+
+```shell
+just versions
+```
+
 ## Badges
 
 * [Go Report Card](https://goreportcard.com/) - It will scan your code with

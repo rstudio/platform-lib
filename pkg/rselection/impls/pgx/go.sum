@@ -103,9 +103,8 @@ github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFR
 github.com/rs/xid v1.2.1/go.mod h1:+uKXf+4Djp6Md1KODXJxgGQPKngRmWyn10oCKFzNHOQ=
 github.com/rs/zerolog v1.13.0/go.mod h1:YbFCdg8HfsridGWAh22vktObvhZbQsZXe4/zB0OKkWU=
 github.com/rs/zerolog v1.15.0/go.mod h1:xYTKnLHcpfU2225ny5qZjxnj9NvkumZYjJHlAThCjNc=
-github.com/rstudio/platform-lib/pkg/rselection v0.1.0 h1:3IWowRH5XB1Th0bPKH75qk2to/Wl6E91OOSZ+/rW36Q=
-github.com/rstudio/platform-lib/pkg/rselection v0.1.0/go.mod h1:uQl2bOyjwKXAM/nu5hkIU1/09HMfW4eEEBzSsPYgWIg=
-github.com/rstudio/platform-lib/pkg/rsnotify v1.2.0/go.mod h1:OTMZNgESF0Y2THisqq2gd4P/yF9YLCUW1GNXy5ainYM=
+github.com/rstudio/platform-lib/pkg/rselection v0.1.1 h1:E+VEj60klP6YtieIcsFrky3psWj9fuGr2I4pD5nufwM=
+github.com/rstudio/platform-lib/pkg/rselection v0.1.1/go.mod h1:zEsimUApFo5sSm70k30C+Y2WZp0yxCMVtq++LP4Q5zc=
 github.com/rstudio/platform-lib/pkg/rsnotify v1.4.0 h1:tMeO7PckDZzDROBmu5nZJ1pORN3dNDWMWv57X0xpMf4=
 github.com/rstudio/platform-lib/pkg/rsnotify v1.4.0/go.mod h1:OTMZNgESF0Y2THisqq2gd4P/yF9YLCUW1GNXy5ainYM=
 github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespgx v1.4.1 h1:+wU2eUasfa1e+41sT4K8Aev7l3U48N2q0Rv2feOT2u0=
