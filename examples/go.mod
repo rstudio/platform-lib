@@ -30,7 +30,7 @@ require (
 	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespq v0.0.0-00010101000000-000000000000
 	github.com/rstudio/platform-lib/pkg/rsqueue v1.0.0
 	github.com/rstudio/platform-lib/pkg/rsqueue/impls/database v0.0.0-00010101000000-000000000000
-	github.com/rstudio/platform-lib/pkg/rsstorage v0.2.0
+	github.com/rstudio/platform-lib/pkg/rsstorage v0.3.0
 	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file v0.2.0
 )
 

@@ -14,6 +14,7 @@ require (
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 )
 
+// Always use the rsstorage code that is checked out.
 replace (
 	github.com/rstudio/platform-lib/pkg/rsstorage => ../../
 	github.com/rstudio/platform-lib/pkg/rsstorage/servers/file => ../../servers/file
