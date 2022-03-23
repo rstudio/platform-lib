@@ -50,7 +50,12 @@ func (s *NotifierSuite) TestNotify(c *check.C) {
 	}
 	matcher := listener.NewMatcher("MessageType")
 	matcher.Register(electiontypes.ClusterMessageTypePing, &electiontypes.ClusterPingRequest{})
-	plf := postgrespgx.NewPgxListener(channel, s.pool, matcher, nil)
+	plf := postgrespgx.NewPgxListener(postgrespgx.PgxListenerArgs{
+		Name:       channel,
+		Pool:       s.pool,
+		Matcher:    matcher,
+		IpReporter: postgrespgx.NewPgxIPReporter(s.pool),
+	})
 	defer plf.Stop()
 
 	ping1 := &electiontypes.ClusterPingRequest{

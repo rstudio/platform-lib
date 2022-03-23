@@ -25,7 +25,7 @@ require (
 	github.com/rstudio/platform-lib/pkg/rscache v0.0.0-00010101000000-000000000000
 	github.com/rstudio/platform-lib/pkg/rslog v0.0.0-00010101000000-000000000000
 	github.com/rstudio/platform-lib/pkg/rsnotify v1.4.0
-	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local v1.2.0
+	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local v1.4.1
 	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespgx v0.0.0-00010101000000-000000000000
 	github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespq v0.0.0-00010101000000-000000000000
 	github.com/rstudio/platform-lib/pkg/rsqueue v1.0.0

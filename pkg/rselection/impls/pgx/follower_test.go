@@ -140,7 +140,12 @@ func (s *FollowerSuite) TestFollowNotify(c *check.C) {
 	}
 	matcher := listener.NewMatcher("MessageType")
 	matcher.Register(electiontypes.ClusterMessageTypePing, &electiontypes.ClusterPingRequest{})
-	plf := postgrespgx.NewPgxListener(channel+"_follower", s.pool, matcher, nil)
+	plf := postgrespgx.NewPgxListener(postgrespgx.PgxListenerArgs{
+		Name:       channel + "_follower",
+		Pool:       s.pool,
+		Matcher:    matcher,
+		IpReporter: postgrespgx.NewPgxIPReporter(s.pool),
+	})
 	defer plf.Stop()
 	awb, err := broadcaster.NewNotificationBroadcaster(plf, stop)
 	c.Assert(err, check.IsNil)
@@ -203,7 +208,12 @@ func (s *FollowerSuite) TestFollowPromote(c *check.C) {
 	}
 	matcher := listener.NewMatcher("MessageType")
 	matcher.Register(electiontypes.ClusterMessageTypePing, &electiontypes.ClusterPingRequest{})
-	plf := postgrespgx.NewPgxListener(channel+"_follower", s.pool, matcher, nil)
+	plf := postgrespgx.NewPgxListener(postgrespgx.PgxListenerArgs{
+		Name:       channel + "_follower",
+		Pool:       s.pool,
+		Matcher:    matcher,
+		IpReporter: postgrespgx.NewPgxIPReporter(s.pool),
+	})
 	defer plf.Stop()
 	awb, err := broadcaster.NewNotificationBroadcaster(plf, stop)
 	c.Assert(err, check.IsNil)
@@ -244,7 +254,12 @@ func (s *FollowerSuite) TestFollowRequestLeader(c *check.C) {
 	stop := make(chan bool)
 	matcher := listener.NewMatcher("MessageType")
 	matcher.Register(electiontypes.ClusterMessageTypePing, &electiontypes.ClusterPingRequest{})
-	plf := postgrespgx.NewPgxListener(channel+"_follower", s.pool, matcher, nil)
+	plf := postgrespgx.NewPgxListener(postgrespgx.PgxListenerArgs{
+		Name:       channel + "_follower",
+		Pool:       s.pool,
+		Matcher:    matcher,
+		IpReporter: postgrespgx.NewPgxIPReporter(s.pool),
+	})
 	defer plf.Stop()
 	awb, err := broadcaster.NewNotificationBroadcaster(plf, stop)
 	c.Assert(err, check.IsNil)
