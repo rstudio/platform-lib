@@ -448,28 +448,3 @@ func wait(loopCh <-chan bool, do func()) {
 	// Wait for the leader loop to advance.
 	<-end
 }
-
-func (s *LeaderSuite) TestMultiInterfaceLeader(c *check.C) {
-	p := &PgxLeader{}
-
-	address := "my-machine"
-	p.address = address
-
-	tests := []struct {
-		address string
-		ip      string
-
-		want bool
-	}{
-		{address: "", ip: "", want: false},
-		{address: "", ip: "127.0.0.1", want: false},
-		{address: address, ip: "", want: false},
-		{address: address, ip: "1.1.1.1", want: false},
-		{address: address, ip: "127.0.0.1", want: true},
-	}
-
-	for _, test := range tests {
-		c.Check(p.multiInterfaceLeader(test.address, test.ip), check.Equals, test.want)
-	}
-
-}
