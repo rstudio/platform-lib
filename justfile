@@ -72,6 +72,8 @@ build-docker:
 # Cleans Go build directory (out)
 clean:
     rm -rf out/
+    rm -rf data/
+    rm -rf .chart/
 
 # Builds the docker image used for building Go code
 build-build-env:
