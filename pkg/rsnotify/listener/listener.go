@@ -11,7 +11,7 @@ const (
 type TypeMatcher interface {
 	Field() string
 	Register(notifyType uint8, dataType interface{})
-	Type(notifyType uint8) interface{}
+	Type(notifyType uint8) (interface{}, error)
 }
 
 type Notification interface {
@@ -56,8 +56,8 @@ func (m *GenericMatcher) Field() string {
 	return m.field
 }
 
-func (m *GenericMatcher) Type(notifyType uint8) interface{} {
-	return m.types[notifyType]
+func (m *GenericMatcher) Type(notifyType uint8) (interface{}, error) {
+	return m.types[notifyType], nil
 }
 
 func (m *GenericMatcher) Register(notifyType uint8, dataType interface{}) {

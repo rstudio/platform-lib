@@ -28,7 +28,7 @@ var ErrQueueGroupStopTimeout = errors.New("timeout stopping queue group runner")
 type TypeMatcher interface {
 	Field() string
 	Register(workType uint64, dataType interface{})
-	Type(workType uint64) interface{}
+	Type(workType uint64) (interface{}, error)
 }
 
 type GenericMatcher struct {
@@ -40,8 +40,8 @@ func (m *GenericMatcher) Field() string {
 	return m.field
 }
 
-func (m *GenericMatcher) Type(workType uint64) interface{} {
-	return m.types[workType]
+func (m *GenericMatcher) Type(workType uint64) (interface{}, error) {
+	return m.types[workType], nil
 }
 
 func (m *GenericMatcher) Register(workType uint64, dataType interface{}) {
@@ -130,12 +130,16 @@ func (r *QueueGroupRunner) unmarshal(work []byte) (GroupQueueJob, error) {
 	if err = json.Unmarshal(*tmp[r.matcher.Field()], &dataType); err != nil {
 		return nil, fmt.Errorf("error unmarshalling message data type: %s", err)
 	}
-	if r.matcher.Type(dataType) == nil {
+	t, err := r.matcher.Type(dataType)
+	if err != nil {
+		return
+	}
+	if t == nil {
 		return nil, fmt.Errorf("no matcher type found for %d", dataType)
 	}
 
 	// Get an object of the correct type
-	input = reflect.New(reflect.ValueOf(r.matcher.Type(dataType)).Elem().Type()).Interface().(GroupQueueJob)
+	input = reflect.New(reflect.ValueOf(t).Elem().Type()).Interface().(GroupQueueJob)
 
 	// Unmarshal the payload
 	err = json.Unmarshal(work, input)
