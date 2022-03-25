@@ -15,8 +15,12 @@ fi
   rm -f graph.dot.1
   gomod graph -a "rdeps(github.com/rstudio/platform-lib/pkg/...)" -o graph.dot.1
 
-  # Remove references to the dummy "chart" package.
-  < graph.dot.1 grep -v github.com/rstudio/platform-lib/chart > graph.dot
+  # grep: Remove references to the dummy "chart" package.
+  # sed: Remove the "github.com/rstudio/platform-lib/pkg/" prefix.
+  < graph.dot.1 \
+    grep -v github.com/rstudio/platform-lib/chart | \
+    sed -e 's/github.com\/rstudio\/platform-lib\/pkg\///g' \
+  > graph.dot
 )
 
 # graphviz required
@@ -26,4 +30,4 @@ if ! which dot; then
 fi
 
 # Generate graph
-dot -Tsvg -Kfdp -ograph.svg $MODDIR/graph.dot
+dot -Tsvg -Kcirco -ograph.svg $MODDIR/graph.dot
