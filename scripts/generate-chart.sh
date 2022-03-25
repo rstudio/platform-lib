@@ -9,13 +9,13 @@ if ! which gomod; then
 fi
 
 (
-  cd $MODDIR
+  cd $MODDIR || exit
 
   # Generate graph data.
   rm -f graph.dot.1
   gomod graph -a "rdeps(github.com/rstudio/platform-lib/pkg/...)" -o graph.dot.1
 
-  # grep: Remove references to the dummy "chart" package.
+  # grep: Remove references to the temp "chart" package.
   # sed: Remove the "github.com/rstudio/platform-lib/pkg/" prefix.
   < graph.dot.1 \
     grep -v github.com/rstudio/platform-lib/chart | \
