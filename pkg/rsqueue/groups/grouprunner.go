@@ -24,6 +24,7 @@ const (
 )
 
 var ErrQueueGroupStopTimeout = errors.New("timeout stopping queue group runner")
+var MissingTypeError = errors.New("MissingType error")
 
 type TypeMatcher interface {
 	Field() string
@@ -41,7 +42,10 @@ func (m *GenericMatcher) Field() string {
 }
 
 func (m *GenericMatcher) Type(workType uint64) (interface{}, error) {
-	return m.types[workType], nil
+	if t, ok := m.types[workType]; ok {
+		return t, nil
+	}
+	return nil, MissingTypeError
 }
 
 func (m *GenericMatcher) Register(workType uint64, dataType interface{}) {
@@ -132,10 +136,10 @@ func (r *QueueGroupRunner) unmarshal(work []byte) (GroupQueueJob, error) {
 	}
 	t, err := r.matcher.Type(dataType)
 	if err != nil {
-		return nil, nil
+		return nil, fmt.Errorf("no matcher type found for %d", dataType)
 	}
 	if t == nil {
-		return nil, fmt.Errorf("no matcher type found for %d", dataType)
+		return nil, nil
 	}
 
 	// Get an object of the correct type

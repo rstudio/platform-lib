@@ -1,6 +1,12 @@
 package listener
 
+import (
+	"errors"
+)
+
 // Copyright (C) 2022 by RStudio, PBC.
+
+var MissingTypeError = errors.New("MissingType error")
 
 type GenericMatcher struct {
 	field string
@@ -12,7 +18,10 @@ func (m *GenericMatcher) Field() string {
 }
 
 func (m *GenericMatcher) Type(notifyType uint8) (interface{}, error) {
-	return m.types[notifyType], nil
+	if t, ok := m.types[notifyType]; ok {
+		return t, nil
+	}
+	return nil, MissingTypeError
 }
 
 func (m *GenericMatcher) Register(notifyType uint8, dataType interface{}) {

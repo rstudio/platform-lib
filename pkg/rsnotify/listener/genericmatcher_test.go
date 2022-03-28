@@ -54,6 +54,23 @@ func (s *GenericMatcherSuite) TestType(c *check.C) {
 	m.Register(testNotificationType, TestNotification{})
 	c.Assert(m.types[testNotificationType], check.NotNil)
 
-	t, _ := m.Type(testNotificationType)
+	t, err := m.Type(testNotificationType)
+	c.Assert(err, check.IsNil)
 	c.Assert(t, check.NotNil)
+}
+
+func (s *GenericMatcherSuite) TestUnknownType(c *check.C) {
+	const testNotificationType = 1
+	type TestNotification struct{}
+	m := &GenericMatcher{
+		field: "test",
+		types: make(map[uint8]interface{}),
+	}
+	m.Register(testNotificationType, TestNotification{})
+	c.Assert(m.types[testNotificationType], check.NotNil)
+
+	t, err := m.Type(0)
+	c.Assert(err, check.NotNil)
+	c.Assert(err, check.Equals, MissingTypeError)
+	c.Assert(t, check.IsNil)
 }

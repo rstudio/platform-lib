@@ -185,10 +185,10 @@ func (l *PqListener) notify(n *pq.Notification, errs chan error, items chan list
 	}
 	t, err := l.matcher.Type(dataType)
 	if err != nil {
+		errs <- fmt.Errorf("no matcher type found for %d", dataType)
 		return
 	}
 	if t == nil {
-		errs <- fmt.Errorf("no matcher type found for %d", dataType)
 		return
 	}
 
