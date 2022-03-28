@@ -132,7 +132,7 @@ func (r *QueueGroupRunner) unmarshal(work []byte) (GroupQueueJob, error) {
 	}
 	t, err := r.matcher.Type(dataType)
 	if err != nil {
-		return
+		return nil, nil
 	}
 	if t == nil {
 		return nil, fmt.Errorf("no matcher type found for %d", dataType)
