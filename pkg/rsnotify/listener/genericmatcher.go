@@ -1,5 +1,7 @@
 package listener
 
+// Copyright (C) 2022 by RStudio, PBC.
+
 import (
 	"errors"
 	"fmt"
