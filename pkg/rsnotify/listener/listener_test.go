@@ -8,8 +8,8 @@ import (
 	"gopkg.in/check.v1"
 )
 
-type NotifySuite struct{}
-
-var _ = check.Suite(&NotifySuite{})
+type ListenerSuite struct{}
 
 func TestPackage(t *testing.T) { check.TestingT(t) }
+
+var _ = check.Suite(&ListenerSuite{})

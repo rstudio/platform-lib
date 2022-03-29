@@ -269,7 +269,7 @@ func (s *QueueGroupRunnerSuite) TestUnmarshal(c *check.C) {
 	// No matcher for type
 	work = []byte(`{"type":222,"value":"a test"}`)
 	_, err = r.unmarshal(work)
-	c.Assert(err, check.ErrorMatches, "no matcher type found for 222")
+	c.Assert(err, check.ErrorMatches, "no matcher type found for 222: MissingType error")
 
 	// Job unmarshal error
 	work = []byte(`{"type":3,"value":{"json":"object"}}`)

@@ -224,13 +224,17 @@ func (l *PgxListener) notify(n *pgconn.Notification, errs chan error, items chan
 		errs <- fmt.Errorf("error unmarshalling message data type: %s", err)
 		return
 	}
-	if l.matcher.Type(dataType) == nil {
-		errs <- fmt.Errorf("no matcher type found for %d", dataType)
+	t, err := l.matcher.Type(dataType)
+	if err != nil {
+		errs <- err
+		return
+	}
+	if t == nil {
 		return
 	}
 
 	// Get an object of the correct type
-	input = reflect.New(reflect.ValueOf(l.matcher.Type(dataType)).Elem().Type()).Interface().(listener.Notification)
+	input = reflect.New(reflect.ValueOf(t).Elem().Type()).Interface().(listener.Notification)
 
 	// Unmarshal the payload
 	err = json.Unmarshal(payloadBytes, input)

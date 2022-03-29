@@ -11,7 +11,7 @@ const (
 type TypeMatcher interface {
 	Field() string
 	Register(notifyType uint8, dataType interface{})
-	Type(notifyType uint8) interface{}
+	Type(notifyType uint8) (interface{}, error)
 }
 
 type Notification interface {
@@ -45,28 +45,4 @@ func (n *GenericNotification) Type() uint8 {
 
 func (n *GenericNotification) Guid() string {
 	return n.NotifyGuid
-}
-
-type GenericMatcher struct {
-	field string
-	types map[uint8]interface{}
-}
-
-func (m *GenericMatcher) Field() string {
-	return m.field
-}
-
-func (m *GenericMatcher) Type(notifyType uint8) interface{} {
-	return m.types[notifyType]
-}
-
-func (m *GenericMatcher) Register(notifyType uint8, dataType interface{}) {
-	m.types[notifyType] = dataType
-}
-
-func NewMatcher(field string) *GenericMatcher {
-	return &GenericMatcher{
-		field: field,
-		types: make(map[uint8]interface{}),
-	}
 }
