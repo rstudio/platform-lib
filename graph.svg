@@ -70,7 +70,7 @@
 <title>rsnotify</title>
 <path fill="none" stroke="black" d="M891.63,-423.06C891.63,-423.06 843.63,-423.06 843.63,-423.06 837.63,-423.06 831.63,-417.06 831.63,-411.06 831.63,-411.06 831.63,-399.06 831.63,-399.06 831.63,-393.06 837.63,-387.06 843.63,-387.06 843.63,-387.06 891.63,-387.06 891.63,-387.06 897.63,-387.06 903.63,-393.06 903.63,-399.06 903.63,-399.06 903.63,-411.06 903.63,-411.06 903.63,-417.06 897.63,-423.06 891.63,-423.06"/>
 <text text-anchor="start" x="839.63" y="-406.86" font-family="Times,serif" font-size="14.00">rsnotify</text>
-<text text-anchor="start" x="852.13" y="-396.06" font-family="Times,serif" font-size="10.00">v1.4.0</text>
+<text text-anchor="start" x="852.13" y="-396.06" font-family="Times,serif" font-size="10.00">v1.5.1</text>
 </g>
 <!-- rselection/impls/local&#45;&gt;rsnotify -->
 <g id="edge4" class="edge">
@@ -98,7 +98,7 @@
 <title>rsnotify/listeners/postgrespgx</title>
 <path fill="none" stroke="black" d="M584.56,-810.13C584.56,-810.13 376.56,-810.13 376.56,-810.13 370.56,-810.13 364.56,-804.13 364.56,-798.13 364.56,-798.13 364.56,-786.13 364.56,-786.13 364.56,-780.13 370.56,-774.13 376.56,-774.13 376.56,-774.13 584.56,-774.13 584.56,-774.13 590.56,-774.13 596.56,-780.13 596.56,-786.13 596.56,-786.13 596.56,-798.13 596.56,-798.13 596.56,-804.13 590.56,-810.13 584.56,-810.13"/>
 <text text-anchor="start" x="372.56" y="-793.93" font-family="Times,serif" font-size="14.00">rsnotify/listeners/postgrespgx</text>
-<text text-anchor="start" x="465.06" y="-783.13" font-family="Times,serif" font-size="10.00">v1.4.1</text>
+<text text-anchor="start" x="465.06" y="-783.13" font-family="Times,serif" font-size="10.00">v1.5.1</text>
 </g>
 <!-- rselection/impls/pgx&#45;&gt;rsnotify/listeners/postgrespgx -->
 <g id="edge8" class="edge">
@@ -140,21 +140,21 @@
 <title>rsnotify/listeners/postgrespgx&#45;&gt;rsnotify</title>
 <path fill="none" stroke="black" d="M498.71,-773.98C561.44,-711.25 769.23,-503.46 842.1,-430.59"/>
 <polygon fill="black" stroke="black" points="844.92,-432.72 849.52,-423.18 839.97,-427.77 844.92,-432.72"/>
-<text text-anchor="start" x="639.41" y="-605.29" font-family="Times,serif" font-size="10.00">v1.4.0</text>
+<text text-anchor="start" x="639.41" y="-605.29" font-family="Times,serif" font-size="10.00">v1.5.1</text>
 </g>
 <!-- rsnotify/listeners/postgrespq -->
 <g id="node8" class="node">
 <title>rsnotify/listeners/postgrespq</title>
 <path fill="none" stroke="black" d="M1151.63,-423.06C1151.63,-423.06 951.63,-423.06 951.63,-423.06 945.63,-423.06 939.63,-417.06 939.63,-411.06 939.63,-411.06 939.63,-399.06 939.63,-399.06 939.63,-393.06 945.63,-387.06 951.63,-387.06 951.63,-387.06 1151.63,-387.06 1151.63,-387.06 1157.63,-387.06 1163.63,-393.06 1163.63,-399.06 1163.63,-399.06 1163.63,-411.06 1163.63,-411.06 1163.63,-417.06 1157.63,-423.06 1151.63,-423.06"/>
 <text text-anchor="start" x="947.63" y="-406.86" font-family="Times,serif" font-size="14.00">rsnotify/listeners/postgrespq</text>
-<text text-anchor="start" x="1036.13" y="-396.06" font-family="Times,serif" font-size="10.00">v1.4.1</text>
+<text text-anchor="start" x="1036.13" y="-396.06" font-family="Times,serif" font-size="10.00">v1.5.1</text>
 </g>
 <!-- rsnotify/listeners/postgrespq&#45;&gt;rsnotify -->
 <g id="edge11" class="edge">
 <title>rsnotify/listeners/postgrespq&#45;&gt;rsnotify</title>
 <path fill="none" stroke="black" d="M939.56,-405.06C930.69,-405.06 922.08,-405.06 914.09,-405.06"/>
 <polygon fill="black" stroke="black" points="913.96,-401.56 903.96,-405.06 913.96,-408.56 913.96,-401.56"/>
-<text text-anchor="start" x="903.57" y="-397.06" font-family="Times,serif" font-size="10.00">v1.4.0</text>
+<text text-anchor="start" x="903.57" y="-397.06" font-family="Times,serif" font-size="10.00">v1.5.1</text>
 </g>
 <!-- rsqueue/impls/database -->
 <g id="node10" class="node">
@@ -182,7 +182,7 @@
 <title>rsqueue</title>
 <path fill="none" stroke="black" d="M231.87,-149.37C231.87,-149.37 181.87,-149.37 181.87,-149.37 175.87,-149.37 169.87,-143.37 169.87,-137.37 169.87,-137.37 169.87,-125.37 169.87,-125.37 169.87,-119.37 175.87,-113.37 181.87,-113.37 181.87,-113.37 231.87,-113.37 231.87,-113.37 237.87,-113.37 243.87,-119.37 243.87,-125.37 243.87,-125.37 243.87,-137.37 243.87,-137.37 243.87,-143.37 237.87,-149.37 231.87,-149.37"/>
 <text text-anchor="start" x="177.87" y="-133.17" font-family="Times,serif" font-size="14.00">rsqueue</text>
-<text text-anchor="start" x="191.37" y="-122.37" font-family="Times,serif" font-size="10.00">v0.1.1</text>
+<text text-anchor="start" x="191.37" y="-122.37" font-family="Times,serif" font-size="10.00">v0.2.1</text>
 </g>
 <!-- rsqueue/impls/database&#45;&gt;rsqueue -->
 <g id="edge15" class="edge">
