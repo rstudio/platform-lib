@@ -45,7 +45,7 @@ func (m *GenericMatcher) Type(workType uint64) (interface{}, error) {
 	if t, ok := m.types[workType]; ok {
 		return t, nil
 	}
-	return nil, MissingTypeError
+	return nil, fmt.Errorf("no matcher type found for %d: %w", workType, MissingTypeError)
 }
 
 func (m *GenericMatcher) Register(workType uint64, dataType interface{}) {
@@ -136,7 +136,7 @@ func (r *QueueGroupRunner) unmarshal(work []byte) (GroupQueueJob, error) {
 	}
 	t, err := r.matcher.Type(dataType)
 	if err != nil {
-		return nil, fmt.Errorf("no matcher type found for %d", dataType)
+		return nil, err
 	}
 	if t == nil {
 		return nil, nil

@@ -2,6 +2,7 @@ package listener
 
 import (
 	"errors"
+	"fmt"
 )
 
 // Copyright (C) 2022 by RStudio, PBC.
@@ -21,7 +22,7 @@ func (m *GenericMatcher) Type(notifyType uint8) (interface{}, error) {
 	if t, ok := m.types[notifyType]; ok {
 		return t, nil
 	}
-	return nil, MissingTypeError
+	return nil, fmt.Errorf("no matcher type found for %d: %w", notifyType, MissingTypeError)
 }
 
 func (m *GenericMatcher) Register(notifyType uint8, dataType interface{}) {

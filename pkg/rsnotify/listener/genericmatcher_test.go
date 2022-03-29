@@ -3,6 +3,8 @@ package listener
 // Copyright (C) 2022 by RStudio, PBC.
 
 import (
+	"fmt"
+
 	"gopkg.in/check.v1"
 )
 
@@ -60,7 +62,9 @@ func (s *GenericMatcherSuite) TestType(c *check.C) {
 }
 
 func (s *GenericMatcherSuite) TestUnknownType(c *check.C) {
+	const missingNotificationType = 0
 	const testNotificationType = 1
+	expectedErr := fmt.Errorf("no matcher type found for %d: %w", missingNotificationType, MissingTypeError)
 	type TestNotification struct{}
 	m := &GenericMatcher{
 		field: "test",
@@ -69,8 +73,8 @@ func (s *GenericMatcherSuite) TestUnknownType(c *check.C) {
 	m.Register(testNotificationType, TestNotification{})
 	c.Assert(m.types[testNotificationType], check.NotNil)
 
-	t, err := m.Type(0)
+	t, err := m.Type(missingNotificationType)
 	c.Assert(err, check.NotNil)
-	c.Assert(err, check.Equals, MissingTypeError)
+	c.Assert(err, check.DeepEquals, expectedErr)
 	c.Assert(t, check.IsNil)
 }
