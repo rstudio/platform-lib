@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/pkg/rsnotify/notifier"
 )
 
 type PgxIPReporter struct {
@@ -61,6 +62,9 @@ type PgxListener struct {
 	ip          string
 	debugLogger listener.DebugLogger
 	ipReporter  listener.IPReporter
+
+	// For caching chunked notifications
+	notifyCache map[string]map[int][]byte
 }
 
 type PgxListenerArgs struct {
@@ -80,6 +84,7 @@ func NewPgxListener(args PgxListenerArgs) *PgxListener {
 		debugLogger: args.DebugLogger,
 		matcher:     args.Matcher,
 		ipReporter:  args.IpReporter,
+		notifyCache: make(map[string]map[int][]byte),
 	}
 }
 
@@ -199,12 +204,63 @@ func (l *PgxListener) Debugf(msg string, args ...interface{}) {
 	}
 }
 
+func (l *PgxListener) cache(info notifier.ChunkInfo) bool {
+	if _, ok := l.notifyCache[info.Guid]; !ok {
+		l.notifyCache[info.Guid] = make(map[int][]byte)
+	}
+	l.notifyCache[info.Guid][info.Chunk] = info.Message
+	return len(l.notifyCache[info.Guid]) == info.Count
+}
+
+func (l *PgxListener) assemble(guid string, count int) ([]byte, error) {
+	result := make([]byte, 0)
+	if chunks, ok := l.notifyCache[guid]; !ok {
+		return nil, fmt.Errorf("chunks not found in cache")
+	} else {
+		for i := 1; i <= count; i++ {
+			if msg, here := chunks[i]; !here {
+				return nil, fmt.Errorf("chunk %d missing from cache", i)
+			} else {
+				result = append(result, msg...)
+			}
+		}
+	}
+	delete(l.notifyCache, guid)
+	return result, nil
+}
+
 func (l *PgxListener) notify(n *pgconn.Notification, errs chan error, items chan listener.Notification) {
 	// A notification was received! Unmarshal it into the correct type and send it.
 	var input listener.Notification
 
 	// Convert postgres message payload to byte array
 	payloadBytes := []byte(n.Payload)
+
+	// Check for chunked encoding
+	if notifier.IsChunk(payloadBytes) {
+		// Parse the chunk
+		info, err := notifier.ParseChunk(payloadBytes)
+		if err != nil {
+			errs <- fmt.Errorf("error decoding chunk: %s", err)
+			return
+		}
+
+		// Cache the chunk. If `done == true`, then we know that this is the last
+		// chunk for this GUID.
+		done := l.cache(info)
+		if !done {
+			// Abort here since we need to receive more chunks to complete the
+			// message.
+			return
+		}
+
+		// Assemble the chunks into the payload
+		payloadBytes, err = l.assemble(info.Guid, info.Count)
+		if err != nil {
+			errs <- fmt.Errorf("error assembling chunks: %s", err)
+			return
+		}
+	}
 
 	// Unmarshal the payload to a raw message
 	var tmp map[string]*json.RawMessage
