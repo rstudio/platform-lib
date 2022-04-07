@@ -4,6 +4,10 @@
 
 This repo includes useful Go code for building applications.
 
+## Graph
+
+![Dependency Graph](graph.svg)
+
 ## Go Directories
 
 ### `/internal`

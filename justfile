@@ -72,6 +72,8 @@ build-docker:
 # Cleans Go build directory (out)
 clean:
     rm -rf out/
+    rm -rf data/
+    rm -rf .chart/
 
 # Builds the docker image used for building Go code
 build-build-env:
@@ -125,3 +127,13 @@ tags: versions
 versions:
     ./scripts/latest-tags.sh
 
+# generate chart graph data and SVG chart
+chart: (chart-data) (chart-svg)
+
+# generate chart graph data
+chart-data:
+    ./scripts/generate-chart-data.sh
+
+# generate SVG chart from graph data
+chart-svg:
+    ./scripts/generate-chart.sh

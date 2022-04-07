@@ -34,3 +34,6 @@ tempvendor
 
 # Database
 data
+
+# Charts temp dir
+.chart
