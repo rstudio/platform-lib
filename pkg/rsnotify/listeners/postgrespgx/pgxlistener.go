@@ -217,6 +217,8 @@ func (l *PgxListener) assemble(guid string, count int) ([]byte, error) {
 	if chunks, ok := l.notifyCache[guid]; !ok {
 		return nil, fmt.Errorf("chunks not found in cache")
 	} else {
+		// Clean up cache upon exit.
+		defer delete(l.notifyCache, guid)
 		for i := 1; i <= count; i++ {
 			if msg, here := chunks[i]; !here {
 				return nil, fmt.Errorf("chunk %d missing from cache", i)
@@ -225,7 +227,6 @@ func (l *PgxListener) assemble(guid string, count int) ([]byte, error) {
 			}
 		}
 	}
-	delete(l.notifyCache, guid)
 	return result, nil
 }
 

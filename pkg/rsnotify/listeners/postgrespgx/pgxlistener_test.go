@@ -198,9 +198,10 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	rawMsg3 := "" +
 		"03/03:254d1bd9-aa29-4116-97e8-e9c302b7dd84\n" +
 		`"San Francisco","Boston","Philadelphia"]}`
+	// Send out of order to prove that ordering doesn't matter.
+	s.notifyRaw(chName, rawMsg3, c)
 	s.notifyRaw(chName, rawMsg1, c)
 	s.notifyRaw(chName, rawMsg2, c)
-	s.notifyRaw(chName, rawMsg3, c)
 
 	// Wait for test to complete
 	<-done
@@ -286,6 +287,24 @@ func (s *PgxNotifySuite) TestNotificationsErrors(c *check.C) {
 		"02/02:254d1bd9-aa29-4116-97e8-e9c302b7dd84\n" +
 		"}}"
 
+	// A notification with a chunk whose length is <= the header length.
+	// Fails upon parsing the chunk.
+	tnBytesChunkHeader1 := "" +
+		"01/02:364d1bd9-aa29-4116-97e8-e9c302b7dd84\n" +
+		"{\"NotifyType\":2,\"Val\":{\"is\":\"unexpected_object\""
+	tnBytesChunkHeader2 := "" +
+		"02/02:364d1bd9-aa29-4116-97e8-e9c302b7dd84\n"
+
+	// A notification with chunks with invalid chunk numbers. Fails upon
+	// assembling the chunks. These chunks have numbers 02/02 and 03/02
+	// instead of 01/02 and 02/02
+	tnBytesBadChunkNumbers1 := "" +
+		"02/02:424d1bd9-aa29-4116-97e8-e9c302b7dd84\n" +
+		"{\"NotifyType\":2,\"Val\":{\"is\":\"unexpected_object\""
+	tnBytesBadChunkNumbers2 := "" +
+		"03/02:424d1bd9-aa29-4116-97e8-e9c302b7dd84\n" +
+		"}}"
+
 	chName := listenerutils.SafeChannelName(c.TestName())
 	ipRep := &listener.TestIPReporter{}
 	l := NewPgxListener(PgxListenerArgs{
@@ -320,8 +339,12 @@ func (s *PgxNotifySuite) TestNotificationsErrors(c *check.C) {
 					counts["noMatcher"] = true
 				case strings.HasPrefix(errStr, "error unmarshalling JSON:"):
 					counts["secondUnmarshal"] = true
+				case strings.HasPrefix(errStr, "error decoding chunk:"):
+					counts["decodingChunk"] = true
+				case strings.HasPrefix(errStr, "error assembling chunks:"):
+					counts["assemblingChunk"] = true
 				}
-				if len(counts) == 5 {
+				if len(counts) == 7 {
 					return
 				}
 			}
@@ -335,6 +358,10 @@ func (s *PgxNotifySuite) TestNotificationsErrors(c *check.C) {
 	s.notify(chName, &tnWrongType, c)
 	s.notifyRaw(chName, tnBytesCannotUnmarshal1, c)
 	s.notifyRaw(chName, tnBytesCannotUnmarshal2, c)
+	s.notifyRaw(chName, tnBytesChunkHeader1, c)
+	s.notifyRaw(chName, tnBytesChunkHeader2, c)
+	s.notifyRaw(chName, tnBytesBadChunkNumbers1, c)
+	s.notifyRaw(chName, tnBytesBadChunkNumbers2, c)
 
 	// Wait for test to complete
 	<-done
