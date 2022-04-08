@@ -4,7 +4,6 @@ package postgrespgx
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -23,15 +22,10 @@ func EphemeralPgxPool(dbname string) (pool *pgxpool.Pool, err error) {
 	return
 }
 
-func Notify(channelName string, n interface{}, pool *pgxpool.Pool) error {
-	msgbytes, err := json.Marshal(n)
-	if err != nil {
-		return err
-	}
-	msg := string(msgbytes)
+func Notify(channelName string, msg []byte, pool *pgxpool.Pool) error {
 	query := fmt.Sprintf(
 		"select pg_notify('%s', $1)", channelName)
-	_, err = pool.Exec(context.Background(), query, msg)
+	_, err := pool.Exec(context.Background(), query, string(msg))
 	return err
 }
 

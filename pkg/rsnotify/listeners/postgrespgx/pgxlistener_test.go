@@ -10,13 +10,15 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listenerutils"
+	"github.com/rstudio/platform-lib/pkg/rsnotify/notifier"
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
 )
 
 type PgxNotifySuite struct {
-	pool *pgxpool.Pool
+	pool     *pgxpool.Pool
+	notifier *notifier.Notifier
 }
 
 var _ = check.Suite(&PgxNotifySuite{})
@@ -30,7 +32,8 @@ type testNotification struct {
 
 type testNotificationAlt struct {
 	listener.GenericNotification
-	Val uint64
+	Val  uint64
+	Data []string
 }
 
 func (s *PgxNotifySuite) SetUpSuite(c *check.C) {
@@ -41,6 +44,16 @@ func (s *PgxNotifySuite) SetUpSuite(c *check.C) {
 	var err error
 	s.pool, err = EphemeralPgxPool("postgres")
 	c.Assert(err, check.IsNil)
+
+	s.notifier = notifier.NewNotifier(notifier.Args{
+		// Since the suite fulfills the Provider interface, we can
+		// simply pass the suite as the provider.
+		Provider:  s,
+		Chunking:  true,
+		MaxChunks: 10,
+		// Set a small chunk size to make sure we can verify chunking works.
+		MaxChunkSize: 90,
+	})
 }
 
 func (s *PgxNotifySuite) TearDownSuite(c *check.C) {
@@ -70,11 +83,17 @@ func (s *PgxNotifySuite) TestNewPgxListener(c *check.C) {
 		matcher:     matcher,
 		debugLogger: lgr,
 		ipReporter:  ipRep,
+		notifyCache: make(map[string]map[int][]byte),
 	})
 }
 
+// This makes the suite fulfill the notifier.Provider interface
+func (s *PgxNotifySuite) Notify(channel string, msg []byte) error {
+	return Notify(channel, msg, s.pool)
+}
+
 func (s *PgxNotifySuite) notify(channel string, n interface{}, c *check.C) {
-	err := Notify(channel, n, s.pool)
+	err := s.notifier.Notify(channel, n)
 	c.Assert(err, check.IsNil)
 }
 
@@ -123,9 +142,18 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 					count1++
 				case *testNotificationAlt:
 					c.Assert(m.Val, check.Equals, uint64(999))
+					c.Assert(m.Data, check.DeepEquals, []string{
+						"New York City",
+						"Minneapolis",
+						"Green Bay",
+						"Dallas",
+						"San Francisco",
+						"Boston",
+						"Philadelphia",
+					})
 					count2++
 				}
-				if count1 == 2 && count2 == 1 {
+				if count1 == 2 && count2 == 2 {
 					// Return when we've received 2 notifications of *testNotification type
 					// and 1 notification of the *testNotificationAlt type
 					return
@@ -150,8 +178,30 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	s.notify(chName, &testNotificationAlt{
 		GenericNotification: listener.GenericNotification{NotifyType: 3},
 		Val:                 999,
+		Data: []string{
+			"New York City",
+			"Minneapolis",
+			"Green Bay",
+			"Dallas",
+			"San Francisco",
+			"Boston",
+			"Philadelphia",
+		},
 	}, c)
-	c.Assert(err, check.IsNil)
+	// Send a raw chunked message
+	rawMsg1 := "" +
+		"01/03:254d1bd9-aa29-4116-97e8-e9c302b7dd84\n" +
+		`{"NotifyGuid":"","NotifyType": 3,"Val": 999,"Data":[`
+	rawMsg2 := "" +
+		"02/03:254d1bd9-aa29-4116-97e8-e9c302b7dd84\n" +
+		`"New York City","Minneapolis","Green Bay","Dallas",`
+	rawMsg3 := "" +
+		"03/03:254d1bd9-aa29-4116-97e8-e9c302b7dd84\n" +
+		`"San Francisco","Boston","Philadelphia"]}`
+	// Send out of order to prove that ordering doesn't matter.
+	s.notifyRaw(chName, rawMsg3, c)
+	s.notifyRaw(chName, rawMsg1, c)
+	s.notifyRaw(chName, rawMsg2, c)
 
 	// Wait for test to complete
 	<-done
@@ -228,8 +278,32 @@ func (s *PgxNotifySuite) TestNotificationsErrors(c *check.C) {
 		Val:                 "test-notification",
 	}
 
-	// A notification with a valid type, but that fails unmarshalling to the expected type
-	tnBytesCannotUnmarshal := `{"NotifyType":2,"Val":{"is":"unexpected_object"}}`
+	// A notification with a valid type, but that fails unmarshalling to
+	// the expected type. Also chunked to verify that chunked encoding works.
+	tnBytesCannotUnmarshal1 := "" +
+		"01/02:254d1bd9-aa29-4116-97e8-e9c302b7dd84\n" +
+		"{\"NotifyType\":2,\"Val\":{\"is\":\"unexpected_object\""
+	tnBytesCannotUnmarshal2 := "" +
+		"02/02:254d1bd9-aa29-4116-97e8-e9c302b7dd84\n" +
+		"}}"
+
+	// A notification with a chunk whose length is <= the header length.
+	// Fails upon parsing the chunk.
+	tnBytesChunkHeader1 := "" +
+		"01/02:364d1bd9-aa29-4116-97e8-e9c302b7dd84\n" +
+		"{\"NotifyType\":2,\"Val\":{\"is\":\"unexpected_object\""
+	tnBytesChunkHeader2 := "" +
+		"02/02:364d1bd9-aa29-4116-97e8-e9c302b7dd84\n"
+
+	// A notification with chunks with invalid chunk numbers. Fails upon
+	// assembling the chunks. These chunks have numbers 02/02 and 03/02
+	// instead of 01/02 and 02/02
+	tnBytesBadChunkNumbers1 := "" +
+		"02/02:424d1bd9-aa29-4116-97e8-e9c302b7dd84\n" +
+		"{\"NotifyType\":2,\"Val\":{\"is\":\"unexpected_object\""
+	tnBytesBadChunkNumbers2 := "" +
+		"03/02:424d1bd9-aa29-4116-97e8-e9c302b7dd84\n" +
+		"}}"
 
 	chName := listenerutils.SafeChannelName(c.TestName())
 	ipRep := &listener.TestIPReporter{}
@@ -265,8 +339,12 @@ func (s *PgxNotifySuite) TestNotificationsErrors(c *check.C) {
 					counts["noMatcher"] = true
 				case strings.HasPrefix(errStr, "error unmarshalling JSON:"):
 					counts["secondUnmarshal"] = true
+				case strings.HasPrefix(errStr, "error decoding chunk:"):
+					counts["decodingChunk"] = true
+				case strings.HasPrefix(errStr, "error assembling chunks:"):
+					counts["assemblingChunk"] = true
 				}
-				if len(counts) == 5 {
+				if len(counts) == 7 {
 					return
 				}
 			}
@@ -278,7 +356,12 @@ func (s *PgxNotifySuite) TestNotificationsErrors(c *check.C) {
 	s.notify(chName, &tnNoTypeField, c)
 	s.notifyRaw(chName, tnBytesInvalidTypeData, c)
 	s.notify(chName, &tnWrongType, c)
-	s.notifyRaw(chName, tnBytesCannotUnmarshal, c)
+	s.notifyRaw(chName, tnBytesCannotUnmarshal1, c)
+	s.notifyRaw(chName, tnBytesCannotUnmarshal2, c)
+	s.notifyRaw(chName, tnBytesChunkHeader1, c)
+	s.notifyRaw(chName, tnBytesChunkHeader2, c)
+	s.notifyRaw(chName, tnBytesBadChunkNumbers1, c)
+	s.notifyRaw(chName, tnBytesBadChunkNumbers2, c)
 
 	// Wait for test to complete
 	<-done

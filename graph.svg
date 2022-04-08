@@ -70,7 +70,7 @@
 <title>rsnotify</title>
 <path fill="none" stroke="black" d="M891.63,-423.06C891.63,-423.06 843.63,-423.06 843.63,-423.06 837.63,-423.06 831.63,-417.06 831.63,-411.06 831.63,-411.06 831.63,-399.06 831.63,-399.06 831.63,-393.06 837.63,-387.06 843.63,-387.06 843.63,-387.06 891.63,-387.06 891.63,-387.06 897.63,-387.06 903.63,-393.06 903.63,-399.06 903.63,-399.06 903.63,-411.06 903.63,-411.06 903.63,-417.06 897.63,-423.06 891.63,-423.06"/>
 <text text-anchor="start" x="839.63" y="-406.86" font-family="Times,serif" font-size="14.00">rsnotify</text>
-<text text-anchor="start" x="852.13" y="-396.06" font-family="Times,serif" font-size="10.00">v1.5.1</text>
+<text text-anchor="start" x="852.13" y="-396.06" font-family="Times,serif" font-size="10.00">v1.5.2</text>
 </g>
 <!-- rselection/impls/local&#45;&gt;rsnotify -->
 <g id="edge4" class="edge">

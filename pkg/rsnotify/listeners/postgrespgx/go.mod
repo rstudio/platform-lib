@@ -7,11 +7,12 @@ require (
 	github.com/jackc/pgconn v1.10.1
 	github.com/jackc/pgtype v1.9.1
 	github.com/jackc/pgx/v4 v4.14.1
-	github.com/rstudio/platform-lib/pkg/rsnotify v1.5.1
+	github.com/rstudio/platform-lib/pkg/rsnotify v1.5.2
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 )
 
 require (
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
