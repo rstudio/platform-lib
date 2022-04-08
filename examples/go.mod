@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/gomarkdown/markdown v0.0.0-20220310201231-552c6011c0b8
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/jackc/pgx/v4 v4.14.1
 	github.com/jmoiron/sqlx v0.0.0-20170430194603-d9bd385d68c0
