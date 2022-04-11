@@ -137,7 +137,7 @@ func (b outputBuilder) build(output LogOutputType, logFilePath string) (io.Write
 func (b outputBuilder) resolveLogFile(logFilePath string) (io.Writer, error) {
 	lgr := DefaultLogger()
 	if strings.TrimSpace(logFilePath) == "" {
-		lgr.Infof("Logging output is set to FILE, but no path was provided.")
+		lgr.Warnf("Logging output is set to FILE, but no path was provided.")
 		return b.fallbackOutput()
 	}
 
