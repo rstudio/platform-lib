@@ -127,24 +127,35 @@ func (b outputBuilder) build(output LogOutputType, logFilePath string) (io.Write
 	case LogOutputStdout:
 		return b.fileSystem.Stdout(), nil
 	case LogOutputFile:
-		return b.createLogFile(logFilePath)
+		return b.resolveLogFile(logFilePath)
 	default:
 		err := fmt.Errorf("The output %q provided for the logging output configuration field isn't supported.", output)
 		return nil, err
 	}
 }
 
-func (b outputBuilder) createLoggingDir(logFilePath string) {
+func (b outputBuilder) resolveLogFile(logFilePath string) (io.Writer, error) {
 	lgr := DefaultLogger()
+	if strings.TrimSpace(logFilePath) == "" {
+		lgr.Infof("Logging output is set to FILE, but no path was provided.")
+		return b.fallbackOutput()
+	}
+
 	loggingDir := filepath.Dir(logFilePath)
 	if _, err := b.fileSystem.Stat(loggingDir); os.IsNotExist(err) {
-		// TODO: only the deepest directory needs to be 0777
-		if err := b.fileSystem.MkdirAll(loggingDir, 0777); err != nil {
-			lgr.Errorf("Error when trying to create the default logging directory %q. %v", loggingDir, err)
-		}
-	} else if err != nil {
-		lgr.Errorf("An error occurred trying to verify if the default logging directory exists. %v", err)
+		// Destination directory should already exist
+		return nil, fmt.Errorf("The specified logs destination directory %q does not exist.", loggingDir)
 	}
+
+	writer, err := b.fileSystem.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		// Fallback to default logging file if needed
+		lgr.Errorf("Not possible to open the logging file %q. Error: %v.", logFilePath, err)
+		return b.fallbackOutput()
+	}
+
+	lgr.Infof("Using file %s to store %s.", logFilePath, b.logCategory.Text())
+	return writer, err
 }
 
 func (b outputBuilder) fallbackOutput() (io.Writer, error) {
@@ -155,28 +166,6 @@ func (b outputBuilder) fallbackOutput() (io.Writer, error) {
 		err = fmt.Errorf(`Not possible to open the default logging file %s. Error: %v.`, b.defaultFile, err)
 		return nil, err
 	}
-	return writer, nil
-}
-
-func (b outputBuilder) createLogFile(logFilePath string) (io.Writer, error) {
-	lgr := DefaultLogger()
-	if strings.TrimSpace(logFilePath) == "" {
-		lgr.Infof("Logging output is set to FILE, but no path was provided.")
-		return b.fallbackOutput()
-	}
-
-	// create the provided logging directory if it doesn't exist
-	b.createLoggingDir(logFilePath)
-
-	lgr.Infof("Using file %s to store %s.", logFilePath, b.logCategory.Text())
-
-	writer, err := b.fileSystem.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-
-	if err != nil {
-		lgr.Errorf("Not possible to open or create the specified logging file %q. Error: %v.", logFilePath, err)
-		return b.fallbackOutput()
-	}
-
 	return writer, nil
 }
 

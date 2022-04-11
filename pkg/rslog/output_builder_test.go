@@ -178,28 +178,15 @@ func (s *LoggerSuite) TestConfigureLogDefaultLoggingNonExistingDirectory() {
 		defaultFile: "/default/log/logfile.log",
 	}
 
-	expectedWriter := &ioWriterMock{}
-
 	mockFileSystem.On("Stat", "/custom").Return(mockFileInfo{}, os.ErrNotExist)
-	mockFileSystem.On("MkdirAll", "/custom", os.FileMode(0777)).Return(nil)
-	mockFileSystem.On(
-		"OpenFile",
-		"/custom/test.log",
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		os.FileMode(0600),
-	).Return(expectedWriter, nil)
 
-	result, err := builder.Build(OutputDest{
+	_, err := builder.Build(OutputDest{
 		Output:   LogOutputFile,
 		Filepath: "/custom/test.log",
 	})
 
-	s.Nil(err)
-	content := []byte("mock-content")
-	expectedWriter.On("Write", content).Return(0, nil)
-
-	result.Write(content)
-	expectedWriter.AssertExpectations(s.T())
+	s.NotNil(err)
+	s.EqualError(err, "The specified logs destination directory \"/custom\" does not exist.")
 }
 
 func (s *LoggerSuite) TestConfigureLogStderr() {
