@@ -57,8 +57,8 @@ Design and user documents (in addition to your godoc generated documentation).
 
 ## Tooling
 
-We use `just` to organize and run project specific commands. See the 
-[GitHub repository]((https://github.com/casey/just)) for installation and 
+We use `just` to run project specific commands. See the 
+[GitHub repository](https://github.com/casey/just) for installation and 
 examples.
 
 You will also need [Docker](https://docs.docker.com/get-docker/) if you wish to 
