@@ -55,6 +55,15 @@ End-to-end tests. These tests are performed in CI by GitHub Actions.
 
 Design and user documents (in addition to your godoc generated documentation).
 
+## Tooling
+
+We use `just` to run project specific commands. See the 
+[GitHub repository](https://github.com/casey/just) for installation and 
+examples.
+
+You will also need [Docker](https://docs.docker.com/get-docker/) if you wish to 
+run the integration tests.
+
 ## Testing
 
 We test multiple modules by default. Therefore, if you wish to test a specific
