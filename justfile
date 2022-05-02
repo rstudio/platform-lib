@@ -75,6 +75,11 @@ clean:
     rm -rf data/
     rm -rf .chart/
 
+# Remove docker images and clear build cache (useful to run before building cross platform images)
+clean-docker:
+    docker image rm rstudio/platform-lib:lib-build rstudio/platform-lib:lib-e2e
+    docker builder prune
+
 # Builds the docker image used for building Go code
 # * args - Optional additional docker build args
 build-build-env *args:
