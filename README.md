@@ -99,7 +99,7 @@ MODULE=pkg/rsnotify just test-integration -v github.com/rstudio/platform-lib/pkg
 End-to-end and integration tests are run with Docker. 
 
 By default, Docker will use your host machine to infer which [platform to use 
-when building image](https://docs.docker.com/engine/reference/builder/#from). 
+when building images](https://docs.docker.com/engine/reference/builder/#from). 
 You can specify another architecture with the `--platform` flag. Supported 
 options are `linux/amd64` and `linux/arm64`.
 
