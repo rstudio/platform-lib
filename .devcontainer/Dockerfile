@@ -37,8 +37,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN pip3 install --upgrade pip
 
 # Install AWS CLI v2
-RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
-    unzip awscliv2.zip && \
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o "awscliv2.zip" && \
+    unzip -q awscliv2.zip && \
     ./aws/install && \
     rm -rf awscliv2.zip aws
 
@@ -50,28 +50,37 @@ RUN curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-c
 RUN chmod +x /usr/local/bin/docker-compose
 
 # Install Go. Keep in sync with other Dockerfiles.
-ENV GOLANG_VERSION 1.17.1
-ENV GOLANG_DOWNLOAD_SHA256 dab7d9c34361dc21ec237d584590d72500652e7c909bf082758fb63064fca0ef
-RUN curl -fsSL "https://dl.google.com/go/go${GOLANG_VERSION}.linux-amd64.tar.gz" -o golang.tar.gz \
+ENV GOLANG_VERSION 1.18
+RUN ARCH=$(if [ $(uname -m) = "aarch64" ]; then echo "arm64"; else echo "amd64"; fi) \
+    && GOLANG_DOWNLOAD_SHA256=$(if [ $(uname -m) = "aarch64" ]; \
+      then echo "7ac7b396a691e588c5fb57687759e6c4db84a2a3bbebb0765f4b38e5b1c5b00e"; \
+      else echo "e85278e98f57cdb150fe8409e6e5df5343ecb13cebf03a5d5ff12bd55a80264f"; fi) \
+    && curl -fsSL "https://dl.google.com/go/go${GOLANG_VERSION}.linux-${ARCH}.tar.gz" -o golang.tar.gz \
     && echo "$GOLANG_DOWNLOAD_SHA256  golang.tar.gz" | sha256sum -c - \
     && tar -C /usr/local -xzf golang.tar.gz \
     && rm golang.tar.gz
 
 # Install Go tools
-RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go get -u \
-    golang.org/x/tools/... \
-    github.com/ramya-rao-a/go-outline \
-    github.com/fatih/gomodifytags \
-    github.com/josharian/impl \
-    github.com/haya14busa/goplay/cmd/goplay \
-    honnef.co/go/tools/cmd/staticcheck@latest \
-    github.com/uudashr/gopkgs/v2/cmd/gopkgs
+RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go install \
+    golang.org/x/tools/...@latest
+RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go install \
+    github.com/ramya-rao-a/go-outline@latest
+RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go install \
+    github.com/fatih/gomodifytags@latest
+RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go install \
+    github.com/josharian/impl@latest
+RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go install \
+    github.com/haya14busa/goplay/cmd/goplay@latest
+RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go install \
+    honnef.co/go/tools/cmd/staticcheck@latest
+RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go install \
+    github.com/uudashr/gopkgs/v2/cmd/gopkgs@latest
 RUN PATH="$PATH:/usr/local/go/bin" go install github.com/go-delve/delve/cmd/dlv@latest
-RUN GO111MODULE=on PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go get -v \
+RUN GO111MODULE=on PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go install \
     golang.org/x/tools/gopls@latest
 RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go install \
     github.com/cweill/gotests/...
-RUN GO111MODULE=on PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools GOBIN=/tmp/ go get -v \
+RUN GO111MODULE=on PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools GOBIN=/tmp/ go install \
     github.com/go-delve/delve/cmd/dlv@master && \
     mv /tmp/dlv $GOPATH/bin/dlv-dap
 ENV PATH="$PATH:/usr/local/gotools/bin:/usr/local/go/bin"
