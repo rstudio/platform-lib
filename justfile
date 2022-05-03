@@ -52,7 +52,7 @@ vet:
 # Builds Go code natively.
 build:
     cd examples && \
-    go build -o ../out/ ./...
+    go build -buildvcs=false -o ../out/ ./...
 
 # run linters
 lint:
