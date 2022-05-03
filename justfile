@@ -60,6 +60,14 @@ lint:
     ./scripts/header-check.sh
     ./scripts/test-wiring.sh
 
+# Opens a shell in the dev docker container.
+bash:
+    docker run {{ interactive }} --rm \
+        -v {{justfile_directory()}}/:/build \
+        -e GOCACHE=/platform-lib/.go-cache \
+        -w /build \
+        rstudio/platform-lib:lib-build /bin/bash
+
 # Builds Go code using docker. Useful when using a MacOS or Windows native IDE. First,
 # run `just build-build-env' to create the docker image you'll need.
 build-docker:
