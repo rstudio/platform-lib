@@ -11,7 +11,7 @@ DEF_TEST_ARGS=${DEF_TEST_ARGS:--short}
 for MODULE in ${MODULES}; do
     cd ${MODULE}
 
-    go test ${DEF_TEST_ARGS} ${TEST_ARGS[*]}
+    go test -buildvcs=false ${DEF_TEST_ARGS} ${TEST_ARGS[*]}
     result=$?
     if [[ $result -ne 0 ]]; then
       __EXITCODE=$result
