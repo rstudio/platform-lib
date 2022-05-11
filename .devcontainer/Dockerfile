@@ -33,6 +33,8 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
+ARG TARGETARCH
+
 # Upgrade pip
 RUN pip3 install --upgrade pip
 
@@ -51,11 +53,10 @@ RUN chmod +x /usr/local/bin/docker-compose
 
 # Install Go. Keep in sync with other Dockerfiles.
 ENV GOLANG_VERSION 1.18
-RUN ARCH=$(if [ $(uname -m) = "aarch64" ]; then echo "arm64"; else echo "amd64"; fi) \
-    && GOLANG_DOWNLOAD_SHA256=$(if [ $(uname -m) = "aarch64" ]; \
+RUN GOLANG_DOWNLOAD_SHA256=$(if [ $TARGETARCH = "arm64" ]; \
       then echo "7ac7b396a691e588c5fb57687759e6c4db84a2a3bbebb0765f4b38e5b1c5b00e"; \
       else echo "e85278e98f57cdb150fe8409e6e5df5343ecb13cebf03a5d5ff12bd55a80264f"; fi) \
-    && curl -fsSL "https://dl.google.com/go/go${GOLANG_VERSION}.linux-${ARCH}.tar.gz" -o golang.tar.gz \
+    && curl -fsSL "https://dl.google.com/go/go${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz" -o golang.tar.gz \
     && echo "$GOLANG_DOWNLOAD_SHA256  golang.tar.gz" | sha256sum -c - \
     && tar -C /usr/local -xzf golang.tar.gz \
     && rm golang.tar.gz

@@ -91,7 +91,7 @@ clean-docker:
 # Builds the docker image used for building Go code
 # * args - Optional additional docker build args
 build-build-env *args:
-    docker build {{args}} -t rstudio/platform-lib:lib-build -f docker/bionic/Dockerfile docker/bionic
+    DOCKER_BUILDKIT=1 docker build {{args}} -t rstudio/platform-lib:lib-build -f docker/bionic/Dockerfile docker/bionic
 
 # Builds the docker image for e2e testing
 # * args - Optional additional docker build args
