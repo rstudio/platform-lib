@@ -91,7 +91,7 @@ func NewUTCJSONFormatter() *UTCJSONFormatter {
 	}
 }
 
-func (u UTCJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
+func (u *UTCJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	e.Time = e.Time.UTC()
 	return u.JSONFormatter.Format(e)
 }
@@ -109,7 +109,7 @@ func NewUTCTextFormatter() *UTCTextFormatter {
 		}}
 }
 
-func (u UTCTextFormatter) Format(e *logrus.Entry) ([]byte, error) {
+func (u *UTCTextFormatter) Format(e *logrus.Entry) ([]byte, error) {
 	e.Time = e.Time.UTC()
 	return u.TextFormatter.Format(e)
 }
