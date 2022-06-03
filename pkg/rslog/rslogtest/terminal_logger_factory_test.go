@@ -33,5 +33,5 @@ func (s *TerminalLoggerFactorySuite) TestTerminalLoggerFactory() {
 
 	s.Equal(logrus.InfoLevel, lgr_impl.Level)
 	s.Equal(os.Stderr, lgr_impl.Out)
-	s.IsType(&logrus.TextFormatter{}, lgr_impl.Formatter)
+	s.IsType(&rslog.UTCTextFormatter{}, lgr_impl.Formatter)
 }

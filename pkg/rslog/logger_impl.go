@@ -77,16 +77,49 @@ func NewLoggerImpl(options LoggerOptionsImpl,
 	}, nil
 }
 
-func getFormatter(outputFormat OutputFormat) logrus.Formatter {
-	switch outputFormat {
-	case JSONFormat:
-		return &logrus.JSONFormatter{TimestampFormat: "2006-01-02T15:04:05.000Z"}
-	default:
-		return &logrus.TextFormatter{
+//Formatters which enforce UTC timestamp representation
+
+type UTCJSONFormatter struct {
+	*logrus.JSONFormatter
+}
+
+func NewUTCJSONFormatter() *UTCJSONFormatter {
+	return &UTCJSONFormatter{
+		&logrus.JSONFormatter{
+			TimestampFormat: "2006-01-02T15:04:05.000Z",
+		},
+	}
+}
+
+func (u UTCJSONFormatter) Format(e *logrus.Entry) ([]byte, error) {
+	e.Time = e.Time.UTC()
+	return u.JSONFormatter.Format(e)
+}
+
+type UTCTextFormatter struct {
+	*logrus.TextFormatter
+}
+
+func NewUTCTextFormatter() *UTCTextFormatter {
+	return &UTCTextFormatter{
+		&logrus.TextFormatter{
 			FullTimestamp:          true,
 			TimestampFormat:        "2006-01-02T15:04:05.000Z",
 			DisableLevelTruncation: true,
-		}
+		}}
+}
+
+func (u UTCTextFormatter) Format(e *logrus.Entry) ([]byte, error) {
+	e.Time = e.Time.UTC()
+	return u.TextFormatter.Format(e)
+}
+
+func getFormatter(outputFormat OutputFormat) logrus.Formatter {
+	switch outputFormat {
+	case JSONFormat:
+		return NewUTCJSONFormatter()
+	default:
+		return NewUTCTextFormatter()
 	}
 }
 

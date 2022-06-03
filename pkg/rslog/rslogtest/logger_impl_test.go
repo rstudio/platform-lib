@@ -4,7 +4,9 @@ package rslogtest
 
 import (
 	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/sirupsen/logrus"
@@ -50,7 +52,7 @@ func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 	)
 	s.Nil(err)
 	s.Equal(expectedOutput, result.Out)
-	s.IsType(&logrus.TextFormatter{}, result.Formatter)
+	s.IsType(&rslog.UTCTextFormatter{}, result.Formatter)
 
 	result, err = rslog.NewLoggerImpl(
 		rslog.LoggerOptionsImpl{
@@ -61,7 +63,7 @@ func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 		outputMock,
 	)
 	s.Nil(err)
-	s.IsType(&logrus.JSONFormatter{}, result.Formatter)
+	s.IsType(&rslog.UTCJSONFormatter{}, result.Formatter)
 
 	result, err = rslog.NewLoggerImpl(
 		rslog.LoggerOptionsImpl{
@@ -72,7 +74,7 @@ func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 		outputMock,
 	)
 	s.Nil(err)
-	s.IsType(&logrus.TextFormatter{}, result.Formatter)
+	s.IsType(&rslog.UTCTextFormatter{}, result.Formatter)
 
 	errdBuildMock := &OutputBuilderMock{}
 	errdBuildMock.On("Build", outputDest).Return(IoWriterMock{}, fmt.Errorf("output build error"))
@@ -342,7 +344,7 @@ func (s *LoggerImplTestSuite) TestOnConfigReload() {
 
 	s.NotNil(log.Out)
 	s.Equal(log.Level, logrus.WarnLevel)
-	s.IsType(&logrus.JSONFormatter{}, log.Formatter)
+	s.IsType(&rslog.UTCJSONFormatter{}, log.Formatter)
 }
 
 func (s *LoggerImplTestSuite) TestNewDiscardingLogger() {
@@ -351,4 +353,102 @@ func (s *LoggerImplTestSuite) TestNewDiscardingLogger() {
 	discardingLogger := rslog.NewDiscardingLogger()
 
 	s.NotNil(discardingLogger)
+}
+
+func (s *LoggerImplTestSuite) TestUTCJSONFormatter() {
+	// create a test location 1 hr east of UTC
+	loc := time.FixedZone("test/zone", 3600)
+	utc := time.Now().UTC()
+
+	// shift UTC time to the test location
+	nonUtc := utc.In(loc)
+
+	// verify shifted time is 1 hr ahead
+	expected := utc.Add(time.Hour)
+
+	expYear, expMonth, expDay := expected.Date()
+	nonUtcYear, nonUtcMonth, nonUtcDay := nonUtc.Date()
+
+	s.Equal(expYear, nonUtcYear)
+	s.Equal(expMonth, nonUtcMonth)
+	s.Equal(expDay, nonUtcDay)
+
+	expHour, expMin, expSec := expected.Clock()
+	nonUtcHour, nonUtcMin, nonUtcSec := nonUtc.Clock()
+
+	s.Equal(expHour, nonUtcHour)
+	s.Equal(expMin, nonUtcMin)
+	s.Equal(expSec, nonUtcSec)
+
+	// verify shifted time is not in UTC location
+	s.NotEqual(utc.Location(), nonUtc.Location())
+
+	formatter := rslog.NewUTCJSONFormatter()
+
+	// create a log entry with non-UTC time
+	entry := &logrus.Entry{
+		Level:   logrus.DebugLevel,
+		Time:    nonUtc,
+		Message: "test",
+	}
+
+	serialized, err := formatter.Format(entry)
+
+	s.Nil(err)
+
+	result := string(serialized)
+
+	// assert that UTC time appears in the formatted entry
+	utcTimestamp := utc.Format(formatter.TimestampFormat)
+	s.True(strings.Contains(result, utcTimestamp))
+
+}
+
+func (s *LoggerImplTestSuite) TestUTCTextFormatter() {
+
+	// create a test location 1 hr east of UTC
+	loc := time.FixedZone("test/zone", 3600)
+	utc := time.Now().UTC()
+
+	// shift UTC time to the test location
+	nonUtc := utc.In(loc)
+
+	// verify shifted time is 1 hr ahead
+	expected := utc.Add(time.Hour)
+
+	expYear, expMonth, expDay := expected.Date()
+	nonUtcYear, nonUtcMonth, nonUtcDay := nonUtc.Date()
+
+	s.Equal(expYear, nonUtcYear)
+	s.Equal(expMonth, nonUtcMonth)
+	s.Equal(expDay, nonUtcDay)
+
+	expHour, expMin, expSec := expected.Clock()
+	nonUtcHour, nonUtcMin, nonUtcSec := nonUtc.Clock()
+
+	s.Equal(expHour, nonUtcHour)
+	s.Equal(expMin, nonUtcMin)
+	s.Equal(expSec, nonUtcSec)
+
+	// verify shifted time is not in UTC location
+	s.NotEqual(utc.Location(), nonUtc.Location())
+
+	formatter := rslog.NewUTCTextFormatter()
+
+	// create a log entry with non-UTC time
+	entry := &logrus.Entry{
+		Level:   logrus.DebugLevel,
+		Time:    nonUtc,
+		Message: "test",
+	}
+
+	serialized, err := formatter.Format(entry)
+
+	s.Nil(err)
+
+	result := string(serialized)
+
+	// assert that UTC time appears in the formatted entry
+	utcTimestamp := utc.Format(formatter.TimestampFormat)
+	s.True(strings.Contains(result, utcTimestamp))
 }
