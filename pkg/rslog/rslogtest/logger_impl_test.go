@@ -10,6 +10,7 @@ import (
 
 	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -356,32 +357,8 @@ func (s *LoggerImplTestSuite) TestNewDiscardingLogger() {
 }
 
 func (s *LoggerImplTestSuite) TestUTCJSONFormatter() {
-	// create a test location 1 hr east of UTC
-	loc := time.FixedZone("test/zone", 3600)
-	utc := time.Now().UTC()
 
-	// shift UTC time to the test location
-	nonUtc := utc.In(loc)
-
-	// verify shifted time is 1 hr ahead
-	expected := utc.Add(time.Hour)
-
-	expYear, expMonth, expDay := expected.Date()
-	nonUtcYear, nonUtcMonth, nonUtcDay := nonUtc.Date()
-
-	s.Equal(expYear, nonUtcYear)
-	s.Equal(expMonth, nonUtcMonth)
-	s.Equal(expDay, nonUtcDay)
-
-	expHour, expMin, expSec := expected.Clock()
-	nonUtcHour, nonUtcMin, nonUtcSec := nonUtc.Clock()
-
-	s.Equal(expHour, nonUtcHour)
-	s.Equal(expMin, nonUtcMin)
-	s.Equal(expSec, nonUtcSec)
-
-	// verify shifted time is not in UTC location
-	s.NotEqual(utc.Location(), nonUtc.Location())
+	utc, nonUtc := getTestTimes(s.Assertions)
 
 	formatter := rslog.NewUTCJSONFormatter()
 
@@ -406,32 +383,7 @@ func (s *LoggerImplTestSuite) TestUTCJSONFormatter() {
 
 func (s *LoggerImplTestSuite) TestUTCTextFormatter() {
 
-	// create a test location 1 hr east of UTC
-	loc := time.FixedZone("test/zone", 3600)
-	utc := time.Now().UTC()
-
-	// shift UTC time to the test location
-	nonUtc := utc.In(loc)
-
-	// verify shifted time is 1 hr ahead
-	expected := utc.Add(time.Hour)
-
-	expYear, expMonth, expDay := expected.Date()
-	nonUtcYear, nonUtcMonth, nonUtcDay := nonUtc.Date()
-
-	s.Equal(expYear, nonUtcYear)
-	s.Equal(expMonth, nonUtcMonth)
-	s.Equal(expDay, nonUtcDay)
-
-	expHour, expMin, expSec := expected.Clock()
-	nonUtcHour, nonUtcMin, nonUtcSec := nonUtc.Clock()
-
-	s.Equal(expHour, nonUtcHour)
-	s.Equal(expMin, nonUtcMin)
-	s.Equal(expSec, nonUtcSec)
-
-	// verify shifted time is not in UTC location
-	s.NotEqual(utc.Location(), nonUtc.Location())
+	utc, nonUtc := getTestTimes(s.Assertions)
 
 	formatter := rslog.NewUTCTextFormatter()
 
@@ -451,4 +403,37 @@ func (s *LoggerImplTestSuite) TestUTCTextFormatter() {
 	// assert that UTC time appears in the formatted entry
 	utcTimestamp := utc.Format(formatter.TimestampFormat)
 	s.True(strings.Contains(result, utcTimestamp))
+}
+
+// returns a tuple containing a UTC time and its conversion to a test timezone 1 hr east of UTC.
+// assertions are included to prove that we have created the intended times.
+func getTestTimes(a *assert.Assertions) (time.Time, time.Time) {
+	// create a test location 1 hr east of UTC
+	loc := time.FixedZone("test/zone", 3600)
+	utc := time.Now().UTC()
+
+	// shift UTC time to the test location
+	nonUtc := utc.In(loc)
+
+	// verify shifted time is 1 hr ahead
+	expected := utc.Add(time.Hour)
+
+	expYear, expMonth, expDay := expected.Date()
+	nonUtcYear, nonUtcMonth, nonUtcDay := nonUtc.Date()
+
+	a.Equal(expYear, nonUtcYear)
+	a.Equal(expMonth, nonUtcMonth)
+	a.Equal(expDay, nonUtcDay)
+
+	expHour, expMin, expSec := expected.Clock()
+	nonUtcHour, nonUtcMin, nonUtcSec := nonUtc.Clock()
+
+	a.Equal(expHour, nonUtcHour)
+	a.Equal(expMin, nonUtcMin)
+	a.Equal(expSec, nonUtcSec)
+
+	// verify shifted time is not in UTC location
+	a.NotEqual(utc.Location(), nonUtc.Location())
+
+	return utc, nonUtc
 }
