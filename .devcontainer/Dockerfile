@@ -1,5 +1,11 @@
 FROM ubuntu:bionic
 
+ARG TARGETARCH
+
+RUN if [ "${TARGETARCH}" != "amd64" ] && [ "${TARGETARCH}" != "arm64" ]; then \
+    echo "${TARGETARCH} is not a supported architecture. Please use linux/amd64 or linux/arm64"; \
+    exit 1; fi
+
 RUN apt-get update && \
     export DEBIAN_FRONTEND=noninteractive && \
     apt-get install -y \
@@ -33,8 +39,6 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 
-ARG TARGETARCH
-
 # Upgrade pip
 RUN pip3 install --upgrade pip
 
@@ -55,7 +59,7 @@ RUN chmod +x /usr/local/bin/docker-compose
 ENV GOLANG_VERSION 1.18
 RUN GOLANG_DOWNLOAD_SHA256=$(if [ $TARGETARCH = "arm64" ]; \
       then echo "7ac7b396a691e588c5fb57687759e6c4db84a2a3bbebb0765f4b38e5b1c5b00e"; \
-      else echo "e85278e98f57cdb150fe8409e6e5df5343ecb13cebf03a5d5ff12bd55a80264f"; fi) \
+      else echo "e85278e98f57cdb150fe8409e6e5df5343ecb13cebf03a5d5ff12bd55a80264f"; fi) \  # amd64
     && curl -fsSL "https://dl.google.com/go/go${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz" -o golang.tar.gz \
     && echo "$GOLANG_DOWNLOAD_SHA256  golang.tar.gz" | sha256sum -c - \
     && tar -C /usr/local -xzf golang.tar.gz \
@@ -81,7 +85,7 @@ RUN GO111MODULE=on PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go i
     golang.org/x/tools/gopls@latest
 RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools go install \
     github.com/cweill/gotests/...
-RUN GO111MODULE=on PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools GOBIN=/tmp/ go install \
+RUN PATH="$PATH:/usr/local/go/bin" GOPATH=/usr/local/gotools GOBIN=/tmp/ go install \
     github.com/go-delve/delve/cmd/dlv@master && \
     mv /tmp/dlv $GOPATH/bin/dlv-dap
 ENV PATH="$PATH:/usr/local/gotools/bin:/usr/local/go/bin"
