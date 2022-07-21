@@ -60,7 +60,7 @@ RUN chmod +x /usr/local/bin/docker-compose
 ENV GOLANG_VERSION 1.18
 RUN GOLANG_DOWNLOAD_SHA256=$(if [ "${TARGETARCH}" = "arm64" ]; \
       then echo "7ac7b396a691e588c5fb57687759e6c4db84a2a3bbebb0765f4b38e5b1c5b00e"; \
-      else echo "e85278e98f57cdb150fe8409e6e5df5343ecb13cebf03a5d5ff12bd55a80264f"; fi) \  # amd64
+      else echo "e85278e98f57cdb150fe8409e6e5df5343ecb13cebf03a5d5ff12bd55a80264f"; fi) \
     && curl -fsSL "https://dl.google.com/go/go${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz" -o golang.tar.gz \
     && echo "${GOLANG_DOWNLOAD_SHA256}  golang.tar.gz" | sha256sum -c - \
     && tar -C /usr/local -xzf golang.tar.gz \
