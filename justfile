@@ -83,13 +83,20 @@ clean:
     rm -rf data/
     rm -rf .chart/
 
+# Remove docker images and clear build cache (useful to run before building cross platform images)
+clean-docker:
+    docker image rm rstudio/platform-lib:lib-build rstudio/platform-lib:lib-e2e
+    docker builder prune
+
 # Builds the docker image used for building Go code
-build-build-env:
-    docker build -t rstudio/platform-lib:lib-build -f docker/bionic/Dockerfile docker/bionic
+# * args - Optional additional docker build args
+build-build-env *args:
+    DOCKER_BUILDKIT=1 docker build {{args}} -t rstudio/platform-lib:lib-build -f docker/bionic/Dockerfile docker/bionic
 
 # Builds the docker image for e2e testing
-build-e2e-env:
-    docker build --network host -t rstudio/platform-lib:lib-e2e -f .github/actions/test/Dockerfile .github/actions/test
+# * args - Optional additional docker build args
+build-e2e-env *args:
+    docker build {{args}} --network host -t rstudio/platform-lib:lib-e2e -f .github/actions/test/Dockerfile .github/actions/test
 
 # Creates a container for e2e testing
 # * name - The container name

@@ -62,7 +62,7 @@ We use `just` to run project specific commands. See the
 examples.
 
 You will also need [Docker](https://docs.docker.com/get-docker/) if you wish to 
-run the integration tests.
+run the integration and end-to-end tests.
 
 ## Testing
 
@@ -92,15 +92,63 @@ MODULE=pkg/rsnotify just test -v github.com/rstudio/platform-lib/pkg/rsnotify/lo
 
 # Run the PgxNotifySuite suite tests with docker-compose
 MODULE=pkg/rsnotify just test-integration -v github.com/rstudio/platform-lib/pkg/rsnotify/pgxlistener -check.f=PgxNotifySuite
+```
+
+### Testing with Docker
+
+End-to-end and integration tests are run with Docker. 
+
+By default, Docker will use your host machine to infer which [platform to use 
+when building images](https://docs.docker.com/engine/reference/builder/#from). 
+You can specify another architecture with the `--platform` flag. Supported 
+options are `linux/amd64` and `linux/arm64`.
+
+If your machine is running on the same platform as the image you plan to use for 
+testing, you can simply build the code natively. If not you will need to build a 
+separate Docker image to cross-compile your code.
+
+>Note: On Apple silicon, Docker will build linux/arm64 images by default. 
+> However, you will need to cross-compile your code for the end-to-end tests 
+> because binaries built on Darwin are not compatible with the Linux environment 
+> in the Docker images and vice-versa.
+
+Examples:
+
+```bash
+# Build the docker image used for end-to-end testing
+just build-e2e-env
+
+# Build the end-to-end testing image for ARM
+just build-e2e-env --platform=linux/arm64
+
+# Build the build-env image to cross-compile for ARM
+just build-build-env --platform=linux/arm64
+
+# Build the code natively
+just build
+
+# Build the code in Docker
+just build-docker
 
 # Run the end-to-end tests
-just build
 just test-e2e
 
 # Open an interactive container for end-to-end testing
 just start-e2e-env
 just test
 exit
+
+# Run the integration tests (uses the build-env image)
+just test-integration
+```
+
+When re-building images for a different platform, Docker may ignore the platform 
+flag and use cached layers from the previous build. To resolve this issue, 
+remove the images and clear the build cache. You can do this manually for 
+a single image or use the `just` target to clean up both images at once:
+
+```bash
+just clean-docker
 ```
 
 ## Licenses
