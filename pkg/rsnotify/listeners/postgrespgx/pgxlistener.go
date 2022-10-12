@@ -33,6 +33,7 @@ func NewPgxIPReporter(pool *pgxpool.Pool) *PgxIPReporter {
 func (p *PgxIPReporter) IP() string {
 	ip := "0.0.0.0"
 	query := "SELECT inet_client_addr()"
+
 	if p.pool != nil {
 		row := p.pool.QueryRow(context.Background(), query)
 		pgIp := pgtype.Inet{}
@@ -89,6 +90,15 @@ func NewPgxListener(args PgxListenerArgs) *PgxListener {
 }
 
 func (l *PgxListener) IP() string {
+	if l.ip != "" {
+		return l.ip
+	}
+
+	l.ip = l.ipReporter.IP()
+	go func() {
+		time.Sleep(5 * time.Minute)
+		l.ip = ""
+	}()
 	return l.ip
 }
 
