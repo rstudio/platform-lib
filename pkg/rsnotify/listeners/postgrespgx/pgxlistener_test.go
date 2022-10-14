@@ -6,6 +6,7 @@ import (
 	"log"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -22,6 +23,16 @@ type PgxNotifySuite struct {
 }
 
 var _ = check.Suite(&PgxNotifySuite{})
+
+type TestIPReporter struct {
+	Ip     string
+	Called int
+}
+
+func (l *TestIPReporter) IP() string {
+	l.Called += 1
+	return l.Ip
+}
 
 func TestPackage(t *testing.T) { check.TestingT(t) }
 
@@ -69,7 +80,7 @@ func (s *PgxNotifySuite) TestNewPgxListener(c *check.C) {
 	matcher.Register(2, &testNotification{})
 	lgr := &listener.TestLogger{}
 	chName := listenerutils.SafeChannelName(c.TestName())
-	ipRep := &listener.TestIPReporter{}
+	ipRep := &TestIPReporter{}
 	l := NewPgxListener(PgxListenerArgs{
 		Name:        chName,
 		Pool:        s.pool,
@@ -115,7 +126,7 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	}
 
 	chName := listenerutils.SafeChannelName(c.TestName())
-	ipRep := &listener.TestIPReporter{
+	ipRep := &TestIPReporter{
 		Ip: "0.0.0.0",
 	}
 	l := NewPgxListener(PgxListenerArgs{
@@ -306,7 +317,7 @@ func (s *PgxNotifySuite) TestNotificationsErrors(c *check.C) {
 		"}}"
 
 	chName := listenerutils.SafeChannelName(c.TestName())
-	ipRep := &listener.TestIPReporter{}
+	ipRep := &TestIPReporter{}
 	l := NewPgxListener(PgxListenerArgs{
 		Name:       chName,
 		Pool:       s.pool,
@@ -382,12 +393,13 @@ func (s *PgxNotifySuite) TestNotificationsBlock(c *check.C) {
 	}
 
 	chName := listenerutils.SafeChannelName(c.TestName())
-	ipRep := &listener.TestIPReporter{}
+	ipRep := &TestIPReporter{}
 	l := NewPgxListener(PgxListenerArgs{
 		Name:       chName,
 		Pool:       s.pool,
 		Matcher:    matcher,
 		IpReporter: ipRep,
+		IpRefresh:  time.Millisecond,
 	})
 
 	// Listen for notifications
@@ -433,6 +445,9 @@ func (s *PgxNotifySuite) TestNotificationsBlock(c *check.C) {
 
 	// Wait for test to complete
 	<-done
+
+	// Assert that the IP is being refreshed
+	c.Assert(ipRep.Called > 0, check.Equals, true)
 
 	// Clean up
 	l.Stop()

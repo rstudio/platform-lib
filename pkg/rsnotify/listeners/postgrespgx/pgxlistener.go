@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgconn"
@@ -33,6 +34,7 @@ func NewPgxIPReporter(pool *pgxpool.Pool) *PgxIPReporter {
 func (p *PgxIPReporter) IP() string {
 	ip := "0.0.0.0"
 	query := "SELECT inet_client_addr()"
+
 	if p.pool != nil {
 		row := p.pool.QueryRow(context.Background(), query)
 		pgIp := pgtype.Inet{}
@@ -62,6 +64,9 @@ type PgxListener struct {
 	ip          string
 	debugLogger listener.DebugLogger
 	ipReporter  listener.IPReporter
+	ipRefresh   time.Duration
+
+	mu sync.RWMutex
 
 	// For caching chunked notifications
 	notifyCache map[string]map[int][]byte
@@ -73,6 +78,7 @@ type PgxListenerArgs struct {
 	Matcher     listener.TypeMatcher
 	DebugLogger listener.DebugLogger
 	IpReporter  listener.IPReporter
+	IpRefresh   time.Duration
 }
 
 // NewPgxListener creates a new listener.
@@ -84,12 +90,35 @@ func NewPgxListener(args PgxListenerArgs) *PgxListener {
 		debugLogger: args.DebugLogger,
 		matcher:     args.Matcher,
 		ipReporter:  args.IpReporter,
+		ipRefresh:   args.IpRefresh,
 		notifyCache: make(map[string]map[int][]byte),
 	}
 }
 
 func (l *PgxListener) IP() string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.ip
+}
+
+func (l *PgxListener) refreshIP(ctx context.Context) {
+	// Set default IP refresh to 5 minutes; disallow negative durations
+	if l.ipRefresh <= 0 {
+		l.ipRefresh = 5 * time.Minute
+	}
+
+	t := time.NewTicker(l.ipRefresh)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			l.mu.Lock()
+			l.ip = l.ipReporter.IP()
+			l.mu.Unlock()
+		}
+	}
 }
 
 func (l *PgxListener) Listen() (items chan listener.Notification, errs chan error, err error) {
@@ -105,6 +134,8 @@ func (l *PgxListener) Listen() (items chan listener.Notification, errs chan erro
 		ctx, cancel := context.WithCancel(context.Background())
 		l.cancel = cancel
 		defer cancel()
+
+		go l.refreshIP(ctx)
 
 		for {
 			if err := l.wait(ctx, items, errs, ready); err != nil {
@@ -164,6 +195,9 @@ func (l *PgxListener) wait(ctx context.Context, items chan listener.Notification
 }
 
 func (l *PgxListener) acquire(ready chan struct{}) (err error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	if l.conn != nil {
 		l.conn.Exec(context.Background(), fmt.Sprintf("UNLISTEN \"%s\"", l.name))
 		l.conn.Release()
