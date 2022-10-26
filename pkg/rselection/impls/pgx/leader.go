@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/rstudio/platform-lib/pkg/rselection"
 	"github.com/rstudio/platform-lib/pkg/rselection/electiontypes"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
@@ -134,10 +135,10 @@ func (p *PgxLeader) lead(pingTick, sweepTick <-chan time.Time, stop chan bool) {
 	l := p.awb.Subscribe(electiontypes.ClusterMessageTypePingResponse)
 	defer p.awb.Unsubscribe(l)
 
-	// Listen for other ping requests. If an expected ping request is received,
+	// Listen for other ping requests. If an unexpected ping request is received,
 	// we must demote the leader since there's another leader.
-	unexpectedPings := p.awb.Subscribe(electiontypes.ClusterMessageTypePing)
-	defer p.awb.Unsubscribe(unexpectedPings)
+	leaderPings := p.awb.Subscribe(electiontypes.ClusterMessageTypePing)
+	defer p.awb.Unsubscribe(leaderPings)
 
 	// Listen for requests to enumerate nodes in the cluster.
 	nodesCh := p.awb.Subscribe(electiontypes.ClusterMessageTypeNodes)
@@ -171,9 +172,9 @@ func (p *PgxLeader) lead(pingTick, sweepTick <-chan time.Time, stop chan bool) {
 			if cn, ok := n.(*electiontypes.ClusterPingResponse); ok {
 				go p.handlePingResponse(cn)
 			}
-		case n := <-unexpectedPings:
+		case n := <-leaderPings:
 			if cn, ok := n.(*electiontypes.ClusterPingRequest); ok {
-				go p.handleUnexpectedPing(cn)
+				go p.handleLeaderPing(cn)
 			}
 		case n := <-nodesCh:
 			// This supports receiving a request to enumerate cluster nodes. The leader
@@ -215,12 +216,12 @@ func (p *PgxLeader) info() string {
 // this to ensure that the cluster is healthy before running scheduled tasks.
 // This helps to prevent split-brain issues in the cluster.
 //
-// 1. The task handler is ready to run a scheduled task.
-// 2. The task handler sends a `chan bool` to its verify channel.
-// 3. We receive the `chan bool` here and:
-//    a. Verify that the cluster is healthy.
-//    b. Respond with `true` over the channel if the cluster is healthy.
-// 4. The task handler runs the scheduled task when the cluster is healthy.
+//  1. The task handler is ready to run a scheduled task.
+//  2. The task handler sends a `chan bool` to its verify channel.
+//  3. We receive the `chan bool` here and:
+//     a. Verify that the cluster is healthy.
+//     b. Respond with `true` over the channel if the cluster is healthy.
+//  4. The task handler runs the scheduled task when the cluster is healthy.
 func (p *PgxLeader) verify(vCh chan bool) {
 	var err error
 
@@ -329,11 +330,14 @@ func (p *PgxLeader) handleNodesRequest(cn *electiontypes.ClusterNodesRequest) {
 	}
 }
 
-func (p *PgxLeader) handleUnexpectedPing(cn *electiontypes.ClusterPingRequest) {
+func (p *PgxLeader) handleLeaderPing(cn *electiontypes.ClusterPingRequest) {
 	// If we received a ping from another leader, then stop leading
 	if cn.SrcAddr != p.address {
 		p.debugLogger.Debugf("Leader received ping from another leader. Stopping and moving back to the follower loop.")
 		p.stop <- true
+	} else {
+		resp := electiontypes.NewClusterPingResponse(p.address, cn.SrcAddr, p.awb.IP())
+		p.handlePingResponse(resp)
 	}
 }
 

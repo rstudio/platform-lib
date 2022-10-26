@@ -10,12 +10,13 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"gopkg.in/check.v1"
+
 	"github.com/rstudio/platform-lib/pkg/rselection"
 	"github.com/rstudio/platform-lib/pkg/rselection/electiontypes"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespgx"
-	"gopkg.in/check.v1"
 )
 
 type fakeTaskHandler struct {
@@ -361,6 +362,84 @@ func (s *LeaderSuite) TestPingNodes(c *check.C) {
 
 	leader.pingNodes()
 	c.Check(leader.unsuccessfulPing(), check.Equals, true)
+}
+
+func (s *LeaderSuite) TestLeaderPingSelf(c *check.C) {
+	defer leaktest.Check(c)
+
+	channel := c.TestName()
+	// Use a real notifier to send the Ping Request notification.
+	realNotifier := &PgxPgNotifier{pool: s.pool}
+	// Use a fake notifier to record the Ping Response notification.
+	fakeNotifier := &dummyNotifier{}
+	matcher := listener.NewMatcher("MessageType")
+	matcher.Register(electiontypes.ClusterMessageTypePingResponse, &electiontypes.ClusterPingResponse{})
+	matcher.Register(electiontypes.ClusterMessageTypePing, &electiontypes.ClusterPingRequest{})
+	matcher.Register(electiontypes.ClusterMessageTypeNodes, &electiontypes.ClusterNodesNotification{})
+	plf := postgrespgx.NewPgxListener(postgrespgx.PgxListenerArgs{
+		Name:       channel + "_leader",
+		Pool:       s.pool,
+		Matcher:    matcher,
+		IpReporter: &listener.TestIPReporter{Ip: "192.168.5.11"},
+	})
+	defer plf.Stop()
+	awbStop := make(chan bool)
+	awb, err := broadcaster.NewNotificationBroadcaster(plf, awbStop)
+	c.Assert(err, check.IsNil)
+	defer func() {
+		awbStop <- true
+	}()
+	stop := make(chan bool)
+
+	pingCh := make(chan bool)
+	defer close(pingCh)
+
+	leader := &PgxLeader{
+		awb:                awb,
+		notify:             fakeNotifier,
+		chLeader:           "leader",
+		chFollower:         "follower",
+		address:            "leader",
+		stop:               stop,
+		nodes:              map[string]*electiontypes.ClusterNode{},
+		pingResponseChTEST: pingCh,
+		taskHandler:        &fakeTaskHandler{},
+		debugLogger:        &fakeLogger{},
+		traceLogger:        &fakeLogger{},
+	}
+
+	// Notified when leader exits
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		leader.lead(nil, nil, stop)
+	}()
+
+	// Receive notification from self
+	msgBytes, err := json.Marshal(&electiontypes.ClusterPingRequest{
+		ClusterNotification: electiontypes.ClusterNotification{
+			GuidVal:     "65db0d7d-8db1-4fa8-bc2a-58fad248507f",
+			MessageType: electiontypes.ClusterMessageTypePing,
+			SrcAddr:     "leader",
+		},
+	})
+	c.Assert(err, check.IsNil)
+
+	now := time.Now()
+	wait(pingCh, func() {
+		err = realNotifier.Notify(channel+"_leader", msgBytes)
+		c.Assert(err, check.IsNil)
+	})
+	c.Assert(len(leader.nodes), check.Equals, 1)
+	node, ok := leader.nodes["leader_192.168.5.11"]
+	c.Assert(ok, check.Equals, true)
+	c.Assert(node.Ping.After(now), check.Equals, true)
+
+	// Stop
+	close(stop)
+
+	// Wait for exit
+	<-done
 }
 
 func (s *LeaderSuite) TestLeaderDemotion(c *check.C) {
