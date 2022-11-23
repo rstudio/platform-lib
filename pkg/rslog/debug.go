@@ -60,6 +60,7 @@ func InitDebugLogs(regions []ProductRegion) {
 
 	// Reset enabled regions on each call.
 	regionsEnabled = make(map[ProductRegion]bool)
+	lgr := DefaultLogger()
 
 	// match debug log region to list
 	for _, region := range regions {
@@ -67,14 +68,8 @@ func InitDebugLogs(regions []ProductRegion) {
 			continue
 		}
 		regionsEnabled[region] = true
-		// TODO: On logging feature completion,
-		// Use the below commented out lines when
-		// debug.InitLog at config.go isn't used anymore
-
-		// regionName := DebugRegionName(region)
-		// if we normalized, print both the enabled region and
-		// the original input.
-		// Infof("Debug logging enabled for area: %s", regionName)
+		regionName := RegionName(region)
+		lgr.Infof("Debug logging enabled for area: %s", regionName)
 	}
 }
 
