@@ -52,8 +52,8 @@ func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 		outputMock,
 	)
 	s.Nil(err)
-	s.Equal(expectedOutput, result.Out)
-	s.IsType(&rslog.UTCTextFormatter{}, result.Formatter)
+	s.Equal(expectedOutput, result.CoreLogger.Out)
+	s.IsType(&rslog.UTCTextFormatter{}, result.CoreLogger.Formatter)
 
 	result, err = rslog.NewLoggerImpl(
 		rslog.LoggerOptionsImpl{
@@ -64,7 +64,7 @@ func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 		outputMock,
 	)
 	s.Nil(err)
-	s.IsType(&rslog.UTCJSONFormatter{}, result.Formatter)
+	s.IsType(&rslog.UTCJSONFormatter{}, result.CoreLogger.Formatter)
 
 	result, err = rslog.NewLoggerImpl(
 		rslog.LoggerOptionsImpl{
@@ -75,7 +75,7 @@ func (s *LoggerImplTestSuite) TestNewLoggerImpl() {
 		outputMock,
 	)
 	s.Nil(err)
-	s.IsType(&rslog.UTCTextFormatter{}, result.Formatter)
+	s.IsType(&rslog.UTCTextFormatter{}, result.CoreLogger.Formatter)
 
 	errdBuildMock := &OutputBuilderMock{}
 	errdBuildMock.On("Build", outputDest).Return(IoWriterMock{}, fmt.Errorf("output build error"))
@@ -249,10 +249,7 @@ func (s *LoggerImplTestSuite) TestNewLoggerImplLevel() {
 				outputMock,
 			)
 			s.Nil(err)
-
-			logrusLogger := lgr.Logger
-
-			s.Equal(tc.ExpectedLogrusLogLevel, logrusLogger.GetLevel())
+			s.Equal(tc.ExpectedLogrusLogLevel, lgr.CoreLogger.GetLevel())
 		})
 	}
 
@@ -339,13 +336,13 @@ func (s *LoggerImplTestSuite) TestOnConfigReload() {
 	)
 	s.Nil(err)
 
-	s.Equal(log.Level, logrus.InfoLevel)
+	s.Equal(log.CoreLogger.Level, logrus.InfoLevel)
 
 	log.OnConfigReload(rslog.WarningLevel)
 
-	s.NotNil(log.Out)
-	s.Equal(log.Level, logrus.WarnLevel)
-	s.IsType(&rslog.UTCJSONFormatter{}, log.Formatter)
+	s.NotNil(log.CoreLogger.Out)
+	s.Equal(log.CoreLogger.Level, logrus.WarnLevel)
+	s.IsType(&rslog.UTCJSONFormatter{}, log.CoreLogger.Formatter)
 }
 
 func (s *LoggerImplTestSuite) TestNewDiscardingLogger() {

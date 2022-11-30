@@ -39,7 +39,7 @@ func (f *LoggerFactoryImpl) DefaultLogger() Logger {
 			logs:     make([]logEntry, 0),
 			wrappers: make(map[*logrusEntryWrapper]struct{}),
 		},
-		coreLogger: lgr.coreLogger,
+		coreLogger: lgr.CoreLogger,
 		flusher:    lgr,
 	}
 	lgr.loggerImpl = lgr.bufLogger
@@ -61,7 +61,7 @@ func (f *TerminalLoggerFactory) DefaultLogger() Logger {
 
 type LoggerImpl struct {
 	loggerImpl
-	coreLogger *logrus.Logger
+	CoreLogger *logrus.Logger
 	bufLogger  *bufLogger
 }
 
@@ -87,7 +87,7 @@ func NewLoggerImpl(options LoggerOptionsImpl,
 	l.SetLevel(getLevel(options.Level))
 
 	return &LoggerImpl{
-		coreLogger: l,
+		CoreLogger: l,
 		loggerImpl: l,
 	}, nil
 }
@@ -158,7 +158,7 @@ func getLevel(level LogLevel) logrus.Level {
 func (l *LoggerImpl) Flush() {
 	flushOnce.Do(func() {
 		storage := l.bufLogger.storage
-		l.loggerImpl = l.coreLogger
+		l.loggerImpl = l.CoreLogger
 		l.bufLogger = nil
 
 		for wrapper := range storage.wrappers {
@@ -189,7 +189,7 @@ func (l *LoggerImpl) Flush() {
 }
 
 func (l LoggerImpl) WithField(key string, value interface{}) Logger {
-	e := l.coreLogger.WithField(key, value)
+	e := l.CoreLogger.WithField(key, value)
 	wrapper := &logrusEntryWrapper{coreLogger: e}
 	if l.bufLogger != nil {
 		wrapper.bufLogger = l.bufLogger.child(wrapper)
@@ -202,7 +202,7 @@ func (l LoggerImpl) WithField(key string, value interface{}) Logger {
 }
 
 func (l LoggerImpl) WithFields(fields Fields) Logger {
-	e := l.coreLogger.WithFields(logrus.Fields(fields))
+	e := l.CoreLogger.WithFields(logrus.Fields(fields))
 	wrapper := &logrusEntryWrapper{coreLogger: e}
 	if l.bufLogger != nil {
 		wrapper.bufLogger = l.bufLogger.child(wrapper)
@@ -216,22 +216,22 @@ func (l LoggerImpl) WithFields(fields Fields) Logger {
 
 func (l LoggerImpl) SetLevel(level LogLevel) {
 	logrusLevel := getLevel(level)
-	l.coreLogger.SetLevel(logrusLevel)
+	l.CoreLogger.SetLevel(logrusLevel)
 }
 
 func (l LoggerImpl) SetFormatter(format OutputFormat) {
-	l.coreLogger.SetFormatter(getFormatter(format))
+	l.CoreLogger.SetFormatter(getFormatter(format))
 }
 
 func (l LoggerImpl) SetOutput(writers ...io.Writer) {
 	output := io.MultiWriter(writers...)
-	l.coreLogger.SetOutput(output)
+	l.CoreLogger.SetOutput(output)
 }
 
 func (l LoggerImpl) OnConfigReload(level LogLevel) {
 	logrusLevel := getLevel(level)
 
-	if logrusLevel != l.coreLogger.GetLevel() {
+	if logrusLevel != l.CoreLogger.GetLevel() {
 		l.SetLevel(level)
 		l.Infof("Logging level changed to %s", level)
 	}
