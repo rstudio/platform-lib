@@ -118,7 +118,7 @@ func NewCapturingLogger(options CapturingLoggerOptions) CapturingLogger {
 
 	h := new(captureMessageHook)
 	h.metadata = options.WithMetadata
-	l.AddHook(h)
+	l.coreLogger.AddHook(h)
 
 	return CapturingLogger{
 		Logger: l,
