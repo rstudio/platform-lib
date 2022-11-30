@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-type Logger interface {
+type loggerImpl interface {
 	Debugf(msg string, args ...interface{})
 	Infof(msg string, args ...interface{})
 	Warnf(msg string, args ...interface{})
@@ -18,6 +18,10 @@ type Logger interface {
 	Fatal(args ...interface{})
 	Panicf(msg string, args ...interface{})
 	Tracef(msg string, args ...interface{})
+}
+
+type Logger interface {
+	loggerImpl
 
 	WithField(key string, value interface{}) Logger
 	WithFields(fields Fields) Logger
