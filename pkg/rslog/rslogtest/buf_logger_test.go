@@ -1,5 +1,7 @@
 package rslogtest
 
+// Copyright (C) 2022 by RStudio, PBC.
+
 import (
 	"testing"
 
@@ -8,14 +10,20 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// Copyright (C) 2022 by RStudio, PBC.
-
 type BufLoggerTestSuite struct {
 	suite.Suite
 }
 
 func TestBufLoggerSuite(t *testing.T) {
 	suite.Run(t, &BufLoggerTestSuite{})
+}
+
+type flushLogger struct {
+	mock.Mock
+}
+
+func (f *flushLogger) Flush() {
+	f.Called()
 }
 
 func (s *BufLoggerTestSuite) TestBuffering() {
@@ -71,4 +79,38 @@ func (s *BufLoggerTestSuite) TestBuffering() {
 			},
 		},
 	)
+}
+
+func (s *BufLoggerTestSuite) TestPanics() {
+	f := &flushLogger{}
+	lgr := &LoggerMock{}
+
+	bufLogger := rslog.NewBufLogger(struct {
+		rslog.CoreLoggerImpl
+		rslog.Flusher
+	}{lgr, f})
+
+	lgr.On("Fatal", mock.Anything)
+	f.On("Flush")
+	bufLogger.Fatal("testing fatal")
+	lgr.AssertCalled(s.T(), "Fatal", []interface{}{"testing fatal"})
+	f.AssertCalled(s.T(), "Flush")
+	lgr.ExpectedCalls = nil
+	f.ExpectedCalls = nil
+
+	lgr.On("Fatalf", mock.AnythingOfType("string"), mock.Anything)
+	f.On("Flush")
+	bufLogger.Fatalf("testing %s", "fatalf")
+	lgr.AssertCalled(s.T(), "Fatalf", "testing %s", []interface{}{"fatalf"})
+	f.AssertCalled(s.T(), "Flush")
+	lgr.ExpectedCalls = nil
+	f.ExpectedCalls = nil
+
+	lgr.On("Panicf", mock.AnythingOfType("string"), mock.Anything)
+	f.On("Flush")
+	bufLogger.Panicf("testing %s", "panicf")
+	lgr.AssertCalled(s.T(), "Panicf", "testing %s", []interface{}{"panicf"})
+	f.AssertCalled(s.T(), "Flush")
+	lgr.ExpectedCalls = nil
+	f.ExpectedCalls = nil
 }

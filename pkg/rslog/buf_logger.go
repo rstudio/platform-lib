@@ -6,7 +6,7 @@ type BufLogEntry struct {
 	Level   LogLevel
 	Message string
 	Args    []interface{}
-	Logger  loggerImpl
+	Logger  CoreLoggerImpl
 }
 
 type BufStorage struct {
@@ -14,13 +14,13 @@ type BufStorage struct {
 }
 
 type BufLogger struct {
-	CoreLogger loggerImpl
+	CoreLogger CoreLoggerImpl
 	Storage    *BufStorage
 }
 
-var _ loggerImpl = new(BufLogger)
+var _ CoreLoggerImpl = new(BufLogger)
 
-func NewBufLogger(coreLogger loggerImpl) *BufLogger {
+func NewBufLogger(coreLogger CoreLoggerImpl) *BufLogger {
 	return &BufLogger{
 		Storage: &BufStorage{
 			Logs: make([]BufLogEntry, 0),
@@ -31,7 +31,7 @@ func NewBufLogger(coreLogger loggerImpl) *BufLogger {
 
 // child creates and registers a wrapped logger implementation and returns a new buffered logger
 // that will pass down the same storage and fallback fields for its children, if any.
-func (buf *BufLogger) child(coreLogger loggerImpl) *BufLogger {
+func (buf *BufLogger) child(coreLogger CoreLoggerImpl) *BufLogger {
 	return &BufLogger{
 		CoreLogger: coreLogger,
 		Storage:    buf.Storage,
@@ -83,21 +83,21 @@ func (buf *BufLogger) Errorf(msg string, args ...interface{}) {
 }
 
 func (buf *BufLogger) Fatal(args ...interface{}) {
-	if f, ok := buf.CoreLogger.(flusher); ok {
+	if f, ok := buf.CoreLogger.(Flusher); ok {
 		f.Flush()
 	}
 	buf.CoreLogger.Fatal(args...)
 }
 
 func (buf *BufLogger) Fatalf(msg string, args ...interface{}) {
-	if f, ok := buf.CoreLogger.(flusher); ok {
+	if f, ok := buf.CoreLogger.(Flusher); ok {
 		f.Flush()
 	}
 	buf.CoreLogger.Fatalf(msg, args...)
 }
 
 func (buf *BufLogger) Panicf(msg string, args ...interface{}) {
-	if f, ok := buf.CoreLogger.(flusher); ok {
+	if f, ok := buf.CoreLogger.(Flusher); ok {
 		f.Flush()
 	}
 	buf.CoreLogger.Panicf(msg, args...)

@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-type loggerImpl interface {
+type CoreLoggerImpl interface {
 	Debugf(msg string, args ...interface{})
 	Infof(msg string, args ...interface{})
 	Warnf(msg string, args ...interface{})
@@ -21,7 +21,7 @@ type loggerImpl interface {
 }
 
 type Logger interface {
-	loggerImpl
+	CoreLoggerImpl
 
 	WithField(key string, value interface{}) Logger
 	WithFields(fields Fields) Logger
