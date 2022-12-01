@@ -2,106 +2,103 @@ package rslog
 
 // Copyright (C) 2022 by RStudio, PBC.
 
-import "github.com/sirupsen/logrus"
-
-type logEntry struct {
-	lvl     LogLevel
-	msg     string
-	args    []interface{}
-	wrapper *logrusEntryWrapper
+type BufLogEntry struct {
+	Level   LogLevel
+	Message string
+	Args    []interface{}
+	Logger  loggerImpl
 }
 
-type bufStorage struct {
-	logs     []logEntry
-	wrappers map[*logrusEntryWrapper]struct{}
+type BufStorage struct {
+	Logs []BufLogEntry
 }
 
-type bufLogger struct {
-	wrapper    *logrusEntryWrapper
-	coreLogger loggerImpl
-	storage    *bufStorage
-	flusher    flusher
+type BufLogger struct {
+	CoreLogger loggerImpl
+	Storage    *BufStorage
 }
 
-var _ loggerImpl = new(bufLogger)
+var _ loggerImpl = new(BufLogger)
 
-func newBufLogger(coreLogger *logrus.Logger) *bufLogger {
-	return &bufLogger{
-		storage: &bufStorage{
-			logs:     make([]logEntry, 0),
-			wrappers: make(map[*logrusEntryWrapper]struct{}),
+func NewBufLogger(coreLogger loggerImpl) *BufLogger {
+	return &BufLogger{
+		Storage: &BufStorage{
+			Logs: make([]BufLogEntry, 0),
 		},
-		coreLogger: coreLogger,
+		CoreLogger: coreLogger,
 	}
 }
 
 // child creates and registers a wrapped logger implementation and returns a new buffered logger
 // that will pass down the same storage and fallback fields for its children, if any.
-func (buf *bufLogger) child(wrapper *logrusEntryWrapper) *bufLogger {
-	buf.storage.wrappers[wrapper] = struct{}{}
-	return &bufLogger{
-		wrapper:    wrapper,
-		coreLogger: buf.coreLogger,
-		storage:    buf.storage,
-		flusher:    buf.flusher,
+func (buf *BufLogger) child(coreLogger loggerImpl) *BufLogger {
+	return &BufLogger{
+		CoreLogger: coreLogger,
+		Storage:    buf.Storage,
 	}
 }
 
-func (buf *bufLogger) Tracef(msg string, args ...interface{}) {
-	buf.storage.logs = append(buf.storage.logs, logEntry{
-		lvl:     TraceLevel,
-		msg:     msg,
-		args:    args,
-		wrapper: buf.wrapper,
+func (buf *BufLogger) Tracef(msg string, args ...interface{}) {
+	buf.Storage.Logs = append(buf.Storage.Logs, BufLogEntry{
+		Level:   TraceLevel,
+		Message: msg,
+		Args:    args,
+		Logger:  buf.CoreLogger,
 	})
 }
 
-func (buf *bufLogger) Debugf(msg string, args ...interface{}) {
-	buf.storage.logs = append(buf.storage.logs, logEntry{
-		lvl:     DebugLevel,
-		msg:     msg,
-		args:    args,
-		wrapper: buf.wrapper,
+func (buf *BufLogger) Debugf(msg string, args ...interface{}) {
+	buf.Storage.Logs = append(buf.Storage.Logs, BufLogEntry{
+		Level:   DebugLevel,
+		Message: msg,
+		Args:    args,
+		Logger:  buf.CoreLogger,
 	})
 }
 
-func (buf *bufLogger) Infof(msg string, args ...interface{}) {
-	buf.storage.logs = append(buf.storage.logs, logEntry{
-		lvl:     InfoLevel,
-		msg:     msg,
-		args:    args,
-		wrapper: buf.wrapper,
+func (buf *BufLogger) Infof(msg string, args ...interface{}) {
+	buf.Storage.Logs = append(buf.Storage.Logs, BufLogEntry{
+		Level:   InfoLevel,
+		Message: msg,
+		Args:    args,
+		Logger:  buf.CoreLogger,
 	})
 }
 
-func (buf *bufLogger) Warnf(msg string, args ...interface{}) {
-	buf.storage.logs = append(buf.storage.logs, logEntry{
-		lvl:     WarningLevel,
-		msg:     msg,
-		args:    args,
-		wrapper: buf.wrapper,
+func (buf *BufLogger) Warnf(msg string, args ...interface{}) {
+	buf.Storage.Logs = append(buf.Storage.Logs, BufLogEntry{
+		Level:   WarningLevel,
+		Message: msg,
+		Args:    args,
+		Logger:  buf.CoreLogger,
 	})
 }
-func (buf *bufLogger) Errorf(msg string, args ...interface{}) {
-	buf.storage.logs = append(buf.storage.logs, logEntry{
-		lvl:     ErrorLevel,
-		msg:     msg,
-		args:    args,
-		wrapper: buf.wrapper,
+func (buf *BufLogger) Errorf(msg string, args ...interface{}) {
+	buf.Storage.Logs = append(buf.Storage.Logs, BufLogEntry{
+		Level:   ErrorLevel,
+		Message: msg,
+		Args:    args,
+		Logger:  buf.CoreLogger,
 	})
 }
 
-func (buf *bufLogger) Fatal(args ...interface{}) {
-	buf.flusher.Flush()
-	buf.coreLogger.Fatal(args...)
+func (buf *BufLogger) Fatal(args ...interface{}) {
+	if f, ok := buf.CoreLogger.(flusher); ok {
+		f.Flush()
+	}
+	buf.CoreLogger.Fatal(args...)
 }
 
-func (buf *bufLogger) Fatalf(msg string, args ...interface{}) {
-	buf.flusher.Flush()
-	buf.coreLogger.Fatalf(msg, args...)
+func (buf *BufLogger) Fatalf(msg string, args ...interface{}) {
+	if f, ok := buf.CoreLogger.(flusher); ok {
+		f.Flush()
+	}
+	buf.CoreLogger.Fatalf(msg, args...)
 }
 
-func (buf *bufLogger) Panicf(msg string, args ...interface{}) {
-	buf.flusher.Flush()
-	buf.coreLogger.Panicf(msg, args...)
+func (buf *BufLogger) Panicf(msg string, args ...interface{}) {
+	if f, ok := buf.CoreLogger.(flusher); ok {
+		f.Flush()
+	}
+	buf.CoreLogger.Panicf(msg, args...)
 }

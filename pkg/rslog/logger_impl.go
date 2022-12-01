@@ -33,16 +33,11 @@ func (f *LoggerFactoryImpl) DefaultLogger() Logger {
 		Format: TextFormat,
 		Level:  InfoLevel,
 	}, NewOutputLogBuilder(ServerLog, ""))
+
 	// Build default logger with buffered logger.
-	lgr.bufLogger = &bufLogger{
-		storage: &bufStorage{
-			logs:     make([]logEntry, 0),
-			wrappers: make(map[*logrusEntryWrapper]struct{}),
-		},
-		coreLogger: lgr.CoreLogger,
-		flusher:    lgr,
-	}
-	lgr.loggerImpl = lgr.bufLogger
+	lgr.loggerImpl = NewBufLogger(lgr.CoreLogger)
+	lgr.wrappers = make(map[*logrusEntryWrapper]struct{})
+
 	return lgr
 }
 
@@ -62,7 +57,7 @@ func (f *TerminalLoggerFactory) DefaultLogger() Logger {
 type LoggerImpl struct {
 	loggerImpl
 	CoreLogger *logrus.Logger
-	bufLogger  *bufLogger
+	wrappers   map[*logrusEntryWrapper]struct{}
 }
 
 type LoggerOptionsImpl struct {
@@ -157,32 +152,33 @@ func getLevel(level LogLevel) logrus.Level {
 
 func (l *LoggerImpl) Flush() {
 	flushOnce.Do(func() {
-		storage := l.bufLogger.storage
-		l.loggerImpl = l.CoreLogger
-		l.bufLogger = nil
+		if bufLogger, ok := l.loggerImpl.(*BufLogger); ok {
+			storage := bufLogger.Storage
 
-		for wrapper := range storage.wrappers {
-			wrapper.loggerImpl = wrapper.coreLogger
-			wrapper.bufLogger = nil
-		}
-
-		for _, entry := range storage.logs {
-			var lgr loggerImpl = l
-			if entry.wrapper != nil {
-				lgr = entry.wrapper
+			// Swap logger implementations and allow wrappers set to be garbage-collected.
+			l.loggerImpl = l.CoreLogger
+			for wrapper := range l.wrappers {
+				wrapper.loggerImpl = wrapper.coreLogger
+				wrapper.wrappers = nil
 			}
+			l.wrappers = nil
 
-			switch entry.lvl {
-			case TraceLevel:
-				lgr.Tracef(entry.msg, entry.args...)
-			case DebugLevel:
-				lgr.Debugf(entry.msg, entry.args...)
-			case InfoLevel:
-				lgr.Infof(entry.msg, entry.args...)
-			case WarningLevel:
-				lgr.Warnf(entry.msg, entry.args...)
-			case ErrorLevel:
-				lgr.Errorf(entry.msg, entry.args...)
+			// Time to output retained logs to their respective loggers.
+			for _, entry := range storage.Logs {
+				lgr := entry.Logger
+
+				switch entry.Level {
+				case TraceLevel:
+					lgr.Tracef(entry.Message, entry.Args...)
+				case DebugLevel:
+					lgr.Debugf(entry.Message, entry.Args...)
+				case InfoLevel:
+					lgr.Infof(entry.Message, entry.Args...)
+				case WarningLevel:
+					lgr.Warnf(entry.Message, entry.Args...)
+				case ErrorLevel:
+					lgr.Errorf(entry.Message, entry.Args...)
+				}
 			}
 		}
 	})
@@ -190,12 +186,12 @@ func (l *LoggerImpl) Flush() {
 
 func (l LoggerImpl) WithField(key string, value interface{}) Logger {
 	e := l.CoreLogger.WithField(key, value)
-	wrapper := &logrusEntryWrapper{coreLogger: e}
-	if l.bufLogger != nil {
-		wrapper.bufLogger = l.bufLogger.child(wrapper)
-		wrapper.loggerImpl = wrapper.bufLogger
-	} else {
-		wrapper.loggerImpl = wrapper.coreLogger
+	wrapper := &logrusEntryWrapper{coreLogger: e, loggerImpl: e, wrappers: l.wrappers}
+	if l.wrappers != nil {
+		if bufLogger, ok := l.loggerImpl.(*BufLogger); ok {
+			l.wrappers[wrapper] = struct{}{}
+			wrapper.loggerImpl = bufLogger.child(wrapper.coreLogger)
+		}
 	}
 
 	return wrapper
@@ -203,12 +199,12 @@ func (l LoggerImpl) WithField(key string, value interface{}) Logger {
 
 func (l LoggerImpl) WithFields(fields Fields) Logger {
 	e := l.CoreLogger.WithFields(logrus.Fields(fields))
-	wrapper := &logrusEntryWrapper{coreLogger: e}
-	if l.bufLogger != nil {
-		wrapper.bufLogger = l.bufLogger.child(wrapper)
-		wrapper.loggerImpl = wrapper.bufLogger
-	} else {
-		wrapper.loggerImpl = wrapper.coreLogger
+	wrapper := &logrusEntryWrapper{coreLogger: e, loggerImpl: e, wrappers: l.wrappers}
+	if l.wrappers != nil {
+		if bufLogger, ok := l.loggerImpl.(*BufLogger); ok {
+			l.wrappers[wrapper] = struct{}{}
+			wrapper.loggerImpl = bufLogger.child(wrapper.coreLogger)
+		}
 	}
 
 	return wrapper
@@ -246,7 +242,7 @@ type logrusEntryWrapper struct {
 	loggerImpl
 
 	coreLogger *logrus.Entry
-	bufLogger  *bufLogger
+	wrappers   map[*logrusEntryWrapper]struct{}
 }
 
 func (l logrusEntryWrapper) SetLevel(level LogLevel) {
@@ -264,12 +260,12 @@ func (l logrusEntryWrapper) SetFormatter(format OutputFormat) {
 
 func (l logrusEntryWrapper) WithField(key string, value interface{}) Logger {
 	e := l.coreLogger.WithField(key, value)
-	wrapper := &logrusEntryWrapper{coreLogger: e}
-	if l.bufLogger != nil {
-		wrapper.bufLogger = l.bufLogger.child(wrapper)
-		wrapper.loggerImpl = wrapper.bufLogger
-	} else {
-		wrapper.loggerImpl = wrapper.coreLogger
+	wrapper := &logrusEntryWrapper{coreLogger: e, loggerImpl: e, wrappers: l.wrappers}
+	if l.wrappers != nil {
+		if bufLogger, ok := l.loggerImpl.(*BufLogger); ok {
+			l.wrappers[wrapper] = struct{}{}
+			wrapper.loggerImpl = bufLogger.child(wrapper.coreLogger)
+		}
 	}
 
 	return wrapper
@@ -278,11 +274,11 @@ func (l logrusEntryWrapper) WithField(key string, value interface{}) Logger {
 func (l logrusEntryWrapper) WithFields(fields Fields) Logger {
 	e := l.coreLogger.WithFields(logrus.Fields(fields))
 	wrapper := &logrusEntryWrapper{coreLogger: e}
-	if l.bufLogger != nil {
-		wrapper.bufLogger = l.bufLogger.child(wrapper)
-		wrapper.loggerImpl = wrapper.bufLogger
-	} else {
-		wrapper.loggerImpl = wrapper.coreLogger
+	if l.wrappers != nil {
+		if bufLogger, ok := l.loggerImpl.(*BufLogger); ok {
+			l.wrappers[wrapper] = struct{}{}
+			wrapper.loggerImpl = bufLogger.child(wrapper.coreLogger)
+		}
 	}
 
 	return wrapper
