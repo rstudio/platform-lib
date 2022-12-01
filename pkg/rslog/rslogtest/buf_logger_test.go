@@ -18,20 +18,12 @@ func TestBufLoggerSuite(t *testing.T) {
 	suite.Run(t, &BufLoggerTestSuite{})
 }
 
-type flushLogger struct {
-	mock.Mock
-}
-
-func (f *flushLogger) Flush() {
-	f.Called()
-}
-
 func (s *BufLoggerTestSuite) TestBuffering() {
 	coreLogger := &LoggerMock{}
 	methods := []string{"Errorf", "Warnf", "Debugf", "Infof", "Tracef"}
 	coreLogger.AllowAny(methods...)
 
-	bufLogger := rslog.NewBufLogger(coreLogger)
+	bufLogger := rslog.NewBufLogger(coreLogger, nil)
 	bufLogger.Debugf("testing %s", "debug")
 	bufLogger.Errorf("testing %s", "error")
 	bufLogger.Infof("testing %s", "info")
@@ -81,36 +73,56 @@ func (s *BufLoggerTestSuite) TestBuffering() {
 	)
 }
 
-func (s *BufLoggerTestSuite) TestPanics() {
-	f := &flushLogger{}
-	lgr := &LoggerMock{}
+func (s *BufLoggerTestSuite) TestFatal() {
+	var (
+		calledFlush bool
+		lgr         = &LoggerMock{}
+	)
 
-	bufLogger := rslog.NewBufLogger(struct {
-		rslog.CoreLoggerImpl
-		rslog.Flusher
-	}{lgr, f})
-
+	bufLogger := rslog.NewBufLogger(
+		struct{ rslog.CoreLoggerImpl }{lgr},
+		func() {
+			calledFlush = true
+		},
+	)
 	lgr.On("Fatal", mock.Anything)
-	f.On("Flush")
 	bufLogger.Fatal("testing fatal")
 	lgr.AssertCalled(s.T(), "Fatal", []interface{}{"testing fatal"})
-	f.AssertCalled(s.T(), "Flush")
-	lgr.ExpectedCalls = nil
-	f.ExpectedCalls = nil
+	s.True(calledFlush)
+}
 
+func (s *BufLoggerTestSuite) TestFatalf() {
+	var (
+		calledFlush bool
+		lgr         = &LoggerMock{}
+	)
+
+	bufLogger := rslog.NewBufLogger(
+		struct{ rslog.CoreLoggerImpl }{lgr},
+		func() {
+			calledFlush = true
+		},
+	)
 	lgr.On("Fatalf", mock.AnythingOfType("string"), mock.Anything)
-	f.On("Flush")
 	bufLogger.Fatalf("testing %s", "fatalf")
 	lgr.AssertCalled(s.T(), "Fatalf", "testing %s", []interface{}{"fatalf"})
-	f.AssertCalled(s.T(), "Flush")
-	lgr.ExpectedCalls = nil
-	f.ExpectedCalls = nil
+	s.True(calledFlush)
+}
 
+func (s *BufLoggerTestSuite) TestPanicf() {
+	var (
+		calledFlush bool
+		lgr         = &LoggerMock{}
+	)
+
+	bufLogger := rslog.NewBufLogger(
+		struct{ rslog.CoreLoggerImpl }{lgr},
+		func() {
+			calledFlush = true
+		},
+	)
 	lgr.On("Panicf", mock.AnythingOfType("string"), mock.Anything)
-	f.On("Flush")
 	bufLogger.Panicf("testing %s", "panicf")
 	lgr.AssertCalled(s.T(), "Panicf", "testing %s", []interface{}{"panicf"})
-	f.AssertCalled(s.T(), "Flush")
-	lgr.ExpectedCalls = nil
-	f.ExpectedCalls = nil
+	s.True(calledFlush)
 }

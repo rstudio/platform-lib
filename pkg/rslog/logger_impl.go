@@ -15,8 +15,6 @@ const (
 
 var DefaultLoggerFactory LoggerFactory
 
-var flushOnce sync.Once
-
 type LoggerFactoryImpl struct{}
 
 func (f *LoggerFactoryImpl) DefaultLogger() Logger {
@@ -33,10 +31,6 @@ func (f *LoggerFactoryImpl) DefaultLogger() Logger {
 		Format: TextFormat,
 		Level:  InfoLevel,
 	}, NewOutputLogBuilder(ServerLog, ""))
-
-	// Build default logger with buffered logger.
-	lgr.CoreLoggerImpl = NewBufLogger(lgr.CoreLogger)
-	lgr.wrappers = make(map[*logrusEntryWrapper]struct{})
 
 	return lgr
 }
@@ -82,7 +76,7 @@ func NewLoggerImpl(options LoggerOptionsImpl,
 	l.SetLevel(getLevel(options.Level))
 
 	return &LoggerImpl{
-		CoreLogger: l,
+		CoreLogger:     l,
 		CoreLoggerImpl: l,
 	}, nil
 }
@@ -150,48 +144,53 @@ func getLevel(level LogLevel) logrus.Level {
 	}
 }
 
+func (l *LoggerImpl) Buffer() {
+	l.CoreLoggerImpl = NewBufLogger(l.CoreLogger, l.Flush)
+	if l.wrappers == nil {
+		l.wrappers = make(map[*logrusEntryWrapper]struct{})
+	}
+}
+
 func (l *LoggerImpl) Flush() {
-	flushOnce.Do(func() {
-		if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
-			storage := bufLogger.Storage
+	if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
+		storage := bufLogger.Storage
 
-			// Swap logger implementations and allow wrappers set to be garbage-collected.
-			l.CoreLoggerImpl = l.CoreLogger
-			for wrapper := range l.wrappers {
-				wrapper.CoreLoggerImpl = wrapper.coreLogger
-				wrapper.wrappers = nil
-			}
-			l.wrappers = nil
+		// Swap logger implementations and allow wrappers set to be garbage-collected.
+		l.CoreLoggerImpl = l.CoreLogger
+		for wrapper := range l.wrappers {
+			wrapper.CoreLoggerImpl = wrapper.coreLogger
+			// Allow this to be garbage-collected.
+			wrapper.wrappers = nil
+		}
+		// Allow this to be garbage-collected.
+		l.wrappers = nil
 
-			// Time to output retained logs to their respective loggers.
-			for _, entry := range storage.Logs {
-				lgr := entry.Logger
+		// Time to output retained logs to their respective loggers.
+		for _, entry := range storage.Logs {
+			lgr := entry.Logger
 
-				switch entry.Level {
-				case TraceLevel:
-					lgr.Tracef(entry.Message, entry.Args...)
-				case DebugLevel:
-					lgr.Debugf(entry.Message, entry.Args...)
-				case InfoLevel:
-					lgr.Infof(entry.Message, entry.Args...)
-				case WarningLevel:
-					lgr.Warnf(entry.Message, entry.Args...)
-				case ErrorLevel:
-					lgr.Errorf(entry.Message, entry.Args...)
-				}
+			switch entry.Level {
+			case TraceLevel:
+				lgr.Tracef(entry.Message, entry.Args...)
+			case DebugLevel:
+				lgr.Debugf(entry.Message, entry.Args...)
+			case InfoLevel:
+				lgr.Infof(entry.Message, entry.Args...)
+			case WarningLevel:
+				lgr.Warnf(entry.Message, entry.Args...)
+			case ErrorLevel:
+				lgr.Errorf(entry.Message, entry.Args...)
 			}
 		}
-	})
+	}
 }
 
 func (l LoggerImpl) WithField(key string, value interface{}) Logger {
 	e := l.CoreLogger.WithField(key, value)
 	wrapper := &logrusEntryWrapper{coreLogger: e, CoreLoggerImpl: e, wrappers: l.wrappers}
-	if l.wrappers != nil {
-		if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
-			l.wrappers[wrapper] = struct{}{}
-			wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
-		}
+	if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
+		l.wrappers[wrapper] = struct{}{}
+		wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
 	}
 
 	return wrapper
@@ -200,11 +199,9 @@ func (l LoggerImpl) WithField(key string, value interface{}) Logger {
 func (l LoggerImpl) WithFields(fields Fields) Logger {
 	e := l.CoreLogger.WithFields(logrus.Fields(fields))
 	wrapper := &logrusEntryWrapper{coreLogger: e, CoreLoggerImpl: e, wrappers: l.wrappers}
-	if l.wrappers != nil {
-		if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
-			l.wrappers[wrapper] = struct{}{}
-			wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
-		}
+	if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
+		l.wrappers[wrapper] = struct{}{}
+		wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
 	}
 
 	return wrapper
@@ -261,11 +258,9 @@ func (l logrusEntryWrapper) SetFormatter(format OutputFormat) {
 func (l logrusEntryWrapper) WithField(key string, value interface{}) Logger {
 	e := l.coreLogger.WithField(key, value)
 	wrapper := &logrusEntryWrapper{coreLogger: e, CoreLoggerImpl: e, wrappers: l.wrappers}
-	if l.wrappers != nil {
-		if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
-			l.wrappers[wrapper] = struct{}{}
-			wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
-		}
+	if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
+		l.wrappers[wrapper] = struct{}{}
+		wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
 	}
 
 	return wrapper
@@ -274,11 +269,9 @@ func (l logrusEntryWrapper) WithField(key string, value interface{}) Logger {
 func (l logrusEntryWrapper) WithFields(fields Fields) Logger {
 	e := l.coreLogger.WithFields(logrus.Fields(fields))
 	wrapper := &logrusEntryWrapper{coreLogger: e}
-	if l.wrappers != nil {
-		if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
-			l.wrappers[wrapper] = struct{}{}
-			wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
-		}
+	if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
+		l.wrappers[wrapper] = struct{}{}
+		wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
 	}
 
 	return wrapper
@@ -293,8 +286,32 @@ var defaultLogger Logger
 var once = &sync.Once{}
 var mutex sync.RWMutex
 
-type Flusher interface {
+type buffer interface {
+	Buffer()
+}
+
+type flusher interface {
 	Flush()
+}
+
+// Buffer signals the default logger to buffer calls.
+// Returns a function that flushes the buffer.
+func Buffer() {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
+
+	if b, ok := defaultLogger.(buffer); ok {
+		b.Buffer()
+	}
+}
+
+func Flush() {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
+
+	if f, ok := defaultLogger.(flusher); ok {
+		f.Flush()
+	}
 }
 
 func ensureDefaultLoggerReadLock() *sync.RWMutex {
@@ -328,11 +345,6 @@ func UpdateDefaultLogger(options LoggerOptionsImpl, outputBuilder OutputBuilder)
 	defaultLogger.SetOutput(w)
 	defaultLogger.SetFormatter(options.Format)
 	defaultLogger.SetLevel(options.Level)
-
-	// Flush possibly buffered log messages when options change.
-	if f, ok := defaultLogger.(Flusher); ok {
-		f.Flush()
-	}
 
 	return nil
 }

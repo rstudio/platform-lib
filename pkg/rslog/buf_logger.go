@@ -16,16 +16,18 @@ type BufStorage struct {
 type BufLogger struct {
 	CoreLogger CoreLoggerImpl
 	Storage    *BufStorage
+	flush      func()
 }
 
 var _ CoreLoggerImpl = new(BufLogger)
 
-func NewBufLogger(coreLogger CoreLoggerImpl) *BufLogger {
+func NewBufLogger(coreLogger CoreLoggerImpl, flush func()) *BufLogger {
 	return &BufLogger{
 		Storage: &BufStorage{
 			Logs: make([]BufLogEntry, 0),
 		},
 		CoreLogger: coreLogger,
+		flush:      flush,
 	}
 }
 
@@ -83,22 +85,16 @@ func (buf *BufLogger) Errorf(msg string, args ...interface{}) {
 }
 
 func (buf *BufLogger) Fatal(args ...interface{}) {
-	if f, ok := buf.CoreLogger.(Flusher); ok {
-		f.Flush()
-	}
+	buf.flush()
 	buf.CoreLogger.Fatal(args...)
 }
 
 func (buf *BufLogger) Fatalf(msg string, args ...interface{}) {
-	if f, ok := buf.CoreLogger.(Flusher); ok {
-		f.Flush()
-	}
+	buf.flush()
 	buf.CoreLogger.Fatalf(msg, args...)
 }
 
 func (buf *BufLogger) Panicf(msg string, args ...interface{}) {
-	if f, ok := buf.CoreLogger.(Flusher); ok {
-		f.Flush()
-	}
+	buf.flush()
 	buf.CoreLogger.Panicf(msg, args...)
 }
