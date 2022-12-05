@@ -2,6 +2,8 @@ package rslog
 
 // Copyright (C) 2022 by RStudio, PBC.
 
+import "sync"
+
 type BufLogEntry struct {
 	Level   LogLevel
 	Message string
@@ -10,12 +12,29 @@ type BufLogEntry struct {
 }
 
 type BufStorage struct {
-	Logs []BufLogEntry
+	mu      sync.Mutex
+	entries []BufLogEntry
+}
+
+func (s *BufStorage) add(entry BufLogEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.entries = append(s.entries, entry)
+}
+
+func (s *BufStorage) read(f func(BufLogEntry)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, e := range s.entries {
+		f(e)
+	}
 }
 
 type BufLogger struct {
 	CoreLogger CoreLoggerImpl
-	Storage    *BufStorage
+	storage    *BufStorage
 	flush      func()
 }
 
@@ -23,25 +42,16 @@ var _ CoreLoggerImpl = new(BufLogger)
 
 func NewBufLogger(coreLogger CoreLoggerImpl, flush func()) *BufLogger {
 	return &BufLogger{
-		Storage: &BufStorage{
-			Logs: make([]BufLogEntry, 0),
+		storage: &BufStorage{
+			entries: make([]BufLogEntry, 0),
 		},
 		CoreLogger: coreLogger,
 		flush:      flush,
 	}
 }
 
-// child creates and registers a wrapped logger implementation and returns a new buffered logger
-// that will pass down the same storage and fallback fields for its children, if any.
-func (buf *BufLogger) child(coreLogger CoreLoggerImpl) *BufLogger {
-	return &BufLogger{
-		CoreLogger: coreLogger,
-		Storage:    buf.Storage,
-	}
-}
-
 func (buf *BufLogger) Tracef(msg string, args ...interface{}) {
-	buf.Storage.Logs = append(buf.Storage.Logs, BufLogEntry{
+	buf.storage.entries = append(buf.storage.entries, BufLogEntry{
 		Level:   TraceLevel,
 		Message: msg,
 		Args:    args,
@@ -50,7 +60,7 @@ func (buf *BufLogger) Tracef(msg string, args ...interface{}) {
 }
 
 func (buf *BufLogger) Debugf(msg string, args ...interface{}) {
-	buf.Storage.Logs = append(buf.Storage.Logs, BufLogEntry{
+	buf.storage.entries = append(buf.storage.entries, BufLogEntry{
 		Level:   DebugLevel,
 		Message: msg,
 		Args:    args,
@@ -59,7 +69,7 @@ func (buf *BufLogger) Debugf(msg string, args ...interface{}) {
 }
 
 func (buf *BufLogger) Infof(msg string, args ...interface{}) {
-	buf.Storage.Logs = append(buf.Storage.Logs, BufLogEntry{
+	buf.storage.entries = append(buf.storage.entries, BufLogEntry{
 		Level:   InfoLevel,
 		Message: msg,
 		Args:    args,
@@ -68,7 +78,7 @@ func (buf *BufLogger) Infof(msg string, args ...interface{}) {
 }
 
 func (buf *BufLogger) Warnf(msg string, args ...interface{}) {
-	buf.Storage.Logs = append(buf.Storage.Logs, BufLogEntry{
+	buf.storage.entries = append(buf.storage.entries, BufLogEntry{
 		Level:   WarningLevel,
 		Message: msg,
 		Args:    args,
@@ -76,7 +86,7 @@ func (buf *BufLogger) Warnf(msg string, args ...interface{}) {
 	})
 }
 func (buf *BufLogger) Errorf(msg string, args ...interface{}) {
-	buf.Storage.Logs = append(buf.Storage.Logs, BufLogEntry{
+	buf.storage.entries = append(buf.storage.entries, BufLogEntry{
 		Level:   ErrorLevel,
 		Message: msg,
 		Args:    args,
@@ -97,4 +107,18 @@ func (buf *BufLogger) Fatalf(msg string, args ...interface{}) {
 func (buf *BufLogger) Panicf(msg string, args ...interface{}) {
 	buf.flush()
 	buf.CoreLogger.Panicf(msg, args...)
+}
+
+func (buf *BufLogger) Read(f func(BufLogEntry)) {
+	buf.storage.read(f)
+	buf.storage = nil
+}
+
+// child creates and registers a wrapped logger implementation and returns a new buffered logger
+// that will pass down the same storage and fallback fields for its children, if any.
+func (buf *BufLogger) child(coreLogger CoreLoggerImpl) *BufLogger {
+	return &BufLogger{
+		CoreLogger: coreLogger,
+		storage:    buf.storage,
+	}
 }

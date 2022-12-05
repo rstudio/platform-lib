@@ -153,8 +153,6 @@ func (l *LoggerImpl) Buffer() {
 
 func (l *LoggerImpl) Flush() {
 	if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
-		storage := bufLogger.Storage
-
 		// Swap logger implementations and allow wrappers set to be garbage-collected.
 		l.CoreLoggerImpl = l.CoreLogger
 		for wrapper := range l.wrappers {
@@ -166,7 +164,7 @@ func (l *LoggerImpl) Flush() {
 		l.wrappers = nil
 
 		// Time to output retained logs to their respective loggers.
-		for _, entry := range storage.Logs {
+		bufLogger.Read(func(entry BufLogEntry) {
 			lgr := entry.Logger
 
 			switch entry.Level {
@@ -181,7 +179,7 @@ func (l *LoggerImpl) Flush() {
 			case ErrorLevel:
 				lgr.Errorf(entry.Message, entry.Args...)
 			}
-		}
+		})
 	}
 }
 

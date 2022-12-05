@@ -36,8 +36,13 @@ func (s *BufLoggerTestSuite) TestBuffering() {
 		})
 	}
 
+	result := make([]rslog.BufLogEntry, 0)
+	bufLogger.Read(func(entry rslog.BufLogEntry) {
+		result = append(result, entry)
+	})
+
 	s.Assert().Equal(
-		bufLogger.Storage.Logs,
+		result,
 		[]rslog.BufLogEntry{
 			{
 				Level:   rslog.DebugLevel,
