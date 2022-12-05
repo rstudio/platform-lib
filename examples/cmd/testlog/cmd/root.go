@@ -41,6 +41,10 @@ var (
 )
 
 func init() {
+	// Install the default logger factory. If this is not set, then `rslog` will create
+	// its own default logger factory.
+	rslog.DefaultLoggerFactory = &factory{}
+
 	// Register product debug regions and initialize debug logging
 	rslog.RegisterRegions(map[rslog.ProductRegion]string{
 		TestDebug: "test-debug",
@@ -48,10 +52,6 @@ func init() {
 	rslog.InitDebugLogs([]rslog.ProductRegion{
 		TestDebug,
 	})
-
-	// Install the default logger factory. If this is not set, then `rslog` will create
-	// its own default logger factory.
-	rslog.DefaultLoggerFactory = &factory{}
 
 	// The `--level` flag is available for all commands.
 	RootCmd.PersistentFlags().StringVar(&level, "level", "DEBUG", "The log level.")
