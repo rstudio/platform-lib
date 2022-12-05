@@ -185,7 +185,7 @@ func (l *LoggerImpl) Flush() {
 
 func (l LoggerImpl) WithField(key string, value interface{}) Logger {
 	e := l.CoreLogger.WithField(key, value)
-	return wrapBufLoggerChild(l.CoreLogger, l.wrappers, e)
+	return wrapBufLoggerChild(l.CoreLoggerImpl, l.wrappers, e)
 }
 
 func (l LoggerImpl) WithFields(fields Fields) Logger {
@@ -243,13 +243,13 @@ func (l logrusEntryWrapper) SetFormatter(format OutputFormat) {
 
 func (l logrusEntryWrapper) WithField(key string, value interface{}) Logger {
 	e := l.coreLogger.WithField(key, value)
-	return wrapBufLoggerChild(l.coreLogger, l.wrappers, e)
+	return wrapBufLoggerChild(l.CoreLoggerImpl, l.wrappers, e)
 
 }
 
 func (l logrusEntryWrapper) WithFields(fields Fields) Logger {
 	e := l.coreLogger.WithFields(logrus.Fields(fields))
-	return wrapBufLoggerChild(l.coreLogger, l.wrappers, e)
+	return wrapBufLoggerChild(l.CoreLoggerImpl, l.wrappers, e)
 }
 
 // TODO: remove this function when the migration process to the new logging standard is complete.
