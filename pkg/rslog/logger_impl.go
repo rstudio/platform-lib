@@ -185,24 +185,12 @@ func (l *LoggerImpl) Flush() {
 
 func (l LoggerImpl) WithField(key string, value interface{}) Logger {
 	e := l.CoreLogger.WithField(key, value)
-	wrapper := &logrusEntryWrapper{coreLogger: e, CoreLoggerImpl: e, wrappers: l.wrappers}
-	if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
-		l.wrappers[wrapper] = struct{}{}
-		wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
-	}
-
-	return wrapper
+	return wrapBufLoggerChild(l.CoreLogger, l.wrappers, e)
 }
 
 func (l LoggerImpl) WithFields(fields Fields) Logger {
 	e := l.CoreLogger.WithFields(logrus.Fields(fields))
-	wrapper := &logrusEntryWrapper{coreLogger: e, CoreLoggerImpl: e, wrappers: l.wrappers}
-	if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
-		l.wrappers[wrapper] = struct{}{}
-		wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
-	}
-
-	return wrapper
+	return wrapBufLoggerChild(l.CoreLoggerImpl, l.wrappers, e)
 }
 
 func (l LoggerImpl) SetLevel(level LogLevel) {
@@ -255,24 +243,13 @@ func (l logrusEntryWrapper) SetFormatter(format OutputFormat) {
 
 func (l logrusEntryWrapper) WithField(key string, value interface{}) Logger {
 	e := l.coreLogger.WithField(key, value)
-	wrapper := &logrusEntryWrapper{coreLogger: e, CoreLoggerImpl: e, wrappers: l.wrappers}
-	if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
-		l.wrappers[wrapper] = struct{}{}
-		wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
-	}
+	return wrapBufLoggerChild(l.coreLogger, l.wrappers, e)
 
-	return wrapper
 }
 
 func (l logrusEntryWrapper) WithFields(fields Fields) Logger {
 	e := l.coreLogger.WithFields(logrus.Fields(fields))
-	wrapper := &logrusEntryWrapper{coreLogger: e}
-	if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
-		l.wrappers[wrapper] = struct{}{}
-		wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
-	}
-
-	return wrapper
+	return wrapBufLoggerChild(l.coreLogger, l.wrappers, e)
 }
 
 // TODO: remove this function when the migration process to the new logging standard is complete.
@@ -431,4 +408,13 @@ func WithFields(fields Fields) Logger {
 	lock := ensureDefaultLoggerReadLock()
 	defer lock.RUnlock()
 	return defaultLogger.WithFields(fields)
+}
+
+func wrapBufLoggerChild(lgr CoreLoggerImpl, wrappers map[*logrusEntryWrapper]struct{}, e *logrus.Entry) *logrusEntryWrapper {
+	wrapper := &logrusEntryWrapper{coreLogger: e, CoreLoggerImpl: e, wrappers: wrappers}
+	if bufLogger, ok := lgr.(*BufLogger); ok {
+		wrappers[wrapper] = struct{}{}
+		wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
+	}
+	return wrapper
 }
