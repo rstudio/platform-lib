@@ -284,30 +284,28 @@ var defaultLogger Logger
 var once = &sync.Once{}
 var mutex sync.RWMutex
 
-type buffer interface {
+type lazyLogger interface {
 	Buffer()
-}
-
-type flusher interface {
 	Flush()
 }
 
-// Buffer signals the default logger to buffer calls.
-// Returns a function that flushes the buffer.
+// Buffer makes the default logger (if supported by it) use a buffering logger
+// as its underlying implementation. Buffered log entries can be flushed with Flush.
 func Buffer() {
 	lock := ensureDefaultLoggerReadLock()
 	defer lock.RUnlock()
 
-	if b, ok := defaultLogger.(buffer); ok {
+	if b, ok := defaultLogger.(lazyLogger); ok {
 		b.Buffer()
 	}
 }
 
+// Flush flushes all buffered log entries that were retained as from calling Buffer.
 func Flush() {
 	lock := ensureDefaultLoggerReadLock()
 	defer lock.RUnlock()
 
-	if f, ok := defaultLogger.(flusher); ok {
+	if f, ok := defaultLogger.(lazyLogger); ok {
 		f.Flush()
 	}
 }
