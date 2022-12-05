@@ -51,7 +51,7 @@ func NewBufLogger(coreLogger CoreLoggerImpl, flush func()) *BufLogger {
 }
 
 func (buf *BufLogger) Tracef(msg string, args ...interface{}) {
-	buf.storage.entries = append(buf.storage.entries, BufLogEntry{
+	buf.storage.add(BufLogEntry{
 		Level:   TraceLevel,
 		Message: msg,
 		Args:    args,
@@ -60,7 +60,7 @@ func (buf *BufLogger) Tracef(msg string, args ...interface{}) {
 }
 
 func (buf *BufLogger) Debugf(msg string, args ...interface{}) {
-	buf.storage.entries = append(buf.storage.entries, BufLogEntry{
+	buf.storage.add(BufLogEntry{
 		Level:   DebugLevel,
 		Message: msg,
 		Args:    args,
@@ -69,7 +69,7 @@ func (buf *BufLogger) Debugf(msg string, args ...interface{}) {
 }
 
 func (buf *BufLogger) Infof(msg string, args ...interface{}) {
-	buf.storage.entries = append(buf.storage.entries, BufLogEntry{
+	buf.storage.add(BufLogEntry{
 		Level:   InfoLevel,
 		Message: msg,
 		Args:    args,
@@ -78,7 +78,7 @@ func (buf *BufLogger) Infof(msg string, args ...interface{}) {
 }
 
 func (buf *BufLogger) Warnf(msg string, args ...interface{}) {
-	buf.storage.entries = append(buf.storage.entries, BufLogEntry{
+	buf.storage.add(BufLogEntry{
 		Level:   WarningLevel,
 		Message: msg,
 		Args:    args,
@@ -86,7 +86,7 @@ func (buf *BufLogger) Warnf(msg string, args ...interface{}) {
 	})
 }
 func (buf *BufLogger) Errorf(msg string, args ...interface{}) {
-	buf.storage.entries = append(buf.storage.entries, BufLogEntry{
+	buf.storage.add(BufLogEntry{
 		Level:   ErrorLevel,
 		Message: msg,
 		Args:    args,
