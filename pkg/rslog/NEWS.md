@@ -10,6 +10,9 @@ Unreleased
 		to `DefaultLoggerFactory`, consider setting `rslog.DefaultLoggerFactory` first before anything else
 		when a custom factory is needed. #94
 
+*   New functions `rslog.Buffer` and `rslog.Flush` have been added. They enable buffering functionality for
+    default loggers whose factories use `rslog.LoggerImpl` as their implementation.
+
 <!--
 ### Fixed
 

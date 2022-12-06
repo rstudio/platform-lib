@@ -20,7 +20,7 @@ func init() {
 	LogCmd.Flags().StringVar(&message, "message", "default message", "The message to log.")
 	CaptureLogCmd.Flags().BoolVar(&withMetadata, "withMetadata", false, "The option to turn on or off the metadata in the capturing logger")
 
-	RootCmd.AddCommand(LogCmd, TerminalLogCmd, CaptureLogCmd, CompositeLogCmd)
+	RootCmd.AddCommand(LogCmd, TerminalLogCmd, CaptureLogCmd, CompositeLogCmd, BufferedLogCmd)
 }
 
 var LogCmd = &cobra.Command{
@@ -75,6 +75,24 @@ var CompositeLogCmd = &cobra.Command{
 		log := rslog.ComposeLoggers(defaultLogger, anotherLogger)
 
 		log.Infof(message)
+		return nil
+	},
+}
+
+var BufferedLogCmd = &cobra.Command{
+	Use:     "buffered",
+	Short:   "Command to use the Default logger with buffering functionality",
+	Example: "",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		defaultLogger := rslog.DefaultLogger()
+
+		rslog.Buffer()
+
+		log := defaultLogger.WithField("Logger", "DefaultLogger")
+		log.Infof(message)
+
+		rslog.Flush()
+
 		return nil
 	},
 }
