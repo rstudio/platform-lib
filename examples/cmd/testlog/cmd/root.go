@@ -44,6 +44,8 @@ func init() {
 	// Install the default logger factory. If this is not set, then `rslog` will create
 	// its own default logger factory.
 	rslog.DefaultLoggerFactory = &factory{}
+	// Logs will be buffered until explicitly flushed.
+	rslog.Buffer()
 
 	// Register product debug regions and initialize debug logging
 	rslog.RegisterRegions(map[rslog.ProductRegion]string{
