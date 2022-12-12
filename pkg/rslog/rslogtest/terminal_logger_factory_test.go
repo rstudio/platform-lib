@@ -31,7 +31,7 @@ func (s *TerminalLoggerFactorySuite) TestTerminalLoggerFactory() {
 
 	lgr_impl := lgr.(*rslog.LoggerImpl)
 
-	s.Equal(logrus.InfoLevel, lgr_impl.Level)
-	s.Equal(os.Stderr, lgr_impl.Out)
-	s.IsType(&rslog.UTCTextFormatter{}, lgr_impl.Formatter)
+	s.Equal(logrus.InfoLevel, lgr_impl.CoreLogger.Level)
+	s.Equal(os.Stderr, lgr_impl.CoreLogger.Out)
+	s.IsType(&rslog.UTCTextFormatter{}, lgr_impl.CoreLogger.Formatter)
 }

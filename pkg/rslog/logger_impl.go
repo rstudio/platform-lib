@@ -31,6 +31,7 @@ func (f *LoggerFactoryImpl) DefaultLogger() Logger {
 		Format: TextFormat,
 		Level:  InfoLevel,
 	}, NewOutputLogBuilder(ServerLog, ""))
+
 	return lgr
 }
 
@@ -48,7 +49,9 @@ func (f *TerminalLoggerFactory) DefaultLogger() Logger {
 }
 
 type LoggerImpl struct {
-	*logrus.Logger
+	CoreLoggerImpl
+	CoreLogger *logrus.Logger
+	wrappers   map[*logrusEntryWrapper]struct{}
 }
 
 type LoggerOptionsImpl struct {
@@ -73,7 +76,8 @@ func NewLoggerImpl(options LoggerOptionsImpl,
 	l.SetLevel(getLevel(options.Level))
 
 	return &LoggerImpl{
-		Logger: l,
+		CoreLogger:     l,
+		CoreLoggerImpl: l,
 	}, nil
 }
 
@@ -140,34 +144,73 @@ func getLevel(level LogLevel) logrus.Level {
 	}
 }
 
+func (l *LoggerImpl) Buffer() {
+	l.CoreLoggerImpl = NewBufLogger(l.CoreLogger, l.Flush)
+	if l.wrappers == nil {
+		l.wrappers = make(map[*logrusEntryWrapper]struct{})
+	}
+}
+
+func (l *LoggerImpl) Flush() {
+	if bufLogger, ok := l.CoreLoggerImpl.(*BufLogger); ok {
+		// Swap logger implementations and allow wrappers set to be garbage-collected.
+		l.CoreLoggerImpl = l.CoreLogger
+		for wrapper := range l.wrappers {
+			wrapper.CoreLoggerImpl = wrapper.coreLogger
+			// Allow this to be garbage-collected.
+			wrapper.wrappers = nil
+		}
+		// Allow this to be garbage-collected.
+		l.wrappers = nil
+
+		// Time to output retained logs to their respective loggers.
+		bufLogger.Read(func(entry BufLogEntry) {
+			lgr := entry.Logger
+
+			switch entry.Level {
+			case TraceLevel:
+				lgr.Tracef(entry.Message, entry.Args...)
+			case DebugLevel:
+				lgr.Debugf(entry.Message, entry.Args...)
+			case InfoLevel:
+				lgr.Infof(entry.Message, entry.Args...)
+			case WarningLevel:
+				lgr.Warnf(entry.Message, entry.Args...)
+			case ErrorLevel:
+				lgr.Errorf(entry.Message, entry.Args...)
+			}
+		})
+	}
+}
+
 func (l LoggerImpl) WithField(key string, value interface{}) Logger {
-	e := l.Logger.WithField(key, value)
-	return logrusEntryWrapper{Entry: e}
+	e := l.CoreLogger.WithField(key, value)
+	return wrapBufLoggerChild(l.CoreLoggerImpl, l.wrappers, e)
 }
 
 func (l LoggerImpl) WithFields(fields Fields) Logger {
-	e := l.Logger.WithFields(logrus.Fields(fields))
-	return logrusEntryWrapper{Entry: e}
+	e := l.CoreLogger.WithFields(logrus.Fields(fields))
+	return wrapBufLoggerChild(l.CoreLoggerImpl, l.wrappers, e)
 }
 
 func (l LoggerImpl) SetLevel(level LogLevel) {
 	logrusLevel := getLevel(level)
-	l.Logger.SetLevel(logrusLevel)
+	l.CoreLogger.SetLevel(logrusLevel)
 }
 
 func (l LoggerImpl) SetFormatter(format OutputFormat) {
-	l.Logger.SetFormatter(getFormatter(format))
+	l.CoreLogger.SetFormatter(getFormatter(format))
 }
 
 func (l LoggerImpl) SetOutput(writers ...io.Writer) {
 	output := io.MultiWriter(writers...)
-	l.Logger.SetOutput(output)
+	l.CoreLogger.SetOutput(output)
 }
 
 func (l LoggerImpl) OnConfigReload(level LogLevel) {
 	logrusLevel := getLevel(level)
 
-	if logrusLevel != l.GetLevel() {
+	if logrusLevel != l.CoreLogger.GetLevel() {
 		l.SetLevel(level)
 		l.Infof("Logging level changed to %s", level)
 	}
@@ -179,30 +222,34 @@ func (l LoggerImpl) Logf(msg string, args ...interface{}) {
 }
 
 type logrusEntryWrapper struct {
-	*logrus.Entry
+	CoreLoggerImpl
+
+	coreLogger *logrus.Entry
+	wrappers   map[*logrusEntryWrapper]struct{}
 }
 
 func (l logrusEntryWrapper) SetLevel(level LogLevel) {
-	l.Entry.Logger.SetLevel(getLevel(level))
+	l.coreLogger.Logger.SetLevel(getLevel(level))
 }
 
 func (l logrusEntryWrapper) SetOutput(writers ...io.Writer) {
 	output := io.MultiWriter(writers...)
-	l.Entry.Logger.SetOutput(output)
+	l.coreLogger.Logger.SetOutput(output)
 }
 
 func (l logrusEntryWrapper) SetFormatter(format OutputFormat) {
-	l.Entry.Logger.SetFormatter(getFormatter(format))
+	l.coreLogger.Logger.SetFormatter(getFormatter(format))
 }
 
 func (l logrusEntryWrapper) WithField(key string, value interface{}) Logger {
-	e := l.Entry.WithField(key, value)
-	return logrusEntryWrapper{Entry: e}
+	e := l.coreLogger.WithField(key, value)
+	return wrapBufLoggerChild(l.CoreLoggerImpl, l.wrappers, e)
+
 }
 
 func (l logrusEntryWrapper) WithFields(fields Fields) Logger {
-	e := l.Entry.WithFields(logrus.Fields(fields))
-	return logrusEntryWrapper{Entry: e}
+	e := l.coreLogger.WithFields(logrus.Fields(fields))
+	return wrapBufLoggerChild(l.CoreLoggerImpl, l.wrappers, e)
 }
 
 // TODO: remove this function when the migration process to the new logging standard is complete.
@@ -213,6 +260,32 @@ func (l logrusEntryWrapper) Logf(msg string, args ...interface{}) {
 var defaultLogger Logger
 var once = &sync.Once{}
 var mutex sync.RWMutex
+
+type lazyLogger interface {
+	Buffer()
+	Flush()
+}
+
+// Buffer makes the default logger (if supported by it) use a buffering logger
+// as its underlying implementation. Buffered log entries can be flushed with Flush.
+func Buffer() {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
+
+	if b, ok := defaultLogger.(lazyLogger); ok {
+		b.Buffer()
+	}
+}
+
+// Flush flushes all buffered log entries that were retained as from calling Buffer.
+func Flush() {
+	lock := ensureDefaultLoggerReadLock()
+	defer lock.RUnlock()
+
+	if f, ok := defaultLogger.(lazyLogger); ok {
+		f.Flush()
+	}
+}
 
 func ensureDefaultLoggerReadLock() *sync.RWMutex {
 	// Set the default logger only once.
@@ -245,6 +318,7 @@ func UpdateDefaultLogger(options LoggerOptionsImpl, outputBuilder OutputBuilder)
 	defaultLogger.SetOutput(w)
 	defaultLogger.SetFormatter(options.Format)
 	defaultLogger.SetLevel(options.Level)
+
 	return nil
 }
 
@@ -334,4 +408,13 @@ func WithFields(fields Fields) Logger {
 	lock := ensureDefaultLoggerReadLock()
 	defer lock.RUnlock()
 	return defaultLogger.WithFields(fields)
+}
+
+func wrapBufLoggerChild(lgr CoreLoggerImpl, wrappers map[*logrusEntryWrapper]struct{}, e *logrus.Entry) *logrusEntryWrapper {
+	wrapper := &logrusEntryWrapper{coreLogger: e, CoreLoggerImpl: e, wrappers: wrappers}
+	if bufLogger, ok := lgr.(*BufLogger); ok {
+		wrappers[wrapper] = struct{}{}
+		wrapper.CoreLoggerImpl = bufLogger.child(wrapper.coreLogger)
+	}
+	return wrapper
 }
