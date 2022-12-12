@@ -3,15 +3,11 @@
 Unreleased
 --------------------------------------------------------------------------------
 
+<!--
 ### New
 
-*   Log enabled debug logging regions. This was previously done in product by the legacy debug
-    implementation. Important to note that intializing debug logging will set and use a default factory
-		to `DefaultLoggerFactory`, consider setting `rslog.DefaultLoggerFactory` first before anything else
-		when a custom factory is needed. #94
-
-*   New functions `rslog.Buffer` and `rslog.Flush` have been added. They enable buffering functionality for
-    default loggers whose factories use `rslog.LoggerImpl` as their implementation.
+*   Uncomment when items are available.
+-->
 
 <!--
 ### Fixed
@@ -36,6 +32,20 @@ Unreleased
 
 *   Uncomment when items are available.
 -->
+
+
+pkg/rslog/v1.6.0
+--------------------------------------------------------------------------------
+
+### New
+
+*   Log enabled debug logging regions. This was previously done in product by the legacy debug
+    implementation. Important to note that intializing debug logging will set and use a default factory
+		to `DefaultLoggerFactory`, consider setting `rslog.DefaultLoggerFactory` first before anything else
+		when a custom factory is needed. #94
+
+*   New functions `rslog.Buffer` and `rslog.Flush` have been added. They enable buffering functionality for
+    default loggers whose factories use `rslog.LoggerImpl` as their implementation.
 
 
 pkg/rslog/v1.5.0
