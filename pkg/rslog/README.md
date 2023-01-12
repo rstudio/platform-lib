@@ -16,7 +16,7 @@ Excerpts here come from the internal confluence space "RStudio Logging Standard"
   by all products.
 * Output to stderr must be supported, including from child processes where possible. Program output where needed will
   go to stdout, while log messages will go to stderr.
-* There should be a single log file per service-child process logs should be read into the parent to be put into the
+* There should be a single log file per service. Child process logs should be read into the parent to be put into the
   single log file. The log file should be clearly named for the service. Audit logs can be in a separate file, given
   that customers often want to ingest these files differently.
 * The file must rotate when needed. This does not need to happen by the product itself, but if this depends on
