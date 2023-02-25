@@ -15,5 +15,5 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/montanaflynn/stats v0.5.0 // indirect
 	github.com/ncw/directio v1.0.5 // indirect
-	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
+	golang.org/x/sys v0.1.0 // indirect
 )
