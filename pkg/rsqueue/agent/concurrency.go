@@ -130,10 +130,11 @@ func (c *ConcurrencyEnforcer) Verify() error {
 
 // Check if we have the capacity to run any jobs
 // Parameters:
-//  * jobCount - the number of running jobs
+//   - jobCount - the number of running jobs
+//
 // Returns:
-//  * bool  - True if we have capacity to take a job
-//  * int64 - The maximum priority job we have capacity to run
+//   - bool  - True if we have capacity to take a job
+//   - int64 - The maximum priority job we have capacity to run
 func (c *ConcurrencyEnforcer) Check(jobCount int64) (bool, uint64) {
 	keys := c.sort()
 

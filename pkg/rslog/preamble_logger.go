@@ -25,10 +25,12 @@ func (logger PreambleLogger) Logf(msg string, args ...interface{}) {
 
 // BuildPreamble constructs a logging prefix string from a set of input values.
 // Most times, you will give an even number of values, which generate a prefix like:
-//     [v1: v2; v3: v4]
+//
+//	[v1: v2; v3: v4]
 //
 // If an odd number of fields is given, the last field is presented by itself:
-//     [v1: v2; v3: v4; v5]
+//
+//	[v1: v2; v3: v4; v5]
 func BuildPreamble(fields ...interface{}) string {
 	n := len(fields)
 	if n == 0 {

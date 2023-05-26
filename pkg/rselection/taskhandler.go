@@ -20,11 +20,11 @@ const (
 
 // A TaskHandler runs in the context of a Leader Loop. When the leader loop ends,
 // the TaskHandler stops. A TaskHandler can do two types of work:
-//  - Persistent jobs that run for the duration of the TaskHandler's run loop.
-//    Persistent jobs, for instance, can monitor a channel and track heartbeats
-//    for macro transactions or in-progress queue work.
-//  - Scheduled jobs that run periodically. Scheduled jobs have a set schedule
-//    and run per that schedule during the lifetime of the TaskHandler's run loop.
+//   - Persistent jobs that run for the duration of the TaskHandler's run loop.
+//     Persistent jobs, for instance, can monitor a channel and track heartbeats
+//     for macro transactions or in-progress queue work.
+//   - Scheduled jobs that run periodically. Scheduled jobs have a set schedule
+//     and run per that schedule during the lifetime of the TaskHandler's run loop.
 type TaskHandler interface {
 	Handle(b broadcaster.Broadcaster)
 	Register(name string, task Task)

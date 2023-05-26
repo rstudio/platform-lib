@@ -38,8 +38,9 @@ import (
  */
 
 // GroupQueue is the outer wrapper of the collection of other queues. It behaves
-//    more or less like a DatabaseQueue. If you're looking for the raw queue underneath,
-//    see the QueueGroup struct.
+//
+//	more or less like a DatabaseQueue. If you're looking for the raw queue underneath,
+//	see the QueueGroup struct.
 type GroupQueue interface {
 	// Push pushes work into the base queue
 	Push(priority uint64, work queue.Work) error
