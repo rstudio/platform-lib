@@ -57,10 +57,10 @@ RUN curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-c
 RUN chmod +x /usr/local/bin/docker-compose
 
 # Install Go. Keep in sync with other Dockerfiles.
-ENV GOLANG_VERSION 1.18
+ENV GOLANG_VERSION 1.20.4
 RUN GOLANG_DOWNLOAD_SHA256=$(if [ "${TARGETARCH}" = "arm64" ]; \
-      then echo "7ac7b396a691e588c5fb57687759e6c4db84a2a3bbebb0765f4b38e5b1c5b00e"; \
-      else echo "e85278e98f57cdb150fe8409e6e5df5343ecb13cebf03a5d5ff12bd55a80264f"; fi) \
+      then echo "105889992ee4b1d40c7c108555222ca70ae43fccb42e20fbf1eebb822f5e72c6"; \
+      else echo "698ef3243972a51ddb4028e4a1ac63dc6d60821bf18e59a807e051fee0a385bd"; fi) \
     && curl -fsSL "https://dl.google.com/go/go${GOLANG_VERSION}.linux-${TARGETARCH}.tar.gz" -o golang.tar.gz \
     && echo "${GOLANG_DOWNLOAD_SHA256}  golang.tar.gz" | sha256sum -c - \
     && tar -C /usr/local -xzf golang.tar.gz \
