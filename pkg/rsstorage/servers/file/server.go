@@ -12,10 +12,10 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/c2h5oh/datasize"
-	"github.com/minio/minio/pkg/disk"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
@@ -123,10 +123,15 @@ func (s *StorageServer) Type() types.StorageType {
 
 func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 	start := time.Now()
-	info, err := disk.GetInfo(s.dir)
+
+	fs := syscall.Statfs_t{}
+	err := syscall.Statfs(s.dir, &fs)
 	if err != nil {
 		return types.Usage{}, fmt.Errorf("error calculating filesystem capacity for %s: %s.\n", s.dir, err)
 	}
+
+	all := fs.Blocks * uint64(fs.Bsize)
+	free := fs.Bfree * uint64(fs.Bsize)
 
 	timeInfo := time.Now()
 	elapsed := timeInfo.Sub(start)
@@ -142,8 +147,8 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 	s.debugLogger.Debugf("Calculated disk usage for %s in %s.\n", s.dir, elapsed)
 
 	usage := types.Usage{
-		SizeBytes:       datasize.ByteSize(info.Total),
-		FreeBytes:       datasize.ByteSize(info.Free),
+		SizeBytes:       datasize.ByteSize(all),
+		FreeBytes:       datasize.ByteSize(free),
 		UsedBytes:       actual,
 		CalculationTime: timeUsage.Sub(start),
 	}
