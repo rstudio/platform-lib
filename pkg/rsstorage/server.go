@@ -17,8 +17,9 @@ const (
 
 // The StorageServer provides an interface to the file system
 // for:
-//  (a) The FileCache in `file.go` (gets data from the cache)
-//  (b) The Runners in `cache/runners` (put data into the cache)
+//
+//	(a) The FileCache in `file.go` (gets data from the cache)
+//	(b) The Runners in `cache/runners` (put data into the cache)
 type StorageServer interface {
 	// Check to see if an item exists
 	// Accepts:

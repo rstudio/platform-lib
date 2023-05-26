@@ -395,11 +395,13 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 // resolver failures.
 //
 // Run with (against local MinIO instance):
-//  `MODULE=pkg/rsstorage/internal/integration_test just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage/internal/integration_test -check.f=S3IntegrationSuite`
+//
+//	`MODULE=pkg/rsstorage/internal/integration_test just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage/internal/integration_test -check.f=S3IntegrationSuite`
 //
 // To run against your own AWS S3 bucket:
-//   First, customize the variables in the test below as noted. Then, run:
-//     `MODULE=pkg/rsstorage/internal/integration_test DEF_TEST_ARGS="-v" just test github.com/rstudio/platform-lib/pkg/rsstorage/internal/integration_test -check.f=S3IntegrationSuite`
+//
+//	First, customize the variables in the test below as noted. Then, run:
+//	  `MODULE=pkg/rsstorage/internal/integration_test DEF_TEST_ARGS="-v" just test github.com/rstudio/platform-lib/pkg/rsstorage/internal/integration_test -check.f=S3IntegrationSuite`
 type S3IntegrationSuite struct{}
 
 var _ = check.Suite(&S3IntegrationSuite{})

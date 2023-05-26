@@ -163,10 +163,11 @@ func (a *DefaultAgent) Stop(timeout time.Duration) error {
 
 // Wait blocks until there's capacity to run a new job.
 // Parameters:
-//  * runningJobs int64 - The initial number of running jobs
-//  * jobDone chan int64 - Passes the new number of running jobs when any job completes
+//   - runningJobs int64 - The initial number of running jobs
+//   - jobDone chan int64 - Passes the new number of running jobs when any job completes
+//
 // Returns:
-//  * uint64 - The maximum job priority for which we have capacity
+//   - uint64 - The maximum job priority for which we have capacity
 func (a *DefaultAgent) Wait(runningJobs int64, jobDone chan int64) uint64 {
 	// Flush notifications while the waiting. If the agent is not calling the
 	// queue's `Get` function due to no available concurrency slots, then any
@@ -280,12 +281,14 @@ func (a *DefaultAgent) Run(notify agenttypes.Notify) {
 // Example:
 //
 // ```go
-// func (r *SomeWorkRunner) Run(work queue.RecursableWork) error {
-//     // Recursively call the cache for data
-//     recurse(func() {
-//         obj, err := r.cache.Get(spec, &SomeType{})
-//     })
-// }
+//
+//	func (r *SomeWorkRunner) Run(work queue.RecursableWork) error {
+//	    // Recursively call the cache for data
+//	    recurse(func() {
+//	        obj, err := r.cache.Get(spec, &SomeType{})
+//	    })
+//	}
+//
 // ```
 func (a *DefaultAgent) getRecurseFn(jobDone chan int64) queue.RecurseFunc {
 	return func(run func()) {
@@ -328,10 +331,10 @@ func (a *DefaultAgent) getRecurseFn(jobDone chan int64) queue.RecurseFunc {
 
 // Runs work
 // Parameters:
-//  * job Work - The work to perform
-//  * pt Permit - a Permit to manage the work
-//  * jobDone chan int - The channel to notify of the job count when a job completes
-//  * maxPriorityChan chan uint64 - A channel on which we notify of capacity changes.
+//   - job Work - The work to perform
+//   - pt Permit - a Permit to manage the work
+//   - jobDone chan int - The channel to notify of the job count when a job completes
+//   - maxPriorityChan chan uint64 - A channel on which we notify of capacity changes.
 func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, jobDone chan int64, maxPriorityChan chan uint64, notify agenttypes.Notify) {
 	defer a.running.Done()
 

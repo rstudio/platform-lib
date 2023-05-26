@@ -314,18 +314,19 @@ func (q *DatabaseQueue) Push(priority uint64, groupId int64, work queue.Work) er
 
 // Get attempts to get a job from the queue. Blocks until a job is found and returned
 // Parameters:
-//  * maxPriority uint64 - get only jobs with priority <= this value.
-//  * maxPriorityChan chan uint64 - while blocking (waiting for a job) pass a new
+//   - maxPriority uint64 - get only jobs with priority <= this value.
+//   - maxPriorityChan chan uint64 - while blocking (waiting for a job) pass a new
 //     maxPriority value to this channel if the capacity changes. For example, we
 //     may be blocking (waiting for work) with a maximum priority of 2; when other
 //     in-progress work completes, we may suddenly have capacity for work with a
 //     maximum priority of 4. In this case, we'd pass a `4` on this channel to notify
 //     the store that we can change our polling query to allow a new maximum priority.
-//  * work - returns work via a pointer
+//   - work - returns work via a pointer
+//
 // Returns:
-//  * Permit - A permit (uint64) for doing the work
-//  * Address - The work's address
-//  * error - An error (if error occurs); nil if successful
+//   - Permit - A permit (uint64) for doing the work
+//   - Address - The work's address
+//   - error - An error (if error occurs); nil if successful
 func (q *DatabaseQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
 
 	start := time.Now()
