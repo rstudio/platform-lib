@@ -184,7 +184,7 @@ func (s *defaultS3Wrapper) MoveObject(bucket, oldKey, newBucket, newKey string) 
 func (s *defaultS3Wrapper) ListObjects(bucket, prefix string) ([]string, error) {
 	ops := NewAwsOps(s.session)
 	// prefix must end with a slash
-	if !strings.HasSuffix(prefix, "/") {
+	if prefix != "" && !strings.HasSuffix(prefix, "/") {
 		prefix += "/"
 	}
 	return ops.BucketObjects(bucket, prefix, S3Concurrency, true, nil)
