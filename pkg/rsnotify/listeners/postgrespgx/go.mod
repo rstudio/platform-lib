@@ -1,6 +1,6 @@
 module github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespgx
 
-go 1.17
+go 1.20
 
 require (
 	github.com/fortytw2/leaktest v1.3.0
@@ -22,5 +22,5 @@ require (
 	github.com/kr/text v0.1.0 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97 // indirect
-	golang.org/x/text v0.3.6 // indirect
+	golang.org/x/text v0.3.8 // indirect
 )

@@ -1,6 +1,6 @@
 module github.com/rstudio/platform-lib
 
-go 1.17
+go 1.20
 
 require gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 

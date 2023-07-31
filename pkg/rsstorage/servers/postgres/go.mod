@@ -1,6 +1,6 @@
 module github.com/rstudio/platform-lib/pkg/rsstorage/servers/postgres
 
-go 1.17
+go 1.20
 
 require (
 	github.com/google/uuid v1.3.0

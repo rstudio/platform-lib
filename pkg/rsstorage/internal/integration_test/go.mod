@@ -1,6 +1,6 @@
 module github.com/rstudio/platform-lib/pkg/rsstorage/internal/integration_test
 
-go 1.17
+go 1.20
 
 require (
 	github.com/aws/aws-sdk-go v1.42.36

@@ -1,6 +1,6 @@
 module github.com/rstudio/platform-lib/pkg/rscache/internal/integration_test
 
-go 1.17
+go 1.20
 
 require (
 	github.com/dgraph-io/ristretto v0.1.0
