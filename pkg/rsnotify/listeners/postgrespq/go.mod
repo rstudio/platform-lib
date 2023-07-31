@@ -1,6 +1,6 @@
 module github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespq
 
-go 1.17
+go 1.20
 
 require (
 	github.com/fortytw2/leaktest v1.3.0

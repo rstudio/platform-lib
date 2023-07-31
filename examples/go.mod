@@ -1,6 +1,6 @@
 module github.com/rstudio/platform-lib/examples
 
-go 1.17
+go 1.20
 
 require (
 	github.com/gomarkdown/markdown v0.0.0-20220310201231-552c6011c0b8
@@ -75,6 +75,6 @@ require (
 	github.com/sirupsen/logrus v1.8.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97 // indirect
-	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
-	golang.org/x/text v0.3.6 // indirect
+	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f // indirect
+	golang.org/x/text v0.3.8 // indirect
 )

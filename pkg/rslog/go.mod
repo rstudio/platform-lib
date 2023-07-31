@@ -1,6 +1,6 @@
 module github.com/rstudio/platform-lib/pkg/rslog
 
-go 1.17
+go 1.20
 
 require (
 	github.com/sirupsen/logrus v1.6.0

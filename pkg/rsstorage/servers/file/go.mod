@@ -1,6 +1,6 @@
 module github.com/rstudio/platform-lib/pkg/rsstorage/servers/file
 
-go 1.17
+go 1.20
 
 require (
 	github.com/c2h5oh/datasize v0.0.0-20200825124411-48ed595a09d2
