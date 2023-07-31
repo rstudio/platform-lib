@@ -31,7 +31,6 @@ replace (
 
 require (
 	github.com/c2h5oh/datasize v0.0.0-20200825124411-48ed595a09d2 // indirect
-	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.10.1 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
@@ -43,10 +42,6 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/kr/pretty v0.2.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/minio/minio v0.0.0-20210323145707-da70e6ddf63c // indirect
-	github.com/montanaflynn/stats v0.5.0 // indirect
-	github.com/ncw/directio v1.0.5 // indirect
 	golang.org/x/crypto v0.0.0-20210711020723-a769d52b0f97 // indirect
-	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
-	golang.org/x/text v0.3.6 // indirect
+	golang.org/x/text v0.3.8 // indirect
 )
