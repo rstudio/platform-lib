@@ -71,14 +71,6 @@ type QueueStore interface {
 	//  * error - errors
 	QueuePeek(types ...uint64) (results []queue.QueueWork, err error)
 
-	// IsQueueAddressComplete checks to see if an address is done/gone
-	// Expects:
-	//  * id - the queue item address
-	// Returns:
-	//  * bool - is the item done/gone?
-	//  * error - errors
-	IsQueueAddressComplete(address string) (bool, error)
-
 	// IsQueueAddressInProgress checks to see if an address is still in progress
 	// Expects:
 	//  * id - the queue item address
@@ -86,9 +78,6 @@ type QueueStore interface {
 	//  * bool - is the item still in progress?
 	//  * error - errors
 	IsQueueAddressInProgress(address string) (bool, error)
-
-	// QueueAddressedComplete saves or clears failure information for an addressed item
-	QueueAddressedComplete(address string, failure error) error
 }
 
 type QueueGroupStore interface {

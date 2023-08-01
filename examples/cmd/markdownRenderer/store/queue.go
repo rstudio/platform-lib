@@ -224,35 +224,6 @@ func (conn *store) QueueGroupComplete(id int64) (done bool, cancelled bool, err 
 	return count == 0, cancelled, err
 }
 
-func (conn *store) IsQueueAddressComplete(address string) (done bool, err error) {
-	address = strings.TrimSpace(address)
-	if address == "" {
-		return false, errors.New("no address provided for IsQueueAddressComplete")
-	}
-
-	// Include the address in the transaction description to avoid races when
-	// testing with a special locking connection.
-	var count int64
-	var workErr error
-	conn.db.Transaction(func(tx *gorm.DB) error {
-		err = tx.Model(&Queue{}).Where("address = ?", address).Count(&count).Error
-		if err != nil {
-			return err
-		}
-
-		c2 := &store{
-			db: tx,
-		}
-		workErr = c2.QueueAddressedCheck(address)
-		return nil
-	})
-
-	if workErr != nil {
-		err = workErr
-	}
-	return count == 0, err
-}
-
 func (conn *store) IsQueueAddressInProgress(address string) (bool, error) {
 	address = strings.TrimSpace(address)
 	if address == "" {
@@ -566,87 +537,6 @@ func (conn *store) QueueDelete(permitId permit.Permit) (err error) {
 		err = tx.Delete(&QueuePermit{}, permitId).Error
 		return err
 	})
-}
-
-func (conn *store) QueueAddressedComplete(address string, failure error) (err error) {
-
-	var bytes []byte
-	if failure != nil {
-		queueError, isQueueError := failure.(*queue.QueueError)
-		if isQueueError {
-			// Record type of queue.QueueError
-			bytes, err = json.Marshal(queueError)
-		} else {
-			// Record generic error
-			bytes, err = json.Marshal(&queue.QueueError{
-				Message: failure.Error(),
-			})
-		}
-	}
-	// Return if there were any marshaling errors
-	if err != nil {
-		return err
-	}
-
-	var postgres bool
-
-	err = conn.db.Transaction(func(tx *gorm.DB) error {
-		if postgres {
-			// Lock to prevent race. Don't allow reading until this operation is complete.
-			err = tx.Exec("LOCK queue_failure IN ACCESS EXCLUSIVE MODE").Error
-			if err != nil {
-				return err
-			}
-		}
-
-		// First, delete any references to this address
-		err = tx.Delete(&QueueFailure{}, "address = ?", address).Error
-		if err != nil {
-			return err
-		}
-
-		// Next, if there is an error to report, insert it
-		if failure != nil {
-			failure := QueueFailure{
-				Address: address,
-				Error:   string(bytes),
-			}
-			err = tx.Create(&failure).Error
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	return
-}
-
-type QueueAddressFailure struct {
-	Message string `json:"error"`
-}
-
-func (err *QueueAddressFailure) Error() string {
-	return err.Message
-}
-
-func (conn *store) QueueAddressedCheck(address string) error {
-	var failure QueueFailure
-	err := conn.db.First(&failure, "address = ?", address).Error
-	if err == gorm.ErrRecordNotFound {
-		return nil
-	} else if err != nil {
-		return err
-	} else {
-		if failure.Error != "" {
-			var queueError queue.QueueError
-			if err := json.Unmarshal([]byte(failure.Error), &queueError); err != nil {
-				return fmt.Errorf("error unmarshalling queue.QueueError: %s", err)
-			} else {
-				return &queueError
-			}
-		}
-	}
-	return nil
 }
 
 func (conn *store) QueuePermits(name string) ([]dbqueuetypes.QueuePermit, error) {

@@ -111,10 +111,6 @@ func (s *QueueTestStore) QueueDelete(permit permit.Permit) error {
 	return s.err
 }
 
-func (s *QueueTestStore) QueueAddressedComplete(address string, failure error) error {
-	return s.err
-}
-
 func (s *QueueTestStore) GetLocalListenerProvider() *local.ListenerProvider {
 	if s.llf != nil {
 		return s.llf
