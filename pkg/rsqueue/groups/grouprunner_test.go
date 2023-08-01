@@ -121,9 +121,6 @@ func (f *fakeQueue) IsAddressInQueue(address string) (bool, error) {
 func (f *fakeQueue) PollAddress(address string) (errs <-chan error) {
 	return f.pollErrs
 }
-func (f *fakeQueue) RecordFailure(address string, failure error) error {
-	return f.record
-}
 func (f *fakeQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
 	return nil, errors.New("n/i")
 }

@@ -35,12 +35,6 @@ type Queue interface {
 	//  * work the work to push into the queue. Must be JSON-serializable
 	AddressedPush(priority uint64, groupId int64, address string, work Work) error
 
-	// RecordFailure records a failure of addressed work in the queue
-	//  * address the address of the work the failed
-	//  * failure the error that occurred. Overwrites any previous error information
-	//    from earlier runs of the same work. If `failure==nil`, the error is cleared.
-	RecordFailure(address string, failure error) error
-
 	// PollAddress polls addressed work in the queue, and an `errs` channels
 	// to report when the work is done and/or an error has occurred. We pass
 	// `nil` over the errs channel when the poll has completed without errors

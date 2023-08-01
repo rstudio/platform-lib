@@ -91,10 +91,6 @@ func (q *RecordingProducer) PollAddress(address string) (errs <-chan error) {
 	return q.PollErrs
 }
 
-func (q *RecordingProducer) RecordFailure(address string, failure error) error {
-	return q.RecordErr
-}
-
 func (q *RecordingProducer) Get(maxPriority uint64, maxPriorityChan chan uint64, types QueueSupportedTypes, stop chan bool) (*QueueWork, error) {
 	return nil, kaboom
 }
