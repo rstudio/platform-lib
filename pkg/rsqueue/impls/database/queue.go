@@ -234,10 +234,6 @@ func (q *DatabaseQueue) AddressedPush(priority uint64, groupId int64, address st
 	return err
 }
 
-func (q *DatabaseQueue) RecordFailure(address string, failure error) error {
-	return q.store.QueueAddressedComplete(address, failure)
-}
-
 func (q *DatabaseQueue) IsAddressInQueue(address string) (bool, error) {
 	return q.store.IsQueueAddressInProgress(address)
 }
@@ -247,7 +243,7 @@ func (q *DatabaseQueue) PollAddress(address string) <-chan error {
 
 	go func() {
 		for {
-			isDone, err := q.store.IsQueueAddressComplete(address)
+			queued, err := q.IsAddressInQueue(address)
 			if err != nil {
 				// Ignore lock errors
 				if !utils.IsSqliteLockError(err) {
@@ -255,14 +251,14 @@ func (q *DatabaseQueue) PollAddress(address string) <-chan error {
 					close(errCh)
 					return
 				}
-			} else if isDone {
+			} else if !queued {
 				q.debugLogger.Debugf("Queue work with address %s completed", address)
 				close(errCh)
 				return
 			}
 
 			// Wait for a notification or an interval, then poll again
-			done := func() bool {
+			done, err := func() (bool, error) {
 				completedMsgs := q.SubscribeOne(q.notifyTypeWorkComplete, func(n listener.Notification) bool {
 					if wn, ok := n.(*agenttypes.WorkCompleteNotification); ok {
 						return wn.Address == address
@@ -279,20 +275,25 @@ func (q *DatabaseQueue) PollAddress(address string) <-chan error {
 				defer tick.Stop()
 				for {
 					select {
-					case <-completedMsgs:
+					case n := <-completedMsgs:
 						q.debugLogger.Debugf("Queue was notified that work with address %s completed", address)
-						return false
+						if wn, ok := n.(*agenttypes.WorkCompleteNotification); ok {
+							return true, wn.Error
+						}
 					case <-chunkMsgs:
 						q.debugLogger.Debugf("Queue was notified that chunk with address %s is ready", address)
-						return true
+						return true, nil
 					case <-tick.C:
-						return false
+						return false, nil
 					}
 				}
 			}()
-			// If we received a chunk notification, then we return immediately so the client can
-			// begin downloading chunks
+			// If we received a chunk or work complete notification, then we return immediately so the client can
+			// continue.
 			if done {
+				if err != nil {
+					errCh <- err
+				}
 				close(errCh)
 				return
 			}
@@ -372,7 +373,7 @@ func (q *DatabaseQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, typ
 		if err != nil {
 			return queueWork, err
 		}
-		queueWork, err := q.store.QueuePop(q.name, maxPriority, types.Enabled())
+		queueWork, err = q.store.QueuePop(q.name, maxPriority, types.Enabled())
 		if err != sql.ErrNoRows {
 			q.measureDequeue(queueWork, err)
 			return queueWork, err

@@ -43,8 +43,6 @@ type QueueTestStore struct {
 	llf            *local.ListenerProvider
 	err            error
 	polled         int
-	poll           bool
-	pollErr        error
 	hasAddress     bool
 	hasAddressErr  error
 	enabled        []uint64
@@ -101,12 +99,8 @@ func (s *QueueTestStore) QueuePop(name string, maxPriority uint64, types []uint6
 }
 
 func (s *QueueTestStore) IsQueueAddressInProgress(address string) (bool, error) {
-	return s.hasAddress, s.hasAddressErr
-}
-
-func (s *QueueTestStore) IsQueueAddressComplete(address string) (bool, error) {
 	s.polled++
-	return s.poll, s.pollErr
+	return s.hasAddress, s.hasAddressErr
 }
 
 func (s *QueueTestStore) NotifyExtend(permit uint64) error {
@@ -114,10 +108,6 @@ func (s *QueueTestStore) NotifyExtend(permit uint64) error {
 }
 
 func (s *QueueTestStore) QueueDelete(permit permit.Permit) error {
-	return s.err
-}
-
-func (s *QueueTestStore) QueueAddressedComplete(address string, failure error) error {
 	return s.err
 }
 
@@ -209,29 +199,6 @@ func (s *QueueSuite) TestNewQueue(c *check.C) {
 	var typeQueue queue.Queue
 	typeQueue = q
 	_ = typeQueue
-}
-
-func (s *QueueSuite) TestRecord(c *check.C) {
-	q := &DatabaseQueue{
-		store:       s.store,
-		debugLogger: &fakeLogger{},
-		wrapper:     &fakeWrapper{},
-	}
-	err := q.RecordFailure("abc", errors.New("test"))
-	c.Assert(err, check.IsNil)
-	err = q.RecordFailure("abc", nil)
-	c.Assert(err, check.IsNil)
-}
-
-func (s *QueueSuite) TestRecordErrs(c *check.C) {
-	s.store.err = errors.New("kaboom!")
-	q := &DatabaseQueue{
-		store:       s.store,
-		debugLogger: &fakeLogger{},
-		wrapper:     &fakeWrapper{},
-	}
-	err := q.RecordFailure("abc", errors.New("test"))
-	c.Assert(err, check.NotNil)
 }
 
 func (s *QueueSuite) TestPush(c *check.C) {
@@ -452,7 +419,7 @@ func (s *QueueSuite) TestDeleteErrs(c *check.C) {
 func (s *QueueSuite) TestPollErr(c *check.C) {
 	defer leaktest.Check(c)
 
-	s.store.pollErr = errors.New("horrible error")
+	s.store.hasAddressErr = errors.New("horrible error")
 	q := &DatabaseQueue{
 		store:               s.store,
 		debugLogger:         &fakeLogger{},
@@ -485,7 +452,7 @@ func (s *QueueSuite) TestPollErr(c *check.C) {
 func (s *QueueSuite) TestPollLockErr(c *check.C) {
 	defer leaktest.Check(c)
 
-	s.store.pollErr = errors.New("database is locked")
+	s.store.hasAddressErr = errors.New("database is locked")
 	q := &DatabaseQueue{
 		store:               s.store,
 		debugLogger:         &fakeLogger{},
@@ -510,8 +477,8 @@ func (s *QueueSuite) TestPollLockErr(c *check.C) {
 
 	go func() {
 		time.Sleep(time.Millisecond * 30)
-		s.store.pollErr = nil
-		s.store.poll = true
+		s.store.hasAddressErr = nil
+		s.store.hasAddress = false
 	}()
 
 	err := <-errCh
@@ -522,7 +489,7 @@ func (s *QueueSuite) TestPollLockErr(c *check.C) {
 func (s *QueueSuite) TestPollTickOk(c *check.C) {
 	defer leaktest.Check(c)
 
-	s.store.poll = false
+	s.store.hasAddress = true
 	q := &DatabaseQueue{
 		store:               s.store,
 		debugLogger:         &fakeLogger{},
@@ -547,7 +514,7 @@ func (s *QueueSuite) TestPollTickOk(c *check.C) {
 
 	go func() {
 		time.Sleep(time.Millisecond * 30)
-		s.store.poll = true
+		s.store.hasAddress = false
 	}()
 
 	<-errCh
@@ -557,7 +524,9 @@ func (s *QueueSuite) TestPollTickOk(c *check.C) {
 func (s *QueueSuite) TestPollNotifyOk(c *check.C) {
 	defer leaktest.Check(c)
 
-	cstore := &QueueTestStore{}
+	cstore := &QueueTestStore{
+		hasAddress: true,
+	}
 	q := &DatabaseQueue{
 		store:               cstore,
 		debugLogger:         &fakeLogger{},
@@ -588,18 +557,59 @@ func (s *QueueSuite) TestPollNotifyOk(c *check.C) {
 	time.Sleep(10 * time.Millisecond)
 
 	// This should not initiate a poll, since the address doesn't match
-	workMsgs <- agenttypes.NewWorkCompleteNotification("nothing", 10)
-	// This should initiate a poll
-	workMsgs <- agenttypes.NewWorkCompleteNotification("something", 10)
+	workMsgs <- agenttypes.NewWorkCompleteNotification("nothing", 10, nil)
+	// This message indicates the work is done
+	workMsgs <- agenttypes.NewWorkCompleteNotification("something", 10, nil)
 
-	// Now the work is done
-	// Sleep a bit to prevent a race when setting store.poll = true
-	time.Sleep(100 * time.Millisecond)
-	cstore.poll = true
-	workMsgs <- agenttypes.NewWorkCompleteNotification("something", 10)
+	err := <-errCh
+	c.Assert(err, check.IsNil)
+	c.Assert(cstore.polled, check.Equals, 1)
+}
 
-	<-errCh
-	c.Assert(cstore.polled, check.Equals, 3)
+func (s *QueueSuite) TestPollNotifyErr(c *check.C) {
+	defer leaktest.Check(c)
+
+	cstore := &QueueTestStore{
+		hasAddress: true,
+	}
+	q := &DatabaseQueue{
+		store:               cstore,
+		debugLogger:         &fakeLogger{},
+		addressPollInterval: time.Hour,
+		subscribe:           make(chan broadcaster.Subscription),
+		unsubscribe:         make(chan (<-chan listener.Notification)),
+		wrapper:             &fakeWrapper{},
+
+		notifyTypeWorkReady:    9,
+		notifyTypeWorkComplete: 10,
+		notifyTypeChunk:        11,
+		chunkMatcher:           &fakeMatcher{},
+	}
+
+	queueMsgs := make(chan listener.Notification)
+	workMsgs := make(chan listener.Notification)
+	chunkMsgs := make(chan listener.Notification)
+	defer close(queueMsgs)
+	defer close(workMsgs)
+	defer close(chunkMsgs)
+
+	stopper := make(chan bool)
+	defer func() { stopper <- true }()
+	go q.broadcast(stopper, queueMsgs, workMsgs, chunkMsgs)
+
+	errCh := q.PollAddress("something")
+
+	time.Sleep(10 * time.Millisecond)
+
+	// This should not initiate a poll, since the address doesn't match
+	workMsgs <- agenttypes.NewWorkCompleteNotification("nothing", 10, nil)
+	// This message indicates the work is done
+	errWork := errors.New("work error")
+	workMsgs <- agenttypes.NewWorkCompleteNotification("something", 10, errWork)
+
+	err := <-errCh
+	c.Assert(err, check.ErrorMatches, "work error")
+	c.Assert(cstore.polled, check.Equals, 1)
 }
 
 func (s *QueueSuite) TestPollNotifyChunkOk(c *check.C) {
