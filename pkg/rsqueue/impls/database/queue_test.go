@@ -39,6 +39,14 @@ func (s *QueueSuite) SetUpTest(c *check.C) {
 	s.store.hasAddress = true
 }
 
+type fakeMetrics struct {
+	count int
+}
+
+func (f *fakeMetrics) QueueNotificationMiss(name, address string) {
+	f.count++
+}
+
 type QueueTestStore struct {
 	llf            *local.ListenerProvider
 	err            error
@@ -523,6 +531,7 @@ func (s *QueueSuite) TestPollTickOk(c *check.C) {
 	defer leaktest.Check(c)
 
 	s.store.poll = false
+	fm := &fakeMetrics{}
 	q := &DatabaseQueue{
 		store:               s.store,
 		debugLogger:         &fakeLogger{},
@@ -530,6 +539,7 @@ func (s *QueueSuite) TestPollTickOk(c *check.C) {
 		subscribe:           make(chan broadcaster.Subscription),
 		unsubscribe:         make(chan (<-chan listener.Notification)),
 		wrapper:             &fakeWrapper{},
+		metrics:             fm,
 	}
 
 	queueMsgs := make(chan listener.Notification)
@@ -552,6 +562,7 @@ func (s *QueueSuite) TestPollTickOk(c *check.C) {
 
 	<-errCh
 	c.Assert(s.store.polled > 1, check.Equals, true)
+	c.Assert(fm.count, check.Equals, 1)
 }
 
 func (s *QueueSuite) TestPollNotifyOk(c *check.C) {

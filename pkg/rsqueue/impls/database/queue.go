@@ -46,6 +46,8 @@ type DatabaseQueue struct {
 	chunkMatcher dbqueuetypes.DatabaseQueueChunkMatcher
 
 	wrapper metrics.JobLifecycleWrapper
+
+	metrics metrics.Metrics
 }
 
 type DatabaseQueueConfig struct {
@@ -62,6 +64,7 @@ type DatabaseQueueConfig struct {
 	ChunkMsgsChan          <-chan listener.Notification
 	StopChan               chan bool
 	JobLifecycleWrapper    metrics.JobLifecycleWrapper
+	Metrics                metrics.Metrics
 }
 
 func NewDatabaseQueue(cfg DatabaseQueueConfig) (queue.Queue, error) {
@@ -83,6 +86,8 @@ func NewDatabaseQueue(cfg DatabaseQueueConfig) (queue.Queue, error) {
 		unsubscribe: make(chan (<-chan listener.Notification)),
 
 		wrapper: cfg.JobLifecycleWrapper,
+
+		metrics: cfg.Metrics,
 	}
 
 	go rq.broadcast(cfg.StopChan, cfg.QueueMsgsChan, cfg.WorkMsgsChan, cfg.ChunkMsgsChan)
@@ -246,6 +251,7 @@ func (q *DatabaseQueue) PollAddress(address string) <-chan error {
 	errCh := make(chan error)
 
 	go func() {
+		var done, ticked bool
 		for {
 			isDone, err := q.store.IsQueueAddressComplete(address)
 			if err != nil {
@@ -258,11 +264,16 @@ func (q *DatabaseQueue) PollAddress(address string) <-chan error {
 			} else if isDone {
 				q.debugLogger.Debugf("Queue work with address %s completed", address)
 				close(errCh)
+				if ticked && q.metrics != nil {
+					// We detected this work was done after a ticker tick instead of in response
+					// to a work complete or chunk notification.
+					q.metrics.QueueNotificationMiss(q.name, address)
+				}
 				return
 			}
 
 			// Wait for a notification or an interval, then poll again
-			done := func() bool {
+			done, ticked = func() (bool, bool) {
 				completedMsgs := q.SubscribeOne(q.notifyTypeWorkComplete, func(n listener.Notification) bool {
 					if wn, ok := n.(*agenttypes.WorkCompleteNotification); ok {
 						return wn.Address == address
@@ -281,12 +292,12 @@ func (q *DatabaseQueue) PollAddress(address string) <-chan error {
 					select {
 					case <-completedMsgs:
 						q.debugLogger.Debugf("Queue was notified that work with address %s completed", address)
-						return false
+						return false, false
 					case <-chunkMsgs:
 						q.debugLogger.Debugf("Queue was notified that chunk with address %s is ready", address)
-						return true
+						return true, false
 					case <-tick.C:
-						return false
+						return false, true
 					}
 				}
 			}()
