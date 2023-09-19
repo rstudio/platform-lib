@@ -81,11 +81,17 @@ type Queue interface {
 type QueueSupportedTypes interface {
 	Enabled() []uint64
 	SetEnabled(typeId uint64, enabled bool)
+	SetEnabledConditional(typeId uint64, enabled func() bool)
 	DisableAll()
 }
 
+type Enabled struct {
+	Always      bool
+	Conditional func() bool
+}
+
 type DefaultQueueSupportedTypes struct {
-	types map[uint64]bool
+	types map[uint64]Enabled
 	mutex sync.RWMutex
 }
 
@@ -94,7 +100,7 @@ func (d *DefaultQueueSupportedTypes) Enabled() []uint64 {
 	defer d.mutex.RUnlock()
 	results := make([]uint64, 0)
 	for i, enabled := range d.types {
-		if enabled {
+		if enabled.Always || (enabled.Conditional != nil && enabled.Conditional()) {
 			results = append(results, i)
 		}
 	}
@@ -103,18 +109,27 @@ func (d *DefaultQueueSupportedTypes) Enabled() []uint64 {
 
 func (d *DefaultQueueSupportedTypes) SetEnabled(typeId uint64, enabled bool) {
 	if d.types == nil {
-		d.types = make(map[uint64]bool)
+		d.types = make(map[uint64]Enabled)
 	}
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
-	d.types[typeId] = enabled
+	d.types[typeId] = Enabled{Always: enabled}
+}
+
+func (d *DefaultQueueSupportedTypes) SetEnabledConditional(typeId uint64, enabled func() bool) {
+	if d.types == nil {
+		d.types = make(map[uint64]Enabled)
+	}
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+	d.types[typeId] = Enabled{Conditional: enabled}
 }
 
 func (d *DefaultQueueSupportedTypes) DisableAll() {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 	for i := range d.types {
-		d.types[i] = false
+		d.types[i] = Enabled{Always: false}
 	}
 }
 

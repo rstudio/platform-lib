@@ -93,7 +93,31 @@ func (s *RunnerFactorySuite) TestNewRunner(c *check.C) {
 		Work:     []byte{},
 		WorkType: 2,
 	})
-	c.Assert(err, check.ErrorMatches, "Invalid work type 2")
+	c.Assert(err, check.ErrorMatches, "invalid work type 2")
+}
+
+func (s *RunnerFactorySuite) TestRunnerConditional(c *check.C) {
+	types := &queue.DefaultQueueSupportedTypes{}
+	r := NewRunnerFactory(RunnerFactoryConfig{SupportedTypes: types})
+	c.Check(r, check.DeepEquals, &RunnerFactory{
+		runners: make(map[uint64]queue.WorkRunner),
+		types:   types,
+	})
+
+	yes := func() bool {
+		return true
+	}
+	no := func() bool {
+		return false
+	}
+
+	// Add a runner
+	fr1 := &FakeRunnerOne{}
+	fr2 := &FakeRunnerTwo{}
+	r.AddConditional(0, yes, fr1)
+	r.AddConditional(1, no, fr2)
+	c.Check(r.runners, check.HasLen, 2)
+	c.Check(r.types.Enabled(), check.DeepEquals, []uint64{0})
 }
 
 func (s *RunnerFactorySuite) TestStop(c *check.C) {

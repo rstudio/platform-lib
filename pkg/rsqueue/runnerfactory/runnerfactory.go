@@ -32,17 +32,24 @@ func (r *RunnerFactory) Add(workType uint64, runner queue.WorkRunner) {
 	r.types.SetEnabled(workType, true)
 }
 
+func (r *RunnerFactory) AddConditional(workType uint64, enabled func() bool, runner queue.WorkRunner) {
+	r.runners[workType] = runner
+	r.types.SetEnabledConditional(workType, enabled)
+}
+
+// Run runs work if the work type is configured. Note that this doesn't check to
+// see if the work type is enabled (in r.types).
 func (r *RunnerFactory) Run(work queue.RecursableWork) error {
 
 	runner, ok := r.runners[work.WorkType]
 	if !ok {
-		return fmt.Errorf("Invalid work type %d", work.WorkType)
+		return fmt.Errorf("invalid work type %d", work.WorkType)
 	}
 
 	return runner.Run(work)
 }
 
-// Stops all the runners in the factory. After each runner is stopped,
+// Stop all the runners in the factory. After each runner is stopped,
 // it is marked as disabled so that we won't attempt to grab future
 // work for that runner from the queue.
 func (r *RunnerFactory) Stop(timeout time.Duration) error {
