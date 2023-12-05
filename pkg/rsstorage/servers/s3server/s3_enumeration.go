@@ -19,6 +19,7 @@ import (
 type AwsOps interface {
 	BucketDirs(bucket, s3Prefix string) ([]string, error)
 	BucketObjects(bucket, s3Prefix string, concurrency int, recursive bool, reg *regexp.Regexp) ([]string, error)
+	BucketObjectsETagMap(bucket, s3Prefix string, concurrency int, recursive bool, reg *regexp.Regexp) (map[string]string, error)
 }
 
 type DefaultAwsOps struct {
@@ -157,6 +158,114 @@ func (a *DefaultAwsOps) BucketObjects(bucket, s3Prefix string, concurrency int, 
 	}
 }
 
+func (a *DefaultAwsOps) BucketObjectsETagMap(bucket, s3Prefix string, concurrency int, recursive bool, reg *regexp.Regexp) (map[string]string, error) {
+	svc := s3.New(a.sess)
+
+	nextMarkerChan := make(chan string, 100)
+	nextMarkerChan <- ""
+	defer close(nextMarkerChan)
+
+	binaryMeta := make(map[string]string)
+	binaryL := sync.Mutex{}
+
+	wg := sync.WaitGroup{}
+	waitCh := make(chan struct{})
+	wg.Add(1)
+
+	var ops uint64
+	var total uint64
+
+	errCh := make(chan error)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// If recursive is not true, include a delimiter so we only list the contents
+	// of the directory indicated by `s3Prefix`. Otherwise, leave the delimiter nil
+	// so we list everything recursively.
+	var delimiter *string
+	if !recursive {
+		delimiter = aws.String("/")
+	}
+
+	go func() {
+		for i := 0; i < concurrency; i++ {
+			go func() {
+				for nextMarker := range nextMarkerChan {
+					wg.Add(1)
+
+					query := &s3.ListObjectsInput{
+						Bucket:    aws.String(bucket),
+						Prefix:    aws.String(s3Prefix),
+						Delimiter: delimiter,
+					}
+
+					if nextMarker != "" {
+						query.SetMarker(nextMarker)
+					}
+
+					resp, err := svc.ListObjectsWithContext(ctx, query)
+					if err != nil {
+						errCh <- fmt.Errorf("something went wrong listing objects: %s", err)
+						return
+					}
+
+					nm := ""
+
+					if resp.NextMarker != nil {
+						nm = *resp.NextMarker
+						nextMarkerChan <- nm
+					}
+
+					// When there are no contents, we need to return
+					// early.
+					if len(resp.Contents) == 0 {
+						wg.Done()
+						// TODO: `nm` may always be blank when there are no
+						// contents, so this conditional may be unnecessary.
+						if nm == "" {
+							wg.Done()
+						}
+						return
+					}
+
+					bm := getObjectsAllMap(resp, s3Prefix, reg)
+
+					binaryL.Lock()
+					for key, val := range bm {
+						binaryMeta[key] = val
+					}
+					binaryL.Unlock()
+
+					wg.Done()
+					atomic.AddUint64(&ops, uint64(len(bm)))
+					if ops > 1000 {
+						atomic.AddUint64(&total, atomic.LoadUint64(&ops))
+						log.Printf("For S3 prefix %s parsed %d files", s3Prefix, atomic.LoadUint64(&total))
+						atomic.SwapUint64(&ops, 0)
+					}
+
+					if nm == "" {
+						wg.Done()
+						break
+					}
+				}
+			}()
+		}
+
+		wg.Wait()
+		close(waitCh)
+	}()
+
+	// Block until the wait group is done or we err
+	select {
+	case <-waitCh:
+		return binaryMeta, nil
+	case err := <-errCh:
+		cancel()
+		return nil, err
+	}
+}
+
 var BinaryReg = regexp.MustCompile(`(.+)(\.tar\.gz|\.zip)$`)
 
 func getObjectsAll(bucketObjectsList *s3.ListObjectsOutput, s3Prefix string, reg *regexp.Regexp) []string {
@@ -170,6 +279,24 @@ func getObjectsAll(bucketObjectsList *s3.ListObjectsOutput, s3Prefix string, reg
 			}
 		} else {
 			binaryMeta = append(binaryMeta, strings.TrimPrefix(*key.Key, s3Prefix))
+		}
+
+	}
+
+	return binaryMeta
+}
+
+func getObjectsAllMap(bucketObjectsList *s3.ListObjectsOutput, s3Prefix string, reg *regexp.Regexp) map[string]string {
+	binaryMeta := make(map[string]string)
+
+	for _, key := range bucketObjectsList.Contents {
+
+		if reg != nil {
+			if s := reg.FindStringSubmatch(*key.Key); len(s) > 1 {
+				binaryMeta[strings.TrimPrefix(s[1], s3Prefix)] = *key.ETag
+			}
+		} else {
+			binaryMeta[strings.TrimPrefix(*key.Key, s3Prefix)] = *key.ETag
 		}
 
 	}

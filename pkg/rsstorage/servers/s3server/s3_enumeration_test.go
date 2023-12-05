@@ -101,3 +101,51 @@ func (s *MetaTestSuite) TestBucketObjects(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(files, check.DeepEquals, []string{"HIJKLMN", "OPQRSTU"})
 }
+
+func (s *MetaTestSuite) TestBucketObjectsMap(c *check.C) {
+	sess, err := session.NewSession(&aws.Config{
+		Region:      aws.String("us-east-1"),
+		Credentials: credentials.AnonymousCredentials,
+	})
+	c.Assert(err, check.IsNil)
+
+	httpmock.ActivateNonDefault(sess.Config.HTTPClient)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder("GET", `https://sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
+		httpmock.NewStringResponder(http.StatusOK, `<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Name>sync</Name>
+  <Prefix>bin/3.5-xenial/</Prefix>
+  <IsTruncated>false</IsTruncated>
+  <Contents>
+    <Key>ABCDEFG.json</Key>
+    <ETag>123</ETag>
+  </Contents>
+  <Contents>
+    <Key>HIJKLMN.tar.gz</Key>
+    <ETag>456</ETag>
+  </Contents>
+  <Contents>
+    <Key>OPQRSTU.zip</Key>
+    <ETag>789</ETag>
+  </Contents>
+  <Contents>
+    <Key>nothing</Key>
+    <ETag>0</ETag>
+  </Contents>
+</ListBucketResult>`))
+	httpmock.RegisterResponder("GET", `https://no-sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
+		httpmock.NewStringResponder(http.StatusNotFound, ``))
+
+	ops := &DefaultAwsOps{sess: sess}
+	files, err := ops.BucketObjectsETagMap("no-sync", "bin/3.5-xenial", 1, false, BinaryReg)
+	c.Assert(err.Error(), check.Equals, "something went wrong listing objects: NotFound: Not Found\n"+
+		"\tstatus code: 404, request id: , host id: ")
+
+	files, err = ops.BucketObjectsETagMap("sync", "bin/3.5-xenial", 1, false, BinaryReg)
+	c.Assert(err, check.IsNil)
+	c.Check(files, check.DeepEquals, map[string]string{
+		"HIJKLMN": "456",
+		"OPQRSTU": "789",
+	})
+}
