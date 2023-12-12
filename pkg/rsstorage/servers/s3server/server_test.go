@@ -78,6 +78,10 @@ type fakeS3 struct {
 	delBucketOut *s3.DeleteBucketOutput
 }
 
+func (s *fakeS3) KmsEncrypted() bool {
+	return false
+}
+
 func (s *fakeS3) CreateBucket(input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {
 	if s.bucketErr == nil {
 		s.bucketIn = input

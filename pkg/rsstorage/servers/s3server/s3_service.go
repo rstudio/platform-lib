@@ -30,6 +30,7 @@ type S3Wrapper interface {
 	CopyObject(bucket, key, newBucket, newKey string) (*s3.CopyObjectOutput, error)
 	MoveObject(bucket, key, newBucket, newKey string) (*s3.CopyObjectOutput, error)
 	ListObjects(bucket, prefix string) ([]string, error)
+	KmsEncrypted() bool
 }
 
 type defaultS3Wrapper struct {
@@ -55,6 +56,10 @@ func NewS3Wrapper(configInput *rsstorage.ConfigS3, keyID string) (S3Wrapper, err
 	return &defaultS3Wrapper{
 		session: sess,
 	}, nil
+}
+
+func (s *defaultS3Wrapper) KmsEncrypted() bool {
+	return false
 }
 
 func (s *defaultS3Wrapper) CreateBucket(input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {

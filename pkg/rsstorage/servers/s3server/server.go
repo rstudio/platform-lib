@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,6 +23,8 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
+
+const AmzUnencryptedContentLengthHeader = "X-Amz-Unencrypted-Content-Length"
 
 type moveOrCopyFn func(bucket, key, newBucket, newKey string) (*s3.CopyObjectOutput, error)
 
@@ -107,6 +110,7 @@ func (s *StorageServer) Validate() error {
 
 func (s *StorageServer) Check(dir, address string) (bool, *types.ChunksInfo, int64, time.Time, error) {
 	var chunked bool
+	var contentLength int64
 	addr := internal.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
 	infoAddr := filepath.Join(addr, "info.json")
 	resp, err := s.svc.HeadObject(&s3.HeadObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(addr)})
@@ -152,8 +156,17 @@ func (s *StorageServer) Check(dir, address string) (bool, *types.ChunksInfo, int
 		}
 		return true, &info, int64(info.FileSize), info.ModTime, nil
 	} else {
+		// Check some headers for the unencrypted content length for KMS encrypted objects.
+		if s.svc.KmsEncrypted() {
+			if cl, ok := resp.Metadata[AmzUnencryptedContentLengthHeader]; ok {
+				contentLength, _ = strconv.ParseInt(*cl, 10, 64)
+			}
+		} else {
+			contentLength = *resp.ContentLength
+		}
+
 		// For standard assets, the HeadObject response has the information we need.
-		return true, nil, *resp.ContentLength, *resp.LastModified, nil
+		return true, nil, contentLength, *resp.LastModified, nil
 	}
 }
 
@@ -172,6 +185,7 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 
 func (s *StorageServer) Get(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
 	var chunked bool
+	var contentLength int64
 	addr := internal.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
 	infoAddr := filepath.Join(addr, "info.json")
 	resp, err := s.svc.GetObject(&s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(addr)})
@@ -208,8 +222,17 @@ func (s *StorageServer) Get(dir, address string) (io.ReadCloser, *types.ChunksIn
 		}
 		return r, c, sz, mod, true, nil
 	} else {
+		// Check some headers for the unencrypted content length for KMS encrypted objects.
+		if s.svc.KmsEncrypted() {
+			if cl, ok := resp.Metadata[AmzUnencryptedContentLengthHeader]; ok {
+				contentLength, _ = strconv.ParseInt(*cl, 10, 64)
+			}
+		} else {
+			contentLength = *resp.ContentLength
+		}
+
 		// For standard assets, the GetObject response has the information we need.
-		return resp.Body, nil, *resp.ContentLength, *resp.LastModified, true, nil
+		return resp.Body, nil, contentLength, *resp.LastModified, true, nil
 	}
 }
 
