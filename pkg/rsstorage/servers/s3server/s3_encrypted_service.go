@@ -115,3 +115,7 @@ func (s *encryptedS3Service) GetObject(input *s3.GetObjectInput) (*s3.GetObjectO
 	}
 	return out, err
 }
+
+func (s *encryptedS3Service) KmsEncrypted() bool {
+	return true
+}
