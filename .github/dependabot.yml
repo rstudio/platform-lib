@@ -1,0 +1,214 @@
+---
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: sunday
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rscache/
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rselection/
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rskey/
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rslog/
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rsnotify/
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rsqueue/
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rsstorage/
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rselection/impls/pgx
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rselection/impls/local
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rsstorage/servers/s3server
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rsstorage/servers/postgres
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rsstorage/servers/file
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rsnotify/listeners/postgrespgx
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rsnotify/listeners/postgrespq
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rsnotify/listeners/local
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
+  - package-ecosystem: gomod
+    directory: /pkg/rsqueue/impls/database
+    schedule:
+      interval: weekly
+      day: sunday
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    reviewers:
+      - rstudio/ppm
