@@ -4,11 +4,11 @@ go 1.20
 
 require (
 	github.com/gomarkdown/markdown v0.0.0-20220310201231-552c6011c0b8
-	github.com/google/uuid v1.3.0
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.0
 	github.com/jackc/pgx/v4 v4.18.3
-	github.com/jmoiron/sqlx v0.0.0-20170430194603-d9bd385d68c0
-	github.com/lib/pq v1.10.2
+	github.com/jmoiron/sqlx v1.3.5
+	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.9
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.2.1
@@ -68,8 +68,7 @@ require (
 	github.com/jinzhu/now v1.1.4 // indirect
 	github.com/kr/pretty v0.2.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/magefile/mage v1.10.0 // indirect
-	github.com/sirupsen/logrus v1.8.0 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/crypto v0.20.0 // indirect
 	golang.org/x/sys v0.17.0 // indirect
