@@ -4,7 +4,7 @@ jobs:
   Build:
     runs-on: ubuntu-latest
     steps:
-      - uses: extractions/setup-just@v1
+      - uses: extractions/setup-just@v2
 
       - name: Install Go
         uses: actions/setup-go@v5
