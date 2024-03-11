@@ -3,7 +3,7 @@ module github.com/rstudio/platform-lib/pkg/rscache
 go 1.20
 
 require (
-	github.com/dgraph-io/ristretto v0.1.0
+	github.com/dgraph-io/ristretto v0.1.1
 	github.com/fortytw2/leaktest v1.3.0
 	github.com/rstudio/platform-lib/pkg/rsstorage v0.3.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
