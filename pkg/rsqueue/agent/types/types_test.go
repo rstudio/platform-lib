@@ -3,6 +3,7 @@ package agenttypes
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
@@ -16,7 +17,7 @@ func TestPackage(t *testing.T) { check.TestingT(t) }
 var _ = check.Suite(&AgentTypesSuite{})
 
 func (s *AgentTypesSuite) TestWorkCompleteNotification(c *check.C) {
-	cn := NewWorkCompleteNotification("some_address", 10)
+	cn := NewWorkCompleteNotification("some_address", 10, nil)
 	// Guid should be set
 	c.Assert(cn.Guid(), check.Not(check.Equals), "")
 	cn.NotifyGuid = ""
@@ -26,5 +27,19 @@ func (s *AgentTypesSuite) TestWorkCompleteNotification(c *check.C) {
 		},
 
 		Address: "some_address",
+	})
+
+	err := errors.New("some error")
+	cn = NewWorkCompleteNotification("some_address", 10, err)
+	// Guid should be set
+	c.Assert(cn.Guid(), check.Not(check.Equals), "")
+	cn.NotifyGuid = ""
+	c.Assert(cn, check.DeepEquals, &WorkCompleteNotification{
+		GenericNotification: listener.GenericNotification{
+			NotifyType: uint8(10),
+		},
+
+		Address: "some_address",
+		Error:   err,
 	})
 }

@@ -117,7 +117,6 @@ type FakeQueue struct {
 	extend   error
 	mutex    sync.Mutex
 	record   error
-	errs     []error
 }
 
 func (*FakeQueue) Push(priority uint64, groupId int64, work queue.Work) error {
@@ -137,12 +136,6 @@ func (*FakeQueue) IsAddressInQueue(address string) (bool, error) {
 }
 func (f *FakeQueue) PollAddress(address string) (errs <-chan error) {
 	return f.pollErrs
-}
-func (f *FakeQueue) RecordFailure(address string, failure error) error {
-	if f.record == nil {
-		f.errs = append(f.errs, failure)
-	}
-	return f.record
 }
 func (*FakeQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
 	return nil, nil
@@ -214,9 +207,9 @@ func (s *AgentSuite) TestWaitBlocked(c *check.C) {
 	}()
 
 	// Send some messages across the queue while blocked and make sure they're discarded
-	msgs <- agenttypes.NewWorkCompleteNotification("somewhere1", 10)
-	msgs <- agenttypes.NewWorkCompleteNotification("somewhere2", 10)
-	msgs <- agenttypes.NewWorkCompleteNotification("somewhere3", 10)
+	msgs <- agenttypes.NewWorkCompleteNotification("somewhere1", 10, nil)
+	msgs <- agenttypes.NewWorkCompleteNotification("somewhere2", 10, nil)
+	msgs <- agenttypes.NewWorkCompleteNotification("somewhere3", 10, nil)
 
 	c.Check(completed, check.Equals, false)
 	jobDone <- 98
@@ -229,7 +222,6 @@ func (s *AgentSuite) TestWaitBlocked(c *check.C) {
 func (s *AgentSuite) TestRunJobOk(c *check.C) {
 	q := &FakeQueue{
 		extended: make(map[permit.Permit]int),
-		errs:     make([]error, 0),
 	}
 	finish := map[string]chan bool{
 		"one":   make(chan bool),
@@ -316,11 +308,6 @@ func (s *AgentSuite) TestRunJobOk(c *check.C) {
 	c.Check(receivedPriority[1], check.Equals, MAX_CONCURRENCY)
 	c.Check(receivedPriority[2], check.Equals, MAX_CONCURRENCY)
 
-	// Jobs b2 and b3 should have been marked as successful since they were addressed
-	c.Check(q.errs, check.HasLen, 2)
-	c.Check(q.errs[0], check.IsNil)
-	c.Check(q.errs[1], check.IsNil)
-
 	// Jobs should have been deleted
 	c.Check(q.deleted, check.Equals, 3)
 
@@ -337,7 +324,6 @@ func (s *AgentSuite) TestRunJobOk(c *check.C) {
 func (s *AgentSuite) TestRunJobFails(c *check.C) {
 	q := &FakeQueue{
 		extended: make(map[permit.Permit]int),
-		errs:     make([]error, 0),
 	}
 	finish := map[string]chan bool{
 		"one": make(chan bool),
@@ -363,7 +349,10 @@ func (s *AgentSuite) TestRunJobFails(c *check.C) {
 	b1, err := json.Marshal(&w1)
 	c.Assert(err, check.IsNil)
 
-	n := func(n listener.Notification) {}
+	var notified listener.Notification
+	n := func(n listener.Notification) {
+		notified = n
+	}
 
 	maxPriorityDone := make(chan struct{})
 	go func() {
@@ -387,8 +376,10 @@ func (s *AgentSuite) TestRunJobFails(c *check.C) {
 	<-maxPriorityDone
 
 	// Jobs should have been marked as failed since it was addressed
-	c.Check(q.errs, check.HasLen, 1)
-	c.Check(q.errs[0], check.ErrorMatches, "work failed")
+	c.Assert(notified, check.FitsTypeOf, &agenttypes.WorkCompleteNotification{})
+	workNotified, ok := notified.(*agenttypes.WorkCompleteNotification)
+	c.Assert(ok, check.Equals, true)
+	c.Assert(workNotified.Error, check.ErrorMatches, "work failed")
 
 	// Jobs should have been deleted
 	c.Check(q.deleted, check.Equals, 1)

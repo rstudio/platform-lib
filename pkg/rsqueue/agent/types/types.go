@@ -21,14 +21,16 @@ type Notify func(n listener.Notification)
 type WorkCompleteNotification struct {
 	listener.GenericNotification
 	Address string
+	Error   error
 }
 
-func NewWorkCompleteNotification(address string, workType uint8) *WorkCompleteNotification {
+func NewWorkCompleteNotification(address string, workType uint8, err error) *WorkCompleteNotification {
 	return &WorkCompleteNotification{
 		GenericNotification: listener.GenericNotification{
 			NotifyGuid: uuid.New().String(),
 			NotifyType: workType,
 		},
 		Address: address,
+		Error:   err,
 	}
 }

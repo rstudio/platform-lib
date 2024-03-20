@@ -349,8 +349,7 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 	}
 
 	// Run the job (blocks)
-	func() {
-
+	jobError := func() (result error) {
 		// Extend the job's heartbeat in the queue periodically until the job completes.
 		done := make(chan struct{})
 		defer close(done)
@@ -362,7 +361,7 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 				case <-ticker.C:
 					// Extend the job visibility
 					a.traceLogger.Debugf("Job of type %d visibility timeout needs to be extended: %d\n", queueWork.WorkType, queueWork.Permit)
-					err := a.queue.Extend(queueWork.Permit)
+					err = a.queue.Extend(queueWork.Permit)
 					if err != nil {
 						a.logger.Debugf("Error extending job for work type %d: %s", queueWork.WorkType, err)
 					}
@@ -374,24 +373,17 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 
 		// Actually run the job
 		a.traceLogger.Debugf("Running job with type %d, address '%s', and permit '%d'", queueWork.WorkType, queueWork.Address, queueWork.Permit)
-		err := a.runner.Run(queue.RecursableWork{
+		err = a.runner.Run(queue.RecursableWork{
 			Work:     queueWork.Work,
 			WorkType: queueWork.WorkType,
 			Context:  ctx,
 		})
 		if err != nil {
+			result = err
 			a.logger.Debugf("Job type %d: address: %s work: %#v returned error: %s\n", queueWork.WorkType, queueWork.Address, string(queueWork.Work), err)
 		}
 
-		// If the work was addressed, record the result
-		if queueWork.Address != "" {
-			// Note, `RecordFailure` will record the error if err != nil. If
-			// err == nil, then it clears any recorded error for the address.
-			err = a.queue.RecordFailure(queueWork.Address, err)
-			if err != nil {
-				a.logger.Debugf("Failed while recording addressed work success/failure: %s\n", err)
-			}
-		}
+		return
 	}()
 
 	// Decrement the job count
@@ -416,8 +408,8 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 	// Delete the job from the queue
 	a.traceLogger.Debugf("Deleting job from queue: %d\n", queueWork.Permit)
 
-	if err := a.queue.Delete(queueWork.Permit); err != nil {
-		a.logger.Debugf("queue Delete() returned error: %s", err)
+	if deleteErr := a.queue.Delete(queueWork.Permit); deleteErr != nil {
+		a.logger.Debugf("queue Delete() returned error: %s", deleteErr)
 	}
 
 	// Notify that work is complete if work is addressed. This must happen after the work has been deleted from the
@@ -425,7 +417,7 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 	if queueWork.Address != "" {
 		n := time.Now()
 		a.traceLogger.Debugf("Ready to notify of address %s", queueWork.Address)
-		notify(agenttypes.NewWorkCompleteNotification(queueWork.Address, a.notifyTypeWorkComplete))
+		notify(agenttypes.NewWorkCompleteNotification(queueWork.Address, a.notifyTypeWorkComplete, jobError))
 		a.traceLogger.Debugf("Notified of address %s in %d ms", queueWork.Address, time.Now().Sub(n).Nanoseconds()/1000000)
 	}
 

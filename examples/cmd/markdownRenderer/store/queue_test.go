@@ -5,7 +5,6 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -182,12 +181,12 @@ func (s *QueueSqliteSuite) TestAddressedPush(c *check.C) {
 	c.Assert(err, check.DeepEquals, queue.ErrDuplicateAddressedPush)
 
 	// Addresses should not be completed
-	done, err := s.store.IsQueueAddressComplete("abc")
+	queued, err := s.store.IsQueueAddressInProgress("abc")
 	c.Assert(err, check.IsNil)
-	c.Check(done, check.Equals, false)
-	done, err = s.store.IsQueueAddressComplete("def")
+	c.Check(queued, check.Equals, true)
+	queued, err = s.store.IsQueueAddressInProgress("def")
 	c.Assert(err, check.IsNil)
-	c.Check(done, check.Equals, false)
+	c.Check(queued, check.Equals, true)
 
 	// Attempt to pop a type that doesn't exist in the queue
 	queueWork, err := s.store.QueuePop("test", 0, []uint64{888})
@@ -206,12 +205,12 @@ func (s *QueueSqliteSuite) TestAddressedPush(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// First address should be completed
-	done, err = s.store.IsQueueAddressComplete("abc")
+	queued, err = s.store.IsQueueAddressInProgress("abc")
 	c.Assert(err, check.IsNil)
-	c.Check(done, check.Equals, true)
-	done, err = s.store.IsQueueAddressComplete("def")
+	c.Check(queued, check.Equals, false)
+	queued, err = s.store.IsQueueAddressInProgress("def")
 	c.Assert(err, check.IsNil)
-	c.Check(done, check.Equals, false)
+	c.Check(queued, check.Equals, true)
 
 	// Pop second item
 	queueWork, err = s.store.QueuePop("test", 0, []uint64{TypeTest, TypeTest2})
@@ -225,22 +224,18 @@ func (s *QueueSqliteSuite) TestAddressedPush(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Second address should be completed
-	done, err = s.store.IsQueueAddressComplete("def")
+	queued, err = s.store.IsQueueAddressInProgress("def")
 	c.Assert(err, check.IsNil)
-	c.Check(done, check.Equals, true)
+	c.Check(queued, check.Equals, false)
 
-	// Record error for second address
-	err = s.store.QueueAddressedComplete("def", errors.New("some error"))
+	// Second address should be completed
+	queued, err = s.store.IsQueueAddressInProgress("def")
 	c.Assert(err, check.IsNil)
-
-	// Second address should be completed, but with error
-	done, err = s.store.IsQueueAddressComplete("def")
-	c.Assert(err, check.ErrorMatches, "some error")
-	c.Check(done, check.Equals, true)
+	c.Check(queued, check.Equals, false)
 
 	// Cannot check for empty address
-	_, err = s.store.IsQueueAddressComplete("   ")
-	c.Check(err, check.ErrorMatches, "no address provided for IsQueueAddressComplete")
+	_, err = s.store.IsQueueAddressInProgress("   ")
+	c.Check(err, check.ErrorMatches, "no address provided for IsQueueAddressInProgress")
 }
 
 func (s *QueueSqliteSuite) TestQueueGroups(c *check.C) {
@@ -593,43 +588,6 @@ func (s *QueueSqliteSuite) TestQueueGroupCancel(c *check.C) {
 	c.Check(cancelled, check.Equals, true)
 }
 
-func (s *QueueSqliteSuite) TestAddressFailure(c *check.C) {
-	// Fail
-	address := "abcdefg"
-	// Pass a generic error
-	err := s.store.QueueAddressedComplete(address, errors.New("first error"))
-	c.Assert(err, check.IsNil)
-	err = s.store.(*store).QueueAddressedCheck(address)
-	c.Check(err, check.ErrorMatches, "first error")
-
-	// Should be castable to queue.QueueError pointer
-	queueError, ok := err.(*queue.QueueError)
-	c.Assert(ok, check.Equals, true)
-	c.Check(queueError, check.DeepEquals, &queue.QueueError{
-		Code:    0, // Not set on generic error
-		Message: "first error",
-	})
-
-	// Fail again, but pass a typed error
-	err = s.store.QueueAddressedComplete(address, &queue.QueueError{Code: 404, Message: "second error"})
-	c.Assert(err, check.IsNil)
-	err = s.store.(*store).QueueAddressedCheck(address)
-	c.Check(err, check.ErrorMatches, "second error")
-
-	// Should be castable to queue.QueueError pointer
-	queueError, ok = err.(*queue.QueueError)
-	c.Assert(ok, check.Equals, true)
-	c.Check(queueError, check.DeepEquals, &queue.QueueError{
-		Code:    404,
-		Message: "second error",
-	})
-
-	// Don't fail
-	err = s.store.QueueAddressedComplete(address, nil)
-	c.Assert(err, check.IsNil)
-	c.Check(s.store.(*store).QueueAddressedCheck(address), check.IsNil)
-}
-
 func (s *QueueSqliteSuite) TestIsQueueAddressInProgress(c *check.C) {
 	// Is a non-existing address in the queue?
 	found, err := s.store.IsQueueAddressInProgress("def")
@@ -645,12 +603,17 @@ func (s *QueueSqliteSuite) TestIsQueueAddressInProgress(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(found, check.Equals, true)
 
+	// Assign a permit
+	w, err := s.store.QueuePop("test", 0, []uint64{TypeTest})
+	c.Assert(err, check.IsNil)
+	c.Assert(w.Permit, check.Not(check.Equals), permit.Permit(0))
+
 	// Complete the work
-	err = s.store.QueueAddressedComplete("def", nil)
+	err = s.store.QueueDelete(w.Permit)
 	c.Assert(err, check.IsNil)
 	found, err = s.store.IsQueueAddressInProgress("def")
 
 	// Now it should not be found
 	c.Assert(err, check.IsNil)
-	c.Assert(found, check.Equals, true)
+	c.Assert(found, check.Equals, false)
 }
