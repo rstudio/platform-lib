@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/fortytw2/leaktest v1.3.0
 	github.com/jackc/pgconn v1.14.3
-	github.com/jackc/pgtype v1.14.2
+	github.com/jackc/pgtype v1.14.3
 	github.com/jackc/pgx/v4 v4.18.3
 	github.com/rstudio/platform-lib/pkg/rsnotify v1.5.2
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
