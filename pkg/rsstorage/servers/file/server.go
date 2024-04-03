@@ -315,6 +315,8 @@ func (s *StorageServer) write(resolve types.Resolver) (dir, address, staging str
 		return
 	}
 	defer stagingFile.Close()
+	staging = stagingFile.Name()
+
 	s.debugLogger.Debugf("Opened new staging file for storage: %s.\n", stagingFile.Name())
 
 	// Resolve/get the data we need
@@ -323,7 +325,6 @@ func (s *StorageServer) write(resolve types.Resolver) (dir, address, staging str
 		return
 	}
 
-	staging = stagingFile.Name()
 	return
 }
 
