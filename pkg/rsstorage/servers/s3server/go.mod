@@ -3,7 +3,7 @@ module github.com/rstudio/platform-lib/pkg/rsstorage/servers/s3server
 go 1.20
 
 require (
-	github.com/aws/aws-sdk-go v1.50.36
+	github.com/aws/aws-sdk-go v1.51.21
 	github.com/fortytw2/leaktest v1.3.0
 	github.com/google/uuid v1.6.0
 	github.com/jarcoal/httpmock v1.3.1
