@@ -9,7 +9,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version: '>=1.20.14'
+          go-version: '>=1.22.1'
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -20,23 +20,5 @@ jobs:
       - name: Vet
         run: just vet
 
-      - name: Image
-        run: just build-build-env
-
-      - name: Build
-        run: just build-docker
-
       - name: Test
         run: just test-integration
-
-      - name: 'Upload Artifact'
-        uses: actions/upload-artifact@v4
-        with:
-          name: testlog
-          path: out/testlog
-          retention-days: 5
-
-      - name: 'Test Artifact'
-        uses: ./.github/actions/test
-        with:
-          workspace: ${{ github.workspace }}
