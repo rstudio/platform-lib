@@ -2,10 +2,7 @@ version: '2.1'
 
 services:
   lib:
-    image: rstudio/platform-lib:lib-build
-    build:
-      context: bionic
-      dockerfile: Dockerfile
+    image: golang:1.22
     links:
       - postgres
       - minio
@@ -25,15 +22,16 @@ services:
     working_dir: /platform-lib
 
   postgres:
-    image: postgres:9.6
+    image: postgres:16
     ports:
       - "5432"
     environment:
+      PGUSER: admin
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password
       POSTGRES_DB: test
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready" ]
+      test: [ "CMD-SHELL", "pg_isready -d test" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -46,8 +44,8 @@ services:
     expose:
       - "9000"
     environment:
-      MINIO_ACCESS_KEY: minio
-      MINIO_SECRET_KEY: miniokey
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniokey
     command: minio server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
