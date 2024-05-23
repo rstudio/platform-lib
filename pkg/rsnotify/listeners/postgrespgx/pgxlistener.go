@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"reflect"
 	"sync"
@@ -55,16 +56,15 @@ func (p *PgxIPReporter) IP() string {
 }
 
 type PgxListener struct {
-	name        string
-	pool        *pgxpool.Pool
-	conn        *pgxpool.Conn
-	cancel      context.CancelFunc
-	exit        chan struct{}
-	matcher     listener.TypeMatcher
-	ip          string
-	debugLogger listener.DebugLogger
-	ipReporter  listener.IPReporter
-	ipRefresh   time.Duration
+	name       string
+	pool       *pgxpool.Pool
+	conn       *pgxpool.Conn
+	cancel     context.CancelFunc
+	exit       chan struct{}
+	matcher    listener.TypeMatcher
+	ip         string
+	ipReporter listener.IPReporter
+	ipRefresh  time.Duration
 
 	mu sync.RWMutex
 
@@ -73,12 +73,11 @@ type PgxListener struct {
 }
 
 type PgxListenerArgs struct {
-	Name        string
-	Pool        *pgxpool.Pool
-	Matcher     listener.TypeMatcher
-	DebugLogger listener.DebugLogger
-	IpReporter  listener.IPReporter
-	IpRefresh   time.Duration
+	Name       string
+	Pool       *pgxpool.Pool
+	Matcher    listener.TypeMatcher
+	IpReporter listener.IPReporter
+	IpRefresh  time.Duration
 }
 
 // NewPgxListener creates a new listener.
@@ -87,7 +86,6 @@ func NewPgxListener(args PgxListenerArgs) *PgxListener {
 	return &PgxListener{
 		name:        args.Name,
 		pool:        args.Pool,
-		debugLogger: args.DebugLogger,
 		matcher:     args.Matcher,
 		ipReporter:  args.IpReporter,
 		ipRefresh:   args.IpRefresh,
@@ -232,12 +230,6 @@ func (l *PgxListener) acquire(ready chan struct{}) (err error) {
 	return
 }
 
-func (l *PgxListener) Debugf(msg string, args ...interface{}) {
-	if l.debugLogger != nil {
-		l.debugLogger.Debugf(msg, args...)
-	}
-}
-
 func (l *PgxListener) cache(info notifier.ChunkInfo) bool {
 	if _, ok := l.notifyCache[info.Guid]; !ok {
 		l.notifyCache[info.Guid] = make(map[int][]byte)
@@ -337,10 +329,10 @@ func (l *PgxListener) notify(n *pgconn.Notification, errs chan error, items chan
 }
 
 func (l *PgxListener) Stop() {
-	l.Debugf("Signaling context to cancel listener %s", l.name)
+	slog.Debug(fmt.Sprintf("Signaling context to cancel listener %s", l.name))
 	l.cancel()
 	// Wait for stop
-	l.Debugf("Waiting for listener %s to stop...", l.name)
+	slog.Debug(fmt.Sprintf("Waiting for listener %s to stop...", l.name))
 	<-l.exit
 
 	// Clean up connection
@@ -350,5 +342,5 @@ func (l *PgxListener) Stop() {
 		l.conn = nil
 	}
 
-	l.Debugf("Listener %s closed.", l.name)
+	slog.Debug(fmt.Sprintf("Listener %s closed.", l.name))
 }

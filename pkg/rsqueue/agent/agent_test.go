@@ -15,7 +15,6 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsqueue/metrics"
 	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
 	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/types"
 	"github.com/rstudio/platform-lib/pkg/rsqueue/utils"
 	"gopkg.in/check.v1"
 )
@@ -60,12 +59,6 @@ func (f *fakeWrapper) Dequeue(queueName string, work queue.Work, err error) erro
 
 func (f *fakeWrapper) Finish(data interface{}) {
 }
-
-type fakeLogger struct{}
-
-func (*fakeLogger) Debugf(message string, args ...interface{}) {}
-
-func (*fakeLogger) Enabled() bool { return false }
 
 // Inherits queue.DefaultQueueSupportedTypes, which is what we really want
 // to test. Adds a channel so we can reliably know when `DisableAll` is called
@@ -163,16 +156,13 @@ func (*FakeQueue) Name() string {
 	return ""
 }
 
-func agentCfg(runner queue.WorkRunner, queue queue.Queue, cEnforcer *ConcurrencyEnforcer, supportedTypes queue.QueueSupportedTypes, msgs <-chan listener.Notification, logger, traceLogger, jobLogger types.DebugLogger, notifyTypeWorkComplete uint8, wrapper metrics.JobLifecycleWrapper) AgentConfig {
+func agentCfg(runner queue.WorkRunner, queue queue.Queue, cEnforcer *ConcurrencyEnforcer, supportedTypes queue.QueueSupportedTypes, msgs <-chan listener.Notification, notifyTypeWorkComplete uint8, wrapper metrics.JobLifecycleWrapper) AgentConfig {
 	return AgentConfig{
 		WorkRunner:             runner,
 		Queue:                  queue,
 		ConcurrencyEnforcer:    cEnforcer,
 		SupportedTypes:         supportedTypes,
 		NotificationsChan:      msgs,
-		DebugLogger:            logger,
-		TraceLogger:            traceLogger,
-		JobLogger:              jobLogger,
 		NotifyTypeWorkComplete: notifyTypeWorkComplete,
 		JobLifecycleWrapper:    wrapper,
 	}
@@ -181,7 +171,7 @@ func agentCfg(runner queue.WorkRunner, queue queue.Queue, cEnforcer *Concurrency
 func (s *AgentSuite) TestNewAgent(c *check.C) {
 	supportedTypes := &queue.DefaultQueueSupportedTypes{}
 	msgs := make(chan listener.Notification)
-	a := NewAgent(agentCfg(&FakeRunner{}, &FakeQueue{}, s.cEnforcer, supportedTypes, msgs, &fakeLogger{}, &fakeLogger{}, &fakeLogger{}, 10, &fakeWrapper{}))
+	a := NewAgent(agentCfg(&FakeRunner{}, &FakeQueue{}, s.cEnforcer, supportedTypes, msgs, 10, &fakeWrapper{}))
 	var testAgent *DefaultAgent
 	testAgent = a
 	_ = testAgent
@@ -190,7 +180,7 @@ func (s *AgentSuite) TestNewAgent(c *check.C) {
 func (s *AgentSuite) TestWaitImmediate(c *check.C) {
 	supportedTypes := &queue.DefaultQueueSupportedTypes{}
 	msgs := make(chan listener.Notification)
-	a := NewAgent(agentCfg(&FakeRunner{}, &FakeQueue{}, s.cEnforcer, supportedTypes, msgs, &fakeLogger{}, &fakeLogger{}, &fakeLogger{}, 10, &fakeWrapper{}))
+	a := NewAgent(agentCfg(&FakeRunner{}, &FakeQueue{}, s.cEnforcer, supportedTypes, msgs, 10, &fakeWrapper{}))
 	done := make(chan int64)
 	result := a.Wait(50, done)
 	// If there are already 50 jobs running, we can only take a new job
@@ -201,7 +191,7 @@ func (s *AgentSuite) TestWaitImmediate(c *check.C) {
 func (s *AgentSuite) TestWaitBlocked(c *check.C) {
 	supportedTypes := &queue.DefaultQueueSupportedTypes{}
 	msgs := make(chan listener.Notification)
-	a := NewAgent(agentCfg(&FakeRunner{}, &FakeQueue{}, s.cEnforcer, supportedTypes, msgs, &fakeLogger{}, &fakeLogger{}, &fakeLogger{}, 10, &fakeWrapper{}))
+	a := NewAgent(agentCfg(&FakeRunner{}, &FakeQueue{}, s.cEnforcer, supportedTypes, msgs, 10, &fakeWrapper{}))
 	jobDone := make(chan int64)
 	completed := false
 	done := make(chan bool)
@@ -238,7 +228,7 @@ func (s *AgentSuite) TestRunJobOk(c *check.C) {
 	}
 	supportedTypes := &queue.DefaultQueueSupportedTypes{}
 	msgs := make(chan listener.Notification)
-	a := NewAgent(agentCfg(&FakeRunner{finish: finish, mutex: &sync.Mutex{}}, q, s.cEnforcer, supportedTypes, msgs, &fakeLogger{}, &fakeLogger{}, &fakeLogger{}, 10, &fakeWrapper{}))
+	a := NewAgent(agentCfg(&FakeRunner{finish: finish, mutex: &sync.Mutex{}}, q, s.cEnforcer, supportedTypes, msgs, 10, &fakeWrapper{}))
 	a.extend = time.Millisecond
 
 	// Assume we start with three jobs
@@ -348,7 +338,7 @@ func (s *AgentSuite) TestRunJobFails(c *check.C) {
 		err:    errors.New("work failed"),
 		finish: finish,
 		mutex:  &sync.Mutex{},
-	}, q, s.cEnforcer, supportedTypes, msgs, &fakeLogger{}, &fakeLogger{}, &fakeLogger{}, 10, &fakeWrapper{}))
+	}, q, s.cEnforcer, supportedTypes, msgs, 10, &fakeWrapper{}))
 	a.extend = 10 * time.Millisecond
 
 	// Assume we start with three jobs
@@ -407,7 +397,7 @@ func (s *AgentSuite) TestRunJobExtendError(c *check.C) {
 	}
 	supportedTypes := &queue.DefaultQueueSupportedTypes{}
 	msgs := make(chan listener.Notification)
-	a := NewAgent(agentCfg(&FakeRunner{finish: finish, mutex: &sync.Mutex{}}, q, s.cEnforcer, supportedTypes, msgs, &fakeLogger{}, &fakeLogger{}, &fakeLogger{}, 10, &fakeWrapper{}))
+	a := NewAgent(agentCfg(&FakeRunner{finish: finish, mutex: &sync.Mutex{}}, q, s.cEnforcer, supportedTypes, msgs, 10, &fakeWrapper{}))
 	a.extend = 10 * time.Millisecond
 	a.runningJobs = 1
 
@@ -456,7 +446,7 @@ func (s *AgentSuite) TestAgentStop(c *check.C) {
 	q := &FakeQueue{}
 	supportedTypes := &queue.DefaultQueueSupportedTypes{}
 	msgs := make(chan listener.Notification)
-	a := NewAgent(agentCfg(&FakeRunner{}, q, s.cEnforcer, supportedTypes, msgs, &fakeLogger{}, &fakeLogger{}, &fakeLogger{}, 10, &fakeWrapper{}))
+	a := NewAgent(agentCfg(&FakeRunner{}, q, s.cEnforcer, supportedTypes, msgs, 10, &fakeWrapper{}))
 	a.recursing.Add(1)
 	a.running.Add(1)
 
@@ -500,7 +490,7 @@ func (s *AgentSuite) TestAgentStopTimeoutRecurse(c *check.C) {
 	supportedTypes.SetEnabled(2, true)
 	supportedTypes.SetEnabled(3, true)
 	msgs := make(chan listener.Notification)
-	a := NewAgent(agentCfg(&FakeRunner{}, q, s.cEnforcer, supportedTypes, msgs, &fakeLogger{}, &fakeLogger{}, &fakeLogger{}, 10, &fakeWrapper{}))
+	a := NewAgent(agentCfg(&FakeRunner{}, q, s.cEnforcer, supportedTypes, msgs, 10, &fakeWrapper{}))
 	a.recursing.Add(1)
 
 	stopped := make(chan struct{})
@@ -531,7 +521,7 @@ func (s *AgentSuite) TestAgentStopTimeoutRun(c *check.C) {
 	supportedTypes.SetEnabled(2, true)
 	supportedTypes.SetEnabled(3, true)
 	msgs := make(chan listener.Notification)
-	a := NewAgent(agentCfg(&FakeRunner{}, q, s.cEnforcer, supportedTypes, msgs, &fakeLogger{}, &fakeLogger{}, &fakeLogger{}, 10, &fakeWrapper{}))
+	a := NewAgent(agentCfg(&FakeRunner{}, q, s.cEnforcer, supportedTypes, msgs, 10, &fakeWrapper{}))
 	a.running.Add(1)
 
 	stopped := make(chan struct{})
@@ -608,7 +598,6 @@ func (s *AgentSuite) TestRecurseFn(c *check.C) {
 
 	a := &DefaultAgent{
 		runningJobs: 2,
-		traceLogger: &fakeLogger{},
 	}
 	jobDone := make(chan int64)
 	recurse := a.getRecurseFn(jobDone)

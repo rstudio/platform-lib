@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"reflect"
 	"time"
 
@@ -21,30 +22,27 @@ type PqRetrieveListenerFactory interface {
 }
 
 type PqListener struct {
-	name        string
-	factory     PqRetrieveListenerFactory
-	conn        *pq.Listener
-	cancel      context.CancelFunc
-	exit        chan struct{}
-	matcher     listener.TypeMatcher
-	ip          string
-	debugLogger listener.DebugLogger
+	name    string
+	factory PqRetrieveListenerFactory
+	conn    *pq.Listener
+	cancel  context.CancelFunc
+	exit    chan struct{}
+	matcher listener.TypeMatcher
+	ip      string
 }
 
 type PqListenerArgs struct {
-	Name        string
-	Factory     PqRetrieveListenerFactory
-	Matcher     listener.TypeMatcher
-	DebugLogger listener.DebugLogger
+	Name    string
+	Factory PqRetrieveListenerFactory
+	Matcher listener.TypeMatcher
 }
 
 // Only intended to be called from listenerfactory.go's `New` method.
 func NewPqListener(args PqListenerArgs) *PqListener {
 	return &PqListener{
-		name:        args.Name,
-		factory:     args.Factory,
-		debugLogger: args.DebugLogger,
-		matcher:     args.Matcher,
+		name:    args.Name,
+		factory: args.Factory,
+		matcher: args.Matcher,
 	}
 }
 
@@ -152,12 +150,6 @@ func (l *PqListener) acquire(ready chan struct{}) (err error) {
 	return
 }
 
-func (l *PqListener) Debugf(msg string, args ...interface{}) {
-	if l.debugLogger != nil {
-		l.debugLogger.Debugf(msg, args...)
-	}
-}
-
 func (l *PqListener) notify(n *pq.Notification, errs chan error, items chan listener.Notification) {
 	// A notification was received! Unmarshal it into the correct type and send it.
 	var input listener.Notification
@@ -205,10 +197,10 @@ func (l *PqListener) notify(n *pq.Notification, errs chan error, items chan list
 }
 
 func (l *PqListener) Stop() {
-	l.Debugf("Signaling context to cancel listener %s", l.name)
+	slog.Debug(fmt.Sprintf("Signaling context to cancel listener %s", l.name))
 	l.cancel()
 	// Wait for stop
-	l.Debugf("Waiting for listener %s to stop...", l.name)
+	slog.Debug(fmt.Sprintf("Waiting for listener %s to stop...", l.name))
 	<-l.exit
 
 	// Clean up connection
@@ -218,5 +210,5 @@ func (l *PqListener) Stop() {
 		l.conn = nil
 	}
 
-	l.Debugf("Listener %s closed.", l.name)
+	slog.Debug(fmt.Sprintf("Listener %s closed.", l.name))
 }

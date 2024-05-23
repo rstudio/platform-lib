@@ -18,7 +18,6 @@ import (
 	// Must import github.com/jackc/pgx/v4/stdlib for sqlx support.
 	_ "github.com/jackc/pgx/v4/stdlib"
 
-	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listenerfactory"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local"
@@ -26,8 +25,6 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listeners/postgrespq"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listenerutils"
 )
-
-var debugLogger rslog.DebugLogger
 
 var (
 	message string
@@ -41,8 +38,6 @@ const (
 )
 
 func init() {
-	debugLogger = rslog.NewDebugLogger(RegionNotify)
-
 	NotifyCmd.Example = `  testnotify notify
   testnotify notify --driver=pq
   testnotify notify --message="hello from pq" --driver=pq --conn-str=postgres://admin:password@localhost/postgres?sslmode=disable
@@ -95,11 +90,11 @@ func setup(drv string) (string, listenerfactory.ListenerFactory, *local.Listener
 			return drv, nil, nil, fmt.Errorf("error connecting to pool: %s", err)
 		}
 		ipReporter := postgrespgx.NewPgxIPReporter(pool)
-		fact = postgrespgx.NewListenerFactory(postgrespgx.ListenerFactoryArgs{Pool: pool, DebugLogger: debugLogger, IpReporter: ipReporter})
+		fact = postgrespgx.NewListenerFactory(postgrespgx.ListenerFactoryArgs{Pool: pool, IpReporter: ipReporter})
 	case "pq":
 		drv = "postgres"
 		pqListenerFactory := &pqlistener{ConnStr: connstr}
-		fact = postgrespq.NewListenerFactory(postgrespq.ListenerFactoryArgs{Factory: pqListenerFactory, DebugLogger: debugLogger})
+		fact = postgrespq.NewListenerFactory(postgrespq.ListenerFactoryArgs{Factory: pqListenerFactory})
 	default:
 		return drv, nil, nil, fmt.Errorf("invalid --driver argument value")
 	}

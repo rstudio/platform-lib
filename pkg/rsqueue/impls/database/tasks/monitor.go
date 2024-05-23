@@ -4,6 +4,8 @@ package tasks
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -28,8 +30,6 @@ type DatabaseQueueMonitorTask struct {
 
 	queueName string
 
-	debugLogger dbqueuetypes.DebugLogger
-
 	// The notification type associated with permit extensions
 	notifyTypePermitExtension uint8
 
@@ -52,7 +52,6 @@ type DatabaseQueueMonitorTaskConfig struct {
 	QueueName                 string
 	SweepAge                  time.Duration
 	QueueStore                dbqueuetypes.QueueStore
-	DebugLogger               dbqueuetypes.DebugLogger
 	NotifyTypePermitExtension uint8
 }
 
@@ -61,7 +60,6 @@ func NewDatabaseQueueMonitorTask(cfg DatabaseQueueMonitorTaskConfig) *DatabaseQu
 		sweepAge: cfg.SweepAge,
 		cstore:   cfg.QueueStore,
 
-		debugLogger:               cfg.DebugLogger,
 		notifyTypePermitExtension: cfg.NotifyTypePermitExtension,
 		queueName:                 cfg.QueueName,
 	}
@@ -151,7 +149,7 @@ func (t *DatabaseQueueMonitorTask) Run(ctx context.Context, b broadcaster.Broadc
 func (t *DatabaseQueueMonitorTask) refreshPermitMap(permitMap map[uint64]time.Time) {
 	permits, err := t.cstore.QueuePermits(t.queueName)
 	if err != nil {
-		t.debugLogger.Debugf("Error: DatabaseQueueMonitorTask failed to refresh queue permits map")
+		slog.Debug(fmt.Sprintf("Error: DatabaseQueueMonitorTask failed to refresh queue permits map"))
 		return
 	}
 

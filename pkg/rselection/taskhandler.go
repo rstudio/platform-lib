@@ -4,7 +4,9 @@ package rselection
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -50,20 +52,15 @@ type GenericTaskHandler struct {
 	verify chan chan bool
 	mutex  sync.RWMutex
 	role   string
-
-	debugLogger DebugLogger
 }
 
 type GenericTaskHandlerConfig struct {
-	DebugLogger DebugLogger
 }
 
 func NewGenericTaskHandler(cfg GenericTaskHandlerConfig) *GenericTaskHandler {
 	return &GenericTaskHandler{
 		tasks: make(map[string]Task),
 		role:  "Leader",
-
-		debugLogger: cfg.DebugLogger,
 	}
 }
 
@@ -84,7 +81,7 @@ func (h *GenericTaskHandler) Handle(b broadcaster.Broadcaster) {
 		for _, t := range h.tasks {
 			switch t.Type() {
 			case TaskTypePersistent:
-				h.debugLogger.Debugf("%s starting persistent task %s", h.role, t.Name())
+				slog.Debug(fmt.Sprintf("%s starting persistent task %s", h.role, t.Name()))
 				go t.Run(context, b)
 			case TaskTypeScheduled:
 				go h.runScheduled(t, t.Schedule(), context, b)
@@ -102,7 +99,7 @@ func (h *GenericTaskHandler) runScheduled(t Task, schedule Schedule, ctx context
 			vCh := make(chan bool)
 			h.verify <- vCh
 			if ok := <-vCh; ok {
-				h.debugLogger.Debugf("%s running task %s", h.role, t.Name())
+				slog.Debug(fmt.Sprintf("%s running task %s", h.role, t.Name()))
 				go t.Run(ctx, b)
 			}
 		}

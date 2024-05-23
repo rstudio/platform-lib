@@ -161,28 +161,21 @@ func (f *fakeMonitor) Check(ctx context.Context, permitId uint64, created time.T
 	return f.result
 }
 
-type fakeLogger struct{}
-
-func (*fakeLogger) Debugf(message string, args ...interface{}) {}
-
 type QueuePermitMonitorSuite struct{}
 
 var _ = check.Suite(&QueuePermitMonitorSuite{})
 
 func (s *QueuePermitMonitorSuite) TestNew(c *check.C) {
 	cstore := &QueueTestStore{}
-	debugLogger := &fakeLogger{}
 	m := NewDatabaseQueueMonitorTask(DatabaseQueueMonitorTaskConfig{
 		QueueName:                 "test",
 		SweepAge:                  time.Minute,
 		QueueStore:                cstore,
-		DebugLogger:               debugLogger,
 		NotifyTypePermitExtension: 8,
 	})
 	c.Assert(m, check.DeepEquals, &DatabaseQueueMonitorTask{
 		sweepAge:                  time.Minute,
 		cstore:                    cstore,
-		debugLogger:               debugLogger,
 		notifyTypePermitExtension: 8,
 		queueName:                 "test",
 	})
@@ -319,8 +312,7 @@ func (s *QueuePermitMonitorSuite) TestSweep(c *check.C) {
 
 func (s *QueuePermitMonitorSuite) TestRefreshPermitMap(c *check.C) {
 	m := &DatabaseQueueMonitorTask{
-		debugLogger: &fakeLogger{},
-		cstore:      &QueueTestStore{},
+		cstore: &QueueTestStore{},
 	}
 	fakePermitMap := map[uint64]time.Time{}
 	m.refreshPermitMap(fakePermitMap)

@@ -45,14 +45,6 @@ func (f *fakeBroadcaster) IP() string {
 	return f.ip
 }
 
-type fakeLogger struct{}
-
-func (*fakeLogger) Debugf(message string, args ...interface{}) {}
-
-func (*fakeLogger) Enabled() bool {
-	return true
-}
-
 type addParams struct {
 	Item    electiontypes.AssumeLeader
 	Address string
@@ -157,9 +149,6 @@ func (s *FollowerSuite) TestFollowNotify(c *check.C) {
 		address:  "follower-a",
 		stop:     make(chan bool),
 		timeout:  time.Minute,
-
-		debugLogger: &fakeLogger{},
-		traceLogger: &fakeLogger{},
 	}
 
 	done := make(chan struct{})
@@ -270,9 +259,6 @@ func (s *FollowerSuite) TestFollowRequestLeader(c *check.C) {
 		address:  "follower-a",
 		stop:     make(chan bool),
 		timeout:  time.Nanosecond,
-
-		debugLogger: &fakeLogger{},
-		traceLogger: &fakeLogger{},
 	}
 
 	done := make(chan struct{})
@@ -309,9 +295,6 @@ func (s *FollowerSuite) TestHandleNotify(c *check.C) {
 		chLeader: c.TestName() + "_leader",
 		address:  "follower-a",
 		awb:      awb,
-
-		debugLogger: &fakeLogger{},
-		traceLogger: &fakeLogger{},
 	}
 	follower.handleNotify(&electiontypes.ClusterPingRequest{
 		ClusterNotification: electiontypes.ClusterNotification{

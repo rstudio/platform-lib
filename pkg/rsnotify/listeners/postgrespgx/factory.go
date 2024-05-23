@@ -10,23 +10,20 @@ import (
 )
 
 type ListenerFactory struct {
-	pool        *pgxpool.Pool
-	debugLogger listener.DebugLogger
-	listeners   []*PgxListener
-	ipReporter  listener.IPReporter
+	pool       *pgxpool.Pool
+	listeners  []*PgxListener
+	ipReporter listener.IPReporter
 }
 
 type ListenerFactoryArgs struct {
-	Pool        *pgxpool.Pool
-	DebugLogger listener.DebugLogger
-	IpReporter  listener.IPReporter
+	Pool       *pgxpool.Pool
+	IpReporter listener.IPReporter
 }
 
 func NewListenerFactory(args ListenerFactoryArgs) *ListenerFactory {
 	return &ListenerFactory{
-		pool:        args.Pool,
-		debugLogger: args.DebugLogger,
-		ipReporter:  args.IpReporter,
+		pool:       args.Pool,
+		ipReporter: args.IpReporter,
 	}
 }
 
@@ -41,11 +38,10 @@ func (l *ListenerFactory) New(channelName string, matcher listener.TypeMatcher) 
 	channelName = listenerutils.SafeChannelName(channelName)
 
 	pgxListener := NewPgxListener(PgxListenerArgs{
-		Name:        channelName,
-		Pool:        l.pool,
-		Matcher:     matcher,
-		DebugLogger: l.debugLogger,
-		IpReporter:  l.ipReporter,
+		Name:       channelName,
+		Pool:       l.pool,
+		Matcher:    matcher,
+		IpReporter: l.ipReporter,
 	})
 	l.listeners = append(l.listeners, pgxListener)
 	return pgxListener

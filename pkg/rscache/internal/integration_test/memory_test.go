@@ -231,18 +231,16 @@ func (s *MemoryCacheIntegrationSuite) TestInMemoryCaching(c *check.C) {
 	// Also create an object cache that uses the in-memory cache
 	timeout := time.Second * 30
 	q := &fakeQueue{}
-	d := &fakeDebugLogger{}
 	fcs := file.NewStorageServer(file.StorageServerArgs{
 		Dir:          s.tempdirhelper.Dir(),
 		ChunkSize:    4096,
 		Class:        "test",
-		DebugLogger:  d,
 		CacheTimeout: time.Minute,
 		WalkTimeout:  time.Minute,
 	})
-	fc := rscache.NewFileCache(fileCfg(q, &fakeDupMatcher{}, fcs, &fakeRecurser{}, timeout, d, d))
+	fc := rscache.NewFileCache(fileCfg(q, &fakeDupMatcher{}, fcs, &fakeRecurser{}, timeout))
 
-	mbfc := rscache.NewMemoryBackedFileCache(memCfg(fc, mc, 10000000, d))
+	mbfc := rscache.NewMemoryBackedFileCache(memCfg(fc, mc, 10000000))
 
 	// First, we test loading uncompressed and compressed data
 	// from the cache.

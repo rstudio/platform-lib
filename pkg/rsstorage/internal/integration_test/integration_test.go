@@ -157,14 +157,12 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 		Ch: make(chan bool, 1),
 	}
 
-	debugLogger := &servertest.TestLogger{}
 	pgServer := postgres.NewStorageServer(postgres.StorageServerArgs{
-		ChunkSize:   100 * 1024,
-		Waiter:      wn,
-		Notifier:    wn,
-		Class:       class,
-		DebugLogger: debugLogger,
-		Pool:        s.pool,
+		ChunkSize: 100 * 1024,
+		Waiter:    wn,
+		Notifier:  wn,
+		Class:     class,
+		Pool:      s.pool,
 	})
 	s3Server := s3server.NewStorageServer(s3server.StorageServerArgs{
 		Bucket:    class,
@@ -179,7 +177,6 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 		Waiter:       wn,
 		Notifier:     wn,
 		Class:        class,
-		DebugLogger:  debugLogger,
 		CacheTimeout: time.Minute,
 		WalkTimeout:  time.Minute,
 	})

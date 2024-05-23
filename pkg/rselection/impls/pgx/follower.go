@@ -3,14 +3,18 @@ package pgxelection
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log"
+	"log/slog"
 	"time"
 
-	"github.com/rstudio/platform-lib/pkg/rselection"
 	"github.com/rstudio/platform-lib/pkg/rselection/electiontypes"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
 )
+
+const LevelTrace = slog.Level(-8)
 
 type FollowResult bool
 
@@ -52,10 +56,6 @@ type PgxFollower struct {
 
 	// Track the last time we logged an error to avoid too much noise
 	lastRequestLeaderErr time.Time
-
-	// Debug loggers
-	debugLogger rselection.DebugLogger
-	traceLogger rselection.DebugLogger
 }
 
 type PgxFollowerConfig struct {
@@ -66,23 +66,18 @@ type PgxFollowerConfig struct {
 	Address       string
 	StopChan      chan bool
 	Timeout       time.Duration
-	DebugLogger   rselection.DebugLogger
-	TraceLogger   rselection.DebugLogger
 }
 
 func NewPgxFollower(cfg PgxFollowerConfig) *PgxFollower {
 	return &PgxFollower{
-		queue:       cfg.Queue,
-		awb:         cfg.Broadcaster,
-		notify:      cfg.Notifier,
-		chLeader:    cfg.LeaderChannel,
-		address:     cfg.Address,
-		stop:        cfg.StopChan,
-		timeout:     cfg.Timeout,
-		debugLogger: cfg.DebugLogger,
-		traceLogger: cfg.TraceLogger,
-
-		promote: make(chan bool),
+		queue:    cfg.Queue,
+		awb:      cfg.Broadcaster,
+		notify:   cfg.Notifier,
+		chLeader: cfg.LeaderChannel,
+		address:  cfg.Address,
+		stop:     cfg.StopChan,
+		timeout:  cfg.Timeout,
+		promote:  make(chan bool),
 	}
 }
 
@@ -110,7 +105,7 @@ func (p *PgxFollower) Follow() (result FollowResult) {
 		case <-timeout.C:
 			// Follower has received no pings for the timeout duration. It is time to
 			// ask for a new leader.
-			p.debugLogger.Debugf("Follower '%s' ping receipt timeout. Requesting a new leader", p.address)
+			slog.Debug(fmt.Sprintf("Follower '%s' ping receipt timeout. Requesting a new leader", p.address))
 			go p.requestLeader()
 		}
 		return
@@ -130,7 +125,7 @@ func (p *PgxFollower) handleNotify(cn *electiontypes.ClusterPingRequest) {
 		log.Printf("Error marshaling notification to JSON: %s", err)
 		return
 	}
-	p.traceLogger.Debugf("Follower %s responding to ping from leader %s", p.address, cn.SrcAddr)
+	slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Follower %s responding to ping from leader %s", p.address, cn.SrcAddr))
 	err = p.notify.Notify(p.chLeader, b)
 	if err != nil {
 		log.Printf("Follower error responding to leader ping: %s", err)

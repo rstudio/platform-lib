@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"path"
 	"path/filepath"
 	"strings"
@@ -23,31 +24,27 @@ import (
 )
 
 type StorageServer struct {
-	pool        *pgxpool.Pool
-	class       string
-	chunker     rsstorage.ChunkUtils
-	debugLogger rsstorage.DebugLogger
+	pool    *pgxpool.Pool
+	class   string
+	chunker rsstorage.ChunkUtils
 }
 
 type StorageServerArgs struct {
-	ChunkSize   uint64
-	Waiter      rsstorage.ChunkWaiter
-	Notifier    rsstorage.ChunkNotifier
-	Class       string
-	DebugLogger rsstorage.DebugLogger
-	Pool        *pgxpool.Pool
+	ChunkSize uint64
+	Waiter    rsstorage.ChunkWaiter
+	Notifier  rsstorage.ChunkNotifier
+	Class     string
+	Pool      *pgxpool.Pool
 }
 
 func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
 	pgs := &StorageServer{
-		class:       args.Class,
-		pool:        args.Pool,
-		debugLogger: args.DebugLogger,
+		class: args.Class,
+		pool:  args.Pool,
 	}
 	return &StorageServer{
-		class:       args.Class,
-		pool:        args.Pool,
-		debugLogger: args.DebugLogger,
+		class: args.Class,
+		pool:  args.Pool,
 		chunker: &internal.DefaultChunkUtils{
 			ChunkSize:   args.ChunkSize,
 			Server:      pgs,
@@ -59,17 +56,17 @@ func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
 	}
 }
 
-func pgxCommit(tx pgx.Tx, debugLogger rsstorage.DebugLogger, desc string, err *error) {
+func pgxCommit(tx pgx.Tx, desc string, err *error) {
 	var finErr error
 	if *err == nil {
-		debugLogger.Debugf("Committing large object on success for operation %s", desc)
+		slog.Debug(fmt.Sprintf("Committing large object on success for operation %s", desc))
 		finErr = tx.Commit(context.Background())
 	} else {
-		debugLogger.Debugf("Rolling back large object on error for operation %s: %s", desc, *err)
+		slog.Debug(fmt.Sprintf("Rolling back large object on error for operation %s: %s", desc, *err))
 		finErr = tx.Rollback(context.Background())
 	}
 	if finErr != nil {
-		debugLogger.Debugf("Error committing large object: %s", finErr)
+		slog.Debug(fmt.Sprintf("Error committing large object: %s", finErr))
 		if *err == nil {
 			*err = finErr
 		}
@@ -85,14 +82,12 @@ type largeObjectCloser struct {
 	tx       pgx.Tx
 	op       string
 	location string
-
-	debugLogger rsstorage.DebugLogger
 }
 
 func (f *largeObjectCloser) Close() error {
 	// Create a nil error and commit the transaction
 	var err error
-	pgxCommit(f.tx, f.debugLogger, fmt.Sprintf("%s %s", f.op, f.location), &err)
+	pgxCommit(f.tx, fmt.Sprintf("%s %s", f.op, f.location), &err)
 
 	f.LargeObject.Close()
 
@@ -102,7 +97,7 @@ func (f *largeObjectCloser) Close() error {
 	return nil
 }
 
-func newLargeObjectCloser(lo *pgx.LargeObject, pool *pgxpool.Pool, conn *pgxpool.Conn, tx pgx.Tx, debuglogger rsstorage.DebugLogger, op, location string) *largeObjectCloser {
+func newLargeObjectCloser(lo *pgx.LargeObject, pool *pgxpool.Pool, conn *pgxpool.Conn, tx pgx.Tx, op, location string) *largeObjectCloser {
 	return &largeObjectCloser{
 		LargeObject: lo,
 		pool:        pool,
@@ -110,7 +105,6 @@ func newLargeObjectCloser(lo *pgx.LargeObject, pool *pgxpool.Pool, conn *pgxpool
 		tx:          tx,
 		op:          op,
 		location:    location,
-		debugLogger: debuglogger,
 	}
 }
 
@@ -160,21 +154,21 @@ func (s *StorageServer) Check(dir, address string) (found bool, chunked *types.C
 	if tx, err = native.Begin(context.Background()); err != nil {
 		return
 	}
-	defer pgxCommit(tx, s.debugLogger, fmt.Sprintf("Check %s", location), &err)
+	defer pgxCommit(tx, fmt.Sprintf("Check %s", location), &err)
 
 	// Get a LargeObjects instance. This lets us interact with the Postgres
 	// large object store
 	los := tx.LargeObjects()
 
 	// Open the large object
-	s.debugLogger.Debugf("Opening (for check) large object %s with oid %d.", location, dbOid)
+	slog.Debug(fmt.Sprintf("Opening (for check) large object %s with oid %d.", location, dbOid))
 	var lo *pgx.LargeObject
 	if lo, err = los.Open(context.Background(), dbOid, pgx.LargeObjectModeRead); err != nil {
 		return
 	}
 	defer func(err *error) {
 		var finErr error
-		s.debugLogger.Debugf("Closing (after check) large object %s with oid %d.", location, dbOid)
+		slog.Debug(fmt.Sprintf("Closing (after check) large object %s with oid %d.", location, dbOid))
 		finErr = lo.Close()
 		if finErr != nil {
 			if *err == nil {
@@ -197,7 +191,7 @@ func (s *StorageServer) Check(dir, address string) (found bool, chunked *types.C
 		// TODO: This may be inefficient. Research other ways of getting the correct size
 		// TODO: also return the `ts` (modification time)
 		if sz, err = lo.Seek(0, io.SeekEnd); err != nil {
-			s.debugLogger.Debugf("failed during seek: %s", err)
+			slog.Debug(fmt.Sprintf("failed during seek: %s", err))
 			return
 		}
 	}
@@ -266,7 +260,7 @@ func (s *StorageServer) Get(dir, address string) (f io.ReadCloser, chunks *types
 		los := tx.LargeObjects()
 
 		// Open the large object
-		s.debugLogger.Debugf("Opening (for read) large object %s with oid %d.", location, dbOid)
+		slog.Debug(fmt.Sprintf("Opening (for read) large object %s with oid %d.", location, dbOid))
 		var lo *pgx.LargeObject
 		if lo, err = los.Open(context.Background(), dbOid, pgx.LargeObjectModeRead); err != nil {
 			return
@@ -286,7 +280,7 @@ func (s *StorageServer) Get(dir, address string) (f io.ReadCloser, chunks *types
 
 		// Get a closer that knows how to clean up the connection after we're done
 		// reading from the large object we pass back
-		f = newLargeObjectCloser(lo, s.pool, native, tx, s.debugLogger, "Get", location)
+		f = newLargeObjectCloser(lo, s.pool, native, tx, "Get", location)
 	}
 
 	found = true
@@ -339,7 +333,7 @@ func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (dirOut
 	if tx, err = native.Begin(context.Background()); err != nil {
 		return
 	}
-	defer pgxCommit(tx, s.debugLogger, fmt.Sprintf("Cache %s", permanentLocation), &err)
+	defer pgxCommit(tx, fmt.Sprintf("Cache %s", permanentLocation), &err)
 
 	// Get a LargeObjects instance. This lets us interact with the Postgres
 	// large object store
@@ -348,14 +342,14 @@ func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (dirOut
 	// Create a new large object
 	var oid uint32
 	if oid, err = los.Create(context.Background(), 0); err != nil {
-		s.debugLogger.Debugf("Error creating large object: %s", err)
+		slog.Debug(fmt.Sprintf("Error creating large object: %s", err))
 		return
 	}
 
 	// Open the new large object
 	var lo *pgx.LargeObject
 	if lo, err = los.Open(context.Background(), oid, pgx.LargeObjectModeWrite); err != nil {
-		s.debugLogger.Debugf("Error opening large object: %s", err)
+		slog.Debug(fmt.Sprintf("Error opening large object: %s", err))
 		return
 	}
 
@@ -365,15 +359,15 @@ func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (dirOut
 	// Insert the large object's OID in the mapping table
 	insert := `INSERT INTO large_objects (oid, address) VALUES ($1, $2)`
 	if _, err = tx.Exec(context.Background(), insert, oid, tempLocation); err != nil {
-		s.debugLogger.Debugf("Error inserting large object into mapping table: %s", err)
+		slog.Debug(fmt.Sprintf("Error inserting large object into mapping table: %s", err))
 		return
 	}
 
 	// Copy the staging file to the large object
-	s.debugLogger.Debugf("Copying data to large object")
+	slog.Debug(fmt.Sprintf("Copying data to large object"))
 	wdir, waddress, err := resolve(lo)
 	if err != nil {
-		s.debugLogger.Debugf("Error copying/resolving large object to Postgres LO storage: %s", err)
+		slog.Debug(fmt.Sprintf("Error copying/resolving large object to Postgres LO storage: %s", err))
 		return
 	}
 
@@ -390,19 +384,19 @@ func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (dirOut
 	// Remove any conflicting mappings
 	delete := `DELETE FROM large_objects WHERE address = $1`
 	if _, err = tx.Exec(context.Background(), delete, permanentLocation); err != nil {
-		s.debugLogger.Debugf("Error deleting existing large object records from mapping table: %s", err)
+		slog.Debug(fmt.Sprintf("Error deleting existing large object records from mapping table: %s", err))
 		return
 	}
 
 	// Rename the location
 	rename := `UPDATE large_objects SET address = $1 WHERE address = $2`
 	if _, err = tx.Exec(context.Background(), rename, permanentLocation, tempLocation); err != nil {
-		s.debugLogger.Debugf("Error setting large object record permanent address in mapping table: %s", err)
+		slog.Debug(fmt.Sprintf("Error setting large object record permanent address in mapping table: %s", err))
 		return
 	}
 
 	if err = lo.Close(); err != nil {
-		s.debugLogger.Debugf("Error closing large object: %s", err)
+		slog.Debug(fmt.Sprintf("Error closing large object: %s", err))
 		return
 	}
 
@@ -454,7 +448,7 @@ func (s *StorageServer) rem(location string) (err error) {
 	if tx, err = native.Begin(context.Background()); err != nil {
 		return
 	}
-	defer pgxCommit(tx, s.debugLogger, "remove", &err)
+	defer pgxCommit(tx, "remove", &err)
 
 	// Get a LargeObjects instance. This lets us interact with the Postgres
 	// large object store
@@ -474,7 +468,7 @@ func (s *StorageServer) rem(location string) (err error) {
 	// Remove the mapping
 	delete := `DELETE FROM large_objects WHERE address = $1`
 	if _, err = tx.Exec(context.Background(), delete, location); err != nil {
-		s.debugLogger.Debugf("Error deleting large object record from mapping table: %s", err)
+		slog.Debug(fmt.Sprintf("Error deleting large object record from mapping table: %s", err))
 		return
 	}
 
@@ -540,7 +534,7 @@ func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer
 	if tx, err = native.Begin(context.Background()); err != nil {
 		return
 	}
-	defer pgxCommit(tx, s.debugLogger, "move", &err)
+	defer pgxCommit(tx, "move", &err)
 
 	// Update the mappings
 	for _, part := range parts {
@@ -548,7 +542,7 @@ func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer
 		destination := server.Locate(part.Dir, part.Address)
 		delete := `UPDATE large_objects SET address = $1 WHERE address = $2`
 		if _, err = tx.Exec(context.Background(), delete, destination, source); err != nil {
-			s.debugLogger.Debugf("Error updating (move) large object record in mapping table: %s", err)
+			slog.Debug(fmt.Sprintf("Error updating (move) large object record in mapping table: %s", err))
 			return
 		}
 	}

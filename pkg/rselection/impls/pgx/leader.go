@@ -3,9 +3,11 @@ package pgxelection
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -56,10 +58,6 @@ type PgxLeader struct {
 	nodes map[string]*electiontypes.ClusterNode
 	mutex sync.RWMutex
 
-	// Debug loggers
-	debugLogger rselection.DebugLogger
-	traceLogger rselection.DebugLogger
-
 	// Used for testing
 	loopAwareChTEST    chan bool
 	pingResponseChTEST chan bool
@@ -78,8 +76,6 @@ type PgxLeaderConfig struct {
 	PingInterval    time.Duration
 	SweepInterval   time.Duration
 	MaxPingAge      time.Duration
-	DebugLogger     rselection.DebugLogger
-	TraceLogger     rselection.DebugLogger
 }
 
 func NewPgxLeader(cfg PgxLeaderConfig) *PgxLeader {
@@ -96,10 +92,7 @@ func NewPgxLeader(cfg PgxLeaderConfig) *PgxLeader {
 		ping:        cfg.PingInterval,
 		sweep:       cfg.SweepInterval,
 		maxPingAge:  cfg.MaxPingAge,
-		debugLogger: cfg.DebugLogger,
-		traceLogger: cfg.TraceLogger,
-
-		mutex: sync.RWMutex{},
+		mutex:       sync.RWMutex{},
 	}
 }
 
@@ -144,12 +137,9 @@ func (p *PgxLeader) lead(pingTick, sweepTick <-chan time.Time, stop chan bool) {
 	nodesCh := p.awb.Subscribe(electiontypes.ClusterMessageTypeNodes)
 	defer p.awb.Unsubscribe(nodesCh)
 
-	logTickCh := make(<-chan time.Time)
-	if p.debugLogger.Enabled() {
-		logTicker := time.NewTicker(time.Second * 10)
-		defer logTicker.Stop()
-		logTickCh = logTicker.C
-	}
+	logTicker := time.NewTicker(time.Second * 10)
+	defer logTicker.Stop()
+	logTickCh := logTicker.C
 
 	// Send a ping synchronously to ensure other nodes know about the new leader
 	p.pingNodes()
@@ -189,7 +179,7 @@ func (p *PgxLeader) lead(pingTick, sweepTick <-chan time.Time, stop chan bool) {
 		case vCh := <-p.taskHandler.Verify():
 			p.verify(vCh)
 		case <-logTickCh:
-			p.debugLogger.Debugf(p.info())
+			slog.Debug(fmt.Sprintf(p.info()))
 		}
 	}
 }
@@ -280,7 +270,7 @@ func (p *PgxLeader) pingNodes() {
 	defer p.pingSuccessLock.Unlock()
 	p.pingSuccess = true
 
-	p.traceLogger.Debugf("Leader pinging nodes on follower channel %s", p.chFollower)
+	slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Leader pinging nodes on follower channel %s", p.chFollower))
 	err = p.notify.Notify(p.chFollower, b)
 	if err != nil {
 		p.pingSuccess = false
@@ -290,7 +280,7 @@ func (p *PgxLeader) pingNodes() {
 
 	// This will ensure that the leader is tracked as part of the nodes in the cluster, and it will force
 	// duplicate leaders to surrender the position.
-	p.traceLogger.Debugf("Leader pinging itself on leader channel %s", p.chLeader)
+	slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Leader pinging itself on leader channel %s", p.chLeader))
 	err = p.notify.Notify(p.chLeader, b)
 	if err != nil {
 		p.pingSuccess = false
@@ -303,7 +293,7 @@ func (p *PgxLeader) handleNodesRequest(cn *electiontypes.ClusterNodesRequest) {
 	p.mutex.RLock()
 	defer p.mutex.RUnlock()
 
-	p.traceLogger.Debugf("Leader received request for nodes")
+	slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Leader received request for nodes"))
 	nodes := make([]electiontypes.ClusterNode, 0)
 	for _, node := range p.nodes {
 		leader := node.Name == p.address && node.IP == p.awb.IP()
@@ -333,7 +323,7 @@ func (p *PgxLeader) handleNodesRequest(cn *electiontypes.ClusterNodesRequest) {
 func (p *PgxLeader) handleLeaderPing(cn *electiontypes.ClusterPingRequest) {
 	// If we received a ping from another leader, then stop leading
 	if cn.SrcAddr != p.address {
-		p.debugLogger.Debugf("Leader received ping from another leader. Stopping and moving back to the follower loop.")
+		slog.Debug(fmt.Sprintf("Leader received ping from another leader. Stopping and moving back to the follower loop."))
 		p.stop <- true
 	} else {
 		resp := electiontypes.NewClusterPingResponse(p.address, cn.SrcAddr, p.awb.IP())
@@ -346,7 +336,7 @@ func (p *PgxLeader) handlePingResponse(cn *electiontypes.ClusterPingResponse) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 
-	p.traceLogger.Debugf("Leader received ping response from %s", cn.SrcAddr)
+	slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Leader received ping response from %s", cn.SrcAddr))
 	key := cn.Key()
 	if _, ok := p.nodes[key]; !ok {
 		p.nodes[key] = &electiontypes.ClusterNode{
@@ -377,7 +367,7 @@ func (p *PgxLeader) sweepNodes() {
 	defer p.mutex.Unlock()
 
 	if p.unsuccessfulPing() {
-		p.debugLogger.Debugf("Skipping cluster sweep due to unsuccessful pings")
+		slog.Debug(fmt.Sprintf("Skipping cluster sweep due to unsuccessful pings"))
 		return
 	}
 
@@ -388,7 +378,7 @@ func (p *PgxLeader) sweepNodes() {
 		}
 
 		if node.Ping.Before(time.Now().Add(-p.maxPingAge)) {
-			p.debugLogger.Debugf("Leader sweep removing cluster node %s", key)
+			slog.Debug(fmt.Sprintf("Leader sweep removing cluster node %s", key))
 			delete(p.nodes, key)
 		}
 	}

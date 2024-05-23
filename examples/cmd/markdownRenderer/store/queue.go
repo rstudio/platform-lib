@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mattn/go-sqlite3"
 	"github.com/rstudio/platform-lib/examples/cmd/markdownRenderer/notifytypes"
-	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listenerutils"
@@ -108,7 +108,6 @@ type queuedNotification struct {
 type store struct {
 	db            *gorm.DB
 	inTransaction bool
-	logger        rslog.DebugLogger
 
 	// For local notification queuing in a transaction
 	mutex         sync.Mutex
@@ -116,7 +115,7 @@ type store struct {
 	llFactory     *local.ListenerProvider
 }
 
-func Open(path string, llf *local.ListenerProvider, logger rslog.DebugLogger) Store {
+func Open(path string, llf *local.ListenerProvider) Store {
 	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
@@ -131,7 +130,6 @@ func Open(path string, llf *local.ListenerProvider, logger rslog.DebugLogger) St
 	return &store{
 		db:        db,
 		llFactory: llf,
-		logger:    logger,
 	}
 }
 
@@ -141,7 +139,6 @@ func (conn *store) BeginTransaction(description string) (Store, error) {
 		inTransaction: true,
 		notifications: make([]queuedNotification, 0),
 		llFactory:     conn.llFactory,
-		logger:        conn.logger,
 	}, nil
 }
 
@@ -159,7 +156,7 @@ func (conn *store) CompleteTransaction(err *error) {
 		// where queued during the transaction.
 		if finErr == nil && conn.llFactory != nil {
 			for _, n := range conn.notifications {
-				conn.logger.Debugf("Notifying %s of available work: %#v", n.channel, n.n)
+				slog.Debug(fmt.Sprintf("Notifying %s of available work: %#v", n.channel, n.n))
 				conn.llFactory.Notify(n.channel, n.n)
 			}
 		}

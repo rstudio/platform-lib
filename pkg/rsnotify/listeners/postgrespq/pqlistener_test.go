@@ -79,19 +79,16 @@ func (s *PqNotifySuite) TearDownSuite(c *check.C) {
 func (s *PqNotifySuite) TestNewPqListener(c *check.C) {
 	matcher := listener.NewMatcher("NotifyType")
 	matcher.Register(2, &testNotification{})
-	lgr := &listener.TestLogger{}
 	chName := c.TestName()
 	l := NewPqListener(PqListenerArgs{
-		Name:        chName,
-		Factory:     s.factory,
-		Matcher:     matcher,
-		DebugLogger: lgr,
+		Name:    chName,
+		Factory: s.factory,
+		Matcher: matcher,
 	})
 	c.Check(l, check.DeepEquals, &PqListener{
-		name:        chName,
-		factory:     s.factory,
-		matcher:     matcher,
-		debugLogger: lgr,
+		name:    chName,
+		factory: s.factory,
+		matcher: matcher,
 	})
 }
 

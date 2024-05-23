@@ -4,11 +4,6 @@ package types
 
 import "math"
 
-type DebugLogger interface {
-	Debugf(msg string, args ...interface{})
-	Enabled() bool
-}
-
 const (
 	// TYPE_NONE represents work without a type that gets inserted into the job
 	// queue. TYPE_NONE is set to a high number to avoid conflicts. We don't know

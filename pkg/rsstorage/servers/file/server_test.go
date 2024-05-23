@@ -52,14 +52,12 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	debugLogger := &servertest.TestLogger{}
 	server := NewStorageServer(StorageServerArgs{
 		Dir:          "test",
 		ChunkSize:    4096,
 		Waiter:       wn,
 		Notifier:     wn,
 		Class:        "classname",
-		DebugLogger:  debugLogger,
 		CacheTimeout: time.Minute,
 		WalkTimeout:  time.Minute * 2,
 	})
@@ -75,7 +73,6 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 				cacheTimeout: time.Minute,
 				walkTimeout:  time.Minute * 2,
 				class:        "classname",
-				debugLogger:  debugLogger,
 			},
 			Waiter:      wn,
 			Notifier:    wn,
@@ -85,7 +82,6 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 		cacheTimeout: time.Minute,
 		walkTimeout:  time.Minute * 2,
 		class:        "classname",
-		debugLogger:  debugLogger,
 	})
 
 	c.Assert(server.Dir(), check.Equals, "test")
@@ -416,12 +412,10 @@ func (s *FileStorageServerSuite) TestPutResolveErr(c *check.C) {
 	f := &FakeFileIOFile{
 		close: errors.New("close error"),
 	}
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openStaging: f,
 		},
-		debugLogger: debugLogger,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", errors.New("resolver error")
@@ -434,12 +428,10 @@ func (s *FileStorageServerSuite) TestPutResolveErrPreserved(c *check.C) {
 	f := &FakeFileIOFile{
 		close: errors.New("close file error"),
 	}
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openStaging: f,
 		},
-		debugLogger: debugLogger,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", errors.New("resolver error")
@@ -450,13 +442,11 @@ func (s *FileStorageServerSuite) TestPutResolveErrPreserved(c *check.C) {
 
 func (s *FileStorageServerSuite) TestPutMkDirError(c *check.C) {
 	f := &FakeFileIOFile{}
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openStaging: f,
 			mkdir:       errors.New("mkdir error"),
 		},
-		debugLogger: debugLogger,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
@@ -467,13 +457,11 @@ func (s *FileStorageServerSuite) TestPutMkDirError(c *check.C) {
 
 func (s *FileStorageServerSuite) TestPutMkDirErrorIgnored(c *check.C) {
 	f := &FakeFileIOFile{}
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openStaging: f,
 			mkdir:       errors.New("mkdir error"),
 		},
-		debugLogger: debugLogger,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
@@ -485,13 +473,11 @@ func (s *FileStorageServerSuite) TestPutMkDirErrorIgnored(c *check.C) {
 
 func (s *FileStorageServerSuite) TestPutMoveError(c *check.C) {
 	f := &FakeFileIOFile{}
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openStaging:   f,
 			stagingToPerm: errors.New("staging to perm error"),
 		},
-		debugLogger: debugLogger,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
@@ -505,10 +491,8 @@ func (s *FileStorageServerSuite) TestPutOk(c *check.C) {
 	ffi := &fakeFileIO{
 		openStaging: f,
 	}
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		fileIO:      ffi,
-		debugLogger: debugLogger,
+		fileIO: ffi,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
@@ -552,10 +536,8 @@ func (s *FileStorageServerSuite) TestPutOkDeferredAddress(c *check.C) {
 	ffi := &fakeFileIO{
 		openStaging: f,
 	}
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		fileIO:      ffi,
-		debugLogger: debugLogger,
+		fileIO: ffi,
 	}
 	// In this test, the resolver function returns the dir and address
 	// for the item in the cache.
@@ -573,13 +555,11 @@ func (s *FileStorageServerSuite) TestPutOkDeferredAddress(c *check.C) {
 
 func (s *FileStorageServerSuite) TestPutOkCleanupFailure(c *check.C) {
 	f := &FakeFileIOFile{}
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
 		fileIO: &fakeFileIO{
 			openStaging: f,
 			remove:      errors.New("remove error that isn't caught"),
 		},
-		debugLogger: debugLogger,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
@@ -672,7 +652,6 @@ func (s *FileStorageServerSuite) TestUsage(c *check.C) {
 
 	server := &StorageServer{
 		dir:          tempdir,
-		debugLogger:  &servertest.TestLogger{},
 		cacheTimeout: time.Minute,
 	}
 	fsUsage, err := server.CalculateUsage()
@@ -713,8 +692,7 @@ func (s *FileStorageServerSuite) TestUsageTimeout(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	server := &StorageServer{
-		dir:         tempdir,
-		debugLogger: &servertest.TestLogger{},
+		dir: tempdir,
 	}
 	fsUsage, err := server.CalculateUsage()
 	c.Assert(err, check.NotNil)
@@ -807,11 +785,9 @@ func createTempFile(dir, file, data string, c *check.C) {
 }
 
 func (s *FileEnumerationSuite) TestEnumerate(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		dir:         s.tempDirHelper.Dir(),
-		fileIO:      &defaultFileIO{},
-		debugLogger: debugLogger,
+		dir:    s.tempDirHelper.Dir(),
+		fileIO: &defaultFileIO{},
 	}
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
@@ -935,11 +911,9 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Associated a server with each directory (source and destination)
-	debugLogger := &servertest.TestLogger{}
 	serverSource := &StorageServer{
-		dir:         dirSource,
-		fileIO:      &defaultFileIO{},
-		debugLogger: debugLogger,
+		dir:    dirSource,
+		fileIO: &defaultFileIO{},
 	}
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
@@ -951,9 +925,8 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 		Notifier:  wn,
 	}
 	serverDest := &StorageServer{
-		dir:         dirDest,
-		fileIO:      &defaultFileIO{},
-		debugLogger: debugLogger,
+		dir:    dirDest,
+		fileIO: &defaultFileIO{},
 	}
 	serverDest.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,
@@ -1103,11 +1076,9 @@ func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Associated a server with each directory (source and destination)
-	debugLogger := &servertest.TestLogger{}
 	serverSource := &StorageServer{
-		dir:         dirSource,
-		fileIO:      &defaultFileIO{},
-		debugLogger: debugLogger,
+		dir:    dirSource,
+		fileIO: &defaultFileIO{},
 	}
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
@@ -1119,9 +1090,8 @@ func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
 		Notifier:  wn,
 	}
 	serverDest := &StorageServer{
-		dir:         dirDest,
-		fileIO:      &defaultFileIO{},
-		debugLogger: debugLogger,
+		dir:    dirDest,
+		fileIO: &defaultFileIO{},
 	}
 	serverDest.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,

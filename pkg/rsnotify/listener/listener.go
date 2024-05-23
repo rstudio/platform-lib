@@ -29,11 +29,6 @@ type Logger interface {
 	Debugf(msg string, args ...interface{})
 }
 
-type DebugLogger interface {
-	Logger
-	Enabled() bool
-}
-
 type GenericNotification struct {
 	NotifyGuid string
 	NotifyType uint8

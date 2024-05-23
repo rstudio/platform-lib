@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"sync"
 	"time"
 
 	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/types"
 )
 
 // Flags are submitted as part of the GroupQueueJob. When we handle work of the GroupQueueJob
@@ -62,8 +62,6 @@ func NewMatcher(field string) *GenericMatcher {
 type QueueGroupRunner struct {
 	queue queue.Queue
 
-	logger types.DebugLogger
-
 	endRunnerFactory GroupQueueEndRunnerFactory
 
 	provider GroupQueueProvider
@@ -83,7 +81,6 @@ type QueueGroupRunnerConfig struct {
 	TypeMatcher      TypeMatcher
 	EndRunnerFactory GroupQueueEndRunnerFactory
 	Recurser         *queue.OptionalRecurser
-	DebugLogger      types.DebugLogger
 }
 
 func NewQueueGroupRunner(cfg QueueGroupRunnerConfig) *QueueGroupRunner {
@@ -94,7 +91,6 @@ func NewQueueGroupRunner(cfg QueueGroupRunnerConfig) *QueueGroupRunner {
 		endRunnerFactory: cfg.EndRunnerFactory,
 		recurser:         cfg.Recurser,
 		wg:               &sync.WaitGroup{},
-		logger:           cfg.DebugLogger,
 	}
 }
 
@@ -171,7 +167,7 @@ func (r *QueueGroupRunner) Run(work queue.RecursableWork) error {
 	r.recurser.OptionallyRecurse(queue.ContextWithExpectedRecursion(work.Context), func() {
 		origErr := r.run(job)
 		if origErr != nil {
-			r.logger.Debugf("QueueGroupRunner run failure: %s", origErr)
+			slog.Debug(fmt.Sprintf("QueueGroupRunner run failure: %s", origErr))
 			// This will mark the queue group as `cancelled` and allow for re-runs of the same group later.
 			// When this occurs, it means that the GroupRunner did not receive a `QueueGroupFlagCancel` job.Flag
 			// so we also call the `Fail` method to ensure that any logic for recording failure runs.
@@ -204,7 +200,7 @@ func (r *QueueGroupRunner) run(job GroupQueueJob) error {
 	case QueueGroupFlagStart:
 		err = r.provider.IsReady(job)
 		if err != nil {
-			r.logger.Debugf("Queue Group '%s' error waiting for queue group start: %s\n", job.Name(), err)
+			slog.Debug(fmt.Sprintf("Queue Group '%s' error waiting for queue group start: %s\n", job.Name(), err))
 			return err
 		}
 
@@ -220,18 +216,18 @@ func (r *QueueGroupRunner) run(job GroupQueueJob) error {
 
 		// Completed with error
 		if err != nil {
-			r.logger.Debugf("Queue Group '%s' error: %s\n", job.Name(), err)
+			slog.Debug(fmt.Sprintf("Queue Group '%s' error: %s\n", job.Name(), err))
 			return err
 		}
 
 		// Completed with cancellation
 		if cancelled {
-			r.logger.Debugf("Queue Group '%s' cancelled. Pushing QueueGroupFlagAbort work.\n", job.Name())
+			slog.Debug(fmt.Sprintf("Queue Group '%s' cancelled. Pushing QueueGroupFlagAbort work.\n", job.Name()))
 			return r.queue.Push(0, 0, job.AbortWork())
 		}
 
 		// Completed successfully
-		r.logger.Debugf("Queue Group '%s' completed. Submitting QueueGroupFlagEnd work.\n", job.Name())
+		slog.Debug(fmt.Sprintf("Queue Group '%s' completed. Submitting QueueGroupFlagEnd work.\n", job.Name()))
 		return r.queue.Push(0, 0, job.EndWork())
 
 	case QueueGroupFlagCancel:
@@ -246,7 +242,7 @@ func (r *QueueGroupRunner) run(job GroupQueueJob) error {
 
 	case QueueGroupFlagEnd:
 
-		r.logger.Debugf("Queue Group '%s' QueueGroupFlagEnd work received. Running end work", job.Name())
+		slog.Debug(fmt.Sprintf("Queue Group '%s' QueueGroupFlagEnd work received. Running end work", job.Name()))
 		var runner GroupQueueEndRunner
 		runner, err = r.endRunnerFactory.GetRunner(job.EndWorkType())
 		if err != nil {
@@ -256,14 +252,14 @@ func (r *QueueGroupRunner) run(job GroupQueueJob) error {
 		return runner.Run(job.EndWorkJob())
 
 	case QueueGroupFlagAbort:
-		r.logger.Debugf("Queue Group '%s' QueueGroupFlagAbort work received\n", job.Name())
+		slog.Debug(fmt.Sprintf("Queue Group '%s' QueueGroupFlagAbort work received\n", job.Name()))
 		err = r.provider.Abort(job)
 		if err != nil {
-			r.logger.Debugf("Error aborting queue group '%s': %s", job.Name(), err)
+			slog.Debug(fmt.Sprintf("Error aborting queue group '%s': %s", job.Name(), err))
 		}
 		return err
 	}
 
-	r.logger.Debugf("Unexpected queue group job flag %s\n", job.Flag())
+	slog.Debug(fmt.Sprintf("Unexpected queue group job flag %s\n", job.Flag()))
 	return nil
 }

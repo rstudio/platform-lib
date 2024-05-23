@@ -3,15 +3,13 @@ package main
 // Copyright (C) 2022 by RStudio, PBC.
 
 import (
+	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"math/rand"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
-
-	"github.com/rstudio/platform-lib/pkg/rslog"
 )
 
 // Usage:
@@ -22,48 +20,19 @@ import (
 // Then, send the HUP signal to the process and watch the output:
 // `pkill -HUP testservice`
 
-type factory struct{}
-
-// DefaultLogger is a factory method that provides the default logger for rslog.
-func (f *factory) DefaultLogger() rslog.Logger {
-	lgr, err := rslog.NewLoggerImpl(rslog.LoggerOptionsImpl{
-		Output: []rslog.OutputDest{{
-			Output: rslog.LogOutputStdout,
-		}},
-		Format: rslog.JSONFormat,
-		Level:  rslog.ErrorLevel,
-	}, rslog.NewOutputLogBuilder(rslog.ServerLog, ""))
-
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
-	return lgr
+type leveler struct {
+	level slog.Level
 }
 
-var debugLogger rslog.DebugLogger
-
-const (
-	RegionTest rslog.ProductRegion = 1
-)
-
-func init() {
-	// Replace the default factory so we can control the default logger.
-	rslog.DefaultLoggerFactory = &factory{}
-
-	// Seed the random number generator.
-	rand.Seed(time.Now().UnixNano())
-
-	// Initialize debug logging
-	rslog.InitDebugLogs([]rslog.ProductRegion{
-		RegionTest,
-	})
-	rslog.RegisterRegions(map[rslog.ProductRegion]string{
-		RegionTest: "test-debug",
-	})
-	debugLogger = rslog.NewDebugLogger(RegionTest)
+func (l *leveler) Level() slog.Level {
+	return l.level
 }
 
 func main() {
+	handler := randomHander()
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
+
 	// Trap signals
 	sigHUP := make(chan os.Signal, 1)
 	sigCh := make(chan os.Signal, 1)
@@ -80,21 +49,10 @@ func main() {
 			return
 		case <-sigHUP:
 			// When SIGHUP is received, choose a random log level and random format.
-			level := randomLevel()
-			format := randomFormat()
-			fmt.Printf("Chose random level %s and format %s\n\n", level, format)
-
-			// Update the default logger with the random level and format.
-			err := rslog.UpdateDefaultLogger(rslog.LoggerOptionsImpl{
-				Output: []rslog.OutputDest{{
-					Output: rslog.LogOutputStdout,
-				}},
-				Level:  level,
-				Format: format,
-			}, rslog.NewOutputLogBuilder(rslog.ServerLog, ""))
-			if err != nil {
-				log.Panic(err)
-			}
+			handler = randomHander()
+			logger = slog.New(handler)
+			slog.SetDefault(logger)
+			slog.Info("Chose random level and format\n\n")
 
 			// Log some stuff to prove that the randomly chosen level and format are honored.
 			doLogs()
@@ -102,32 +60,30 @@ func main() {
 	}
 }
 
-func randomLevel() rslog.LogLevel {
-	levels := []rslog.LogLevel{
-		rslog.TraceLevel,
-		rslog.DebugLevel,
-		rslog.InfoLevel,
-		rslog.WarningLevel,
-		rslog.ErrorLevel,
+func randomLevel() slog.Level {
+	levels := []slog.Level{
+		slog.Level(-8),
+		slog.LevelDebug,
+		slog.LevelInfo,
+		slog.LevelWarn,
+		slog.LevelError,
 	}
 	return levels[rand.Intn(len(levels))]
 }
 
-func randomFormat() rslog.OutputFormat {
-	formats := []rslog.OutputFormat{
-		rslog.TextFormat,
-		rslog.JSONFormat,
+func randomHander() slog.Handler {
+	formats := []slog.Handler{
+		slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: &leveler{level: randomLevel()}}),
+		slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: &leveler{level: randomLevel()}}),
 	}
 	return formats[rand.Intn(len(formats))]
 }
 
 func doLogs() {
-	rslog.Tracef("TRACE message.")
-	rslog.Debugf("DEBUG message.")
-	rslog.Infof("INFO message.")
-	rslog.Warnf("WARN message.")
-	rslog.Errorf("ERROR message.")
-	debugLogger.Debugf("Debug logger DEBUG message.")
-	debugLogger.Tracef("Debug logger TRACE message.")
+	slog.Log(context.Background(), slog.Level(-8), "TRACE message.")
+	slog.Debug("DEBUG message.")
+	slog.Info("INFO message.")
+	slog.Warn("WARN message.")
+	slog.Error("ERROR message.")
 	fmt.Printf("\n")
 }

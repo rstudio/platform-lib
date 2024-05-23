@@ -10,7 +10,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local"
 	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
 	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
@@ -31,11 +30,6 @@ type QueueSqliteSuite struct {
 	tmp   string
 }
 
-type fakeDebugLogger struct{}
-
-func (*fakeDebugLogger) Debugf(msg string, args ...interface{}) {}
-func (*fakeDebugLogger) Enabled() bool                          { return false }
-
 var _ = check.Suite(&QueueSqliteSuite{})
 
 func (s *QueueSqliteSuite) SetUpTest(c *check.C) {
@@ -43,8 +37,8 @@ func (s *QueueSqliteSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	s.tmp = tmp.Name()
 
-	llf := local.NewListenerProvider(local.ListenerProviderArgs{DebugLogger: &fakeDebugLogger{}})
-	s.store = Open(s.tmp, llf, rslog.NewDebugLogger(0))
+	llf := local.NewListenerProvider(local.ListenerProviderArgs{})
+	s.store = Open(s.tmp, llf)
 }
 
 func (s *QueueSqliteSuite) TearDownTest(c *check.C) {

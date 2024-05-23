@@ -85,14 +85,12 @@ func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) 
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
-	debugLogger := &servertest.TestLogger{}
 	pgServer := postgres.NewStorageServer(postgres.StorageServerArgs{
-		ChunkSize:   100 * 1024,
-		Waiter:      wn,
-		Notifier:    wn,
-		Class:       class,
-		DebugLogger: debugLogger,
-		Pool:        s.pool,
+		ChunkSize: 100 * 1024,
+		Waiter:    wn,
+		Notifier:  wn,
+		Class:     class,
+		Pool:      s.pool,
 	})
 	s3Server := s3server.NewStorageServer(s3server.StorageServerArgs{
 		Bucket:    class,
@@ -107,7 +105,6 @@ func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) 
 		Waiter:       wn,
 		Notifier:     wn,
 		Class:        "chunks",
-		DebugLogger:  debugLogger,
 		CacheTimeout: time.Minute,
 		WalkTimeout:  time.Minute,
 	})
@@ -260,14 +257,12 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 	dir, err := ioutil.TempDir(s.tempdirhelper.Dir(), "")
 	c.Assert(err, check.IsNil)
 
-	debugLogger := &servertest.TestLogger{}
 	fileServer := file.NewStorageServer(file.StorageServerArgs{
 		Dir:          dir,
 		ChunkSize:    100 * 1024,
 		Waiter:       wn,
 		Notifier:     wn,
 		Class:        "chunks",
-		DebugLogger:  debugLogger,
 		CacheTimeout: time.Minute,
 		WalkTimeout:  time.Minute,
 	})
@@ -363,14 +358,12 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 		Ch: make(chan bool, 1),
 	}
 
-	debugLogger := &servertest.TestLogger{}
 	fileServer := file.NewStorageServer(file.StorageServerArgs{
 		Dir:          dir,
 		ChunkSize:    100 * 1024,
 		Waiter:       wn,
 		Notifier:     wn,
 		Class:        "chunks",
-		DebugLogger:  debugLogger,
 		CacheTimeout: time.Minute,
 		WalkTimeout:  time.Minute,
 	})

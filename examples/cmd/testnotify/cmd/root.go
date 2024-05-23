@@ -8,26 +8,11 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/spf13/cobra"
-
-	"github.com/rstudio/platform-lib/pkg/rslog"
 )
 
 const (
 	defaultPgConnStr = "postgres://admin:password@postgres/postgres?sslmode=disable"
-
-	RegionNotify rslog.ProductRegion = 1
 )
-
-func init() {
-
-	// Initialize debug logging
-	rslog.InitDebugLogs([]rslog.ProductRegion{
-		RegionNotify,
-	})
-	rslog.RegisterRegions(map[rslog.ProductRegion]string{
-		RegionNotify: "test-notifications",
-	})
-}
 
 type testNotification struct {
 	MessageType uint8

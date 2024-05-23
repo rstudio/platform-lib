@@ -7,14 +7,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
 	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
 )
-
-type DebugLogger interface {
-	Debugf(msg string, args ...interface{})
-}
 
 type QueuePermit interface {
 	PermitId() permit.Permit

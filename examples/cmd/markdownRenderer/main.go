@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,7 +21,6 @@ import (
 	"github.com/rstudio/platform-lib/examples/cmd/markdownRenderer/storage"
 	"github.com/rstudio/platform-lib/examples/cmd/markdownRenderer/store"
 	"github.com/rstudio/platform-lib/pkg/rscache"
-	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local"
@@ -80,7 +80,20 @@ func init() {
 	flag.StringVar(&address, "address", ":8082", "Server address to use")
 }
 
+type leveler struct {
+	level slog.Level
+}
+
+func (l *leveler) Level() slog.Level {
+	return l.level
+}
+
 func main() {
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: &leveler{level: slog.LevelDebug},
+	}))
+	slog.SetDefault(logger)
 
 	// Parse flags at startup.
 	flag.Parse()
@@ -89,24 +102,10 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
-	// Set up debug loggers. The first one, `debugLogger` is used by
-	// main.go and the http handlers. The remaining loggers are used
-	// by the `platform-lib` third-party libraries.
-	debugLogger := rslog.NewDebugLogger(RegionRenderer)
-	storeLogger := rslog.NewDebugLogger(RegionStore)
-	storageLogger := rslog.NewDebugLogger(RegionStorage)
-	notifyLogger := rslog.NewDebugLogger(RegionNotifications)
-	queueLogger := rslog.NewDebugLogger(RegionQueue)
-	cacheLogger := rslog.NewDebugLogger(RegionCache)
-	cacheNfsTimeLogger := rslog.NewDebugLogger(RegionCacheNfsTime)
-	agentLogger := rslog.NewDebugLogger(RegionAgent)
-	agentTraceLogger := rslog.NewDebugLogger(RegionAgentTrace)
-	agentJobLogger := rslog.NewDebugLogger(RegionAgentJob)
-
 	// Start a new local listener provider and factory. The provider knows how
 	// to create a new listener. The factory uses the provider to create new
 	// listeners when needed.
-	localListenerProvider := local.NewListenerProvider(local.ListenerProviderArgs{DebugLogger: notifyLogger})
+	localListenerProvider := local.NewListenerProvider(local.ListenerProviderArgs{})
 	localListenerFactory := local.NewListenerFactory(localListenerProvider)
 	defer localListenerFactory.Shutdown()
 
@@ -151,7 +150,7 @@ func main() {
 	// and is used by the database queue implementation. The store also includes the
 	// local listener provider to support sending notifications.
 	_ = os.Mkdir("data", 0755) // Create a data directory
-	exampleStore := store.Open("data/markdownRenderer.sqlite", localListenerProvider, storeLogger)
+	exampleStore := store.Open("data/markdownRenderer.sqlite", localListenerProvider)
 
 	// The file storage server supports chunked files, where large files are stored in a
 	// directory in "chunks" not larger than a configured size. The chunk waiter is used
@@ -169,7 +168,6 @@ func main() {
 		Waiter:       waiter,
 		Notifier:     notifier,
 		Class:        "rendered",
-		DebugLogger:  storageLogger,
 		CacheTimeout: storageCacheTimeout,
 		WalkTimeout:  storageWalkTimeout,
 	})
@@ -205,7 +203,6 @@ func main() {
 		NotifyTypeWorkComplete: notifytypes.NotifyTypeWorkComplete,
 		NotifyTypeChunk:        notifytypes.NotifyTypeChunk,
 		ChunkMatcher:           chunkMatcher,
-		DebugLogger:            queueLogger,
 		CarrierFactory:         &metrics.EmptyCarrierFactory{},
 		QueueStore:             exampleStore,
 		QueueMsgsChan:          queueMessages,
@@ -236,8 +233,6 @@ func main() {
 		StorageServer:    fileStorage,
 		Recurser:         recurser,
 		Timeout:          fileCacheTimeout,
-		DebugLogger:      cacheLogger,
-		NfsTimeLogger:    cacheNfsTimeLogger,
 	})
 
 	// Track supported types for the queue. This is useful for entering an offline mode,
@@ -286,9 +281,6 @@ func main() {
 		ConcurrencyEnforcer:    cEnforcer,
 		SupportedTypes:         supportedTypes,
 		NotificationsChan:      queueMessages,
-		DebugLogger:            agentLogger,
-		TraceLogger:            agentTraceLogger,
-		JobLogger:              agentJobLogger,
 		NotifyTypeWorkComplete: notifytypes.NotifyTypeWorkComplete,
 		JobLifecycleWrapper:    &metrics.EmptyJobLifecycleWrapper{},
 	}
@@ -306,7 +298,7 @@ func main() {
 
 	// Start HTTP services and listen until the application exits.
 	router := mux.NewRouter()
-	handler := handlers.NewHttpHandler(debugLogger, address, router, cache)
+	handler := handlers.NewHttpHandler(address, router, cache)
 	ctx, cancel := context.WithCancel(context.Background())
 	go handler.Start(ctx)
 	// Cancel the handler's context when the application exits for graceful
@@ -318,7 +310,7 @@ func main() {
 		select {
 		case <-sigCh:
 			// Exit on a SIGTERM or SIGINT
-			rslog.Infof("Exiting")
+			slog.Info("Exiting")
 			return
 		}
 	}
