@@ -3,7 +3,7 @@ module github.com/rstudio/platform-lib/pkg/rsstorage/internal/integration_test
 go 1.20
 
 require (
-	github.com/aws/aws-sdk-go v1.51.25
+	github.com/aws/aws-sdk-go v1.53.5
 	github.com/fortytw2/leaktest v1.3.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v4 v4.18.3
