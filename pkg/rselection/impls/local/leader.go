@@ -3,8 +3,8 @@ package localelection
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
-	"github.com/rstudio/platform-lib/pkg/rselection"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v2/pkg/rselection"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
 )
 
 type LocalLeader struct {

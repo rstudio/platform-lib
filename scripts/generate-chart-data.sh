@@ -51,8 +51,8 @@ function imports {
     # Generate import. We have to use `go list` to list importable
     # packages in the module since some modules have nothing in
     # the root directory. For example,
-    # "github.com/rstudio/platform-lib/pkg/rsqueue" cannot be imported,
-    # but "github.com/rstudio/platform-lib/pkg/rsqueue/agent" can be.
+    # "github.com/rstudio/platform-lib/v2/pkg/rsqueue" cannot be imported,
+    # but "github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent" can be.
     import=$(go list "github.com/rstudio/platform-lib/${mod}/..." | head -1)
     # Occasionally, we'll end up with an empty/blank import. I'm not sure
     # why, but it seems safe to ignore it.

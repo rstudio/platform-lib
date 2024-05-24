@@ -5,7 +5,7 @@ package broadcaster
 import (
 	"log"
 
-	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
 )
 
 type Matcher func(notification listener.Notification) bool

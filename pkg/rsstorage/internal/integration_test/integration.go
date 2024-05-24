@@ -8,10 +8,10 @@ import (
 
 	"github.com/jackc/pgx/v4/pgxpool"
 
-	"github.com/rstudio/platform-lib/pkg/rsstorage"
-	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/file"
-	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/postgres"
-	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/s3server"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/servers/file"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/servers/postgres"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/servers/s3server"
 )
 
 // GetStorageServer wraps getStorageServerAttempt, fatally erring if something goes wrong

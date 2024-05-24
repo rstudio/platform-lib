@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/rstudio/platform-lib/pkg/rsqueue/impls/database/dbqueuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 )
 
 type DatabaseQueueSweeper interface {

@@ -14,16 +14,17 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mattn/go-sqlite3"
-	"github.com/rstudio/platform-lib/examples/cmd/markdownRenderer/notifytypes"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/listenerutils"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/impls/database/dbqueuetypes"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
-	queuetypes "github.com/rstudio/platform-lib/pkg/rsqueue/types"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+
+	"github.com/rstudio/platform-lib/v2/examples/cmd/markdownRenderer/notifytypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/local"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listenerutils"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
+	queuetypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/types"
 )
 
 type Store interface {

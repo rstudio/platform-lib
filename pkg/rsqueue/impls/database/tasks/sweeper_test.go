@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/rstudio/platform-lib/pkg/rsqueue/impls/database/dbqueuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"gopkg.in/check.v1"
 )
 

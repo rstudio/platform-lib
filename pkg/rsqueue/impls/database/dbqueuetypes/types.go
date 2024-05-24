@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 )
 
 type QueuePermit interface {

@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/rstudio/platform-lib/pkg/rselection"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local"
+	"github.com/rstudio/platform-lib/v2/pkg/rselection"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/local"
 	"gopkg.in/check.v1"
 )
 

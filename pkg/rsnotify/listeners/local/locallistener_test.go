@@ -11,7 +11,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	"gopkg.in/check.v1"
 
-	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
 )
 
 type LocalNotifySuite struct {

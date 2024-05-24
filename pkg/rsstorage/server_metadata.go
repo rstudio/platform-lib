@@ -6,7 +6,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
 )
 
 // MetadataStorageServer overrides the `Get` and `Put` methods for interacting with the database

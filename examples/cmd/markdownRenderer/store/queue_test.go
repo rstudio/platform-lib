@@ -10,10 +10,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/rstudio/platform-lib/pkg/rsnotify/listeners/local"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
 	"gopkg.in/check.v1"
+
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/local"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 )
 
 const (

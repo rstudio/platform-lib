@@ -18,9 +18,9 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 
-	"github.com/rstudio/platform-lib/pkg/rsstorage"
-	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
-	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
 )
 
 type StorageServer struct {

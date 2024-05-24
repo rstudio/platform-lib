@@ -8,16 +8,16 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/agent"
-	agenttypes "github.com/rstudio/platform-lib/pkg/rsqueue/agent/types"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/impls/database/dbqueuetypes"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/metrics"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
-	queuetypes "github.com/rstudio/platform-lib/pkg/rsqueue/types"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/utils"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent"
+	agenttypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent/types"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/metrics"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
+	queuetypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/types"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/utils"
 )
 
 type DatabaseQueue struct {

@@ -7,7 +7,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 )
 
 var ErrDuplicateAddressedPush = errors.New("Duplicate address")

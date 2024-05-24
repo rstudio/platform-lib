@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
 )
 
 type GetResult struct {

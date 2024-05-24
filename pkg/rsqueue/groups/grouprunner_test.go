@@ -9,8 +9,8 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 )
 
 type QueueGroupRunnerSuite struct{}

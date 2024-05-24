@@ -19,9 +19,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/google/uuid"
 
-	"github.com/rstudio/platform-lib/pkg/rsstorage"
-	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
-	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
 )
 
 const AmzUnencryptedContentLengthHeader = "X-Amz-Unencrypted-Content-Length"

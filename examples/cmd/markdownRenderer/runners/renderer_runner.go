@@ -13,10 +13,10 @@ import (
 	"github.com/gomarkdown/markdown/html"
 	"github.com/gomarkdown/markdown/parser"
 	"github.com/pkg/errors"
-	"github.com/rstudio/platform-lib/examples/cmd/markdownRenderer/queuetypes"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
-	"github.com/rstudio/platform-lib/pkg/rsstorage"
-	storagetypes "github.com/rstudio/platform-lib/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v2/examples/cmd/markdownRenderer/queuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
+	storagetypes "github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
 )
 
 // RendererRunner is a runner is registered with the queue agent that knows how

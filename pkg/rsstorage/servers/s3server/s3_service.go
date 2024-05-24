@@ -13,8 +13,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
-	"github.com/rstudio/platform-lib/pkg/rsstorage"
-	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal"
 )
 
 const S3Concurrency = 20

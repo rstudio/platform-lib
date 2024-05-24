@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/rstudio/platform-lib/pkg/rsstorage"
-	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
 	"gopkg.in/check.v1"
 
-	"github.com/rstudio/platform-lib/pkg/rscache/test"
+	"github.com/rstudio/platform-lib/v2/pkg/rscache/test"
 )
 
 func TestPackage(t *testing.T) { check.TestingT(t) }
