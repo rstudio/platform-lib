@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/dgraph-io/ristretto"
-	"github.com/rstudio/platform-lib/pkg/rscache/test"
+	"github.com/rstudio/platform-lib/v2/pkg/rscache/test"
 	"gopkg.in/check.v1"
 )
 

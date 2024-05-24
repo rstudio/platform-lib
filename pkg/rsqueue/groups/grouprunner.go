@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 )
 
 // Flags are submitted as part of the GroupQueueJob. When we handle work of the GroupQueueJob

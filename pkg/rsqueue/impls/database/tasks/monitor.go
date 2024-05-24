@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/impls/database/dbqueuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 )
 
 type DatabaseQueueMonitor interface {

@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
-	agenttypes "github.com/rstudio/platform-lib/pkg/rsqueue/agent/types"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/metrics"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/utils"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
+	agenttypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent/types"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/metrics"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/utils"
 	"gopkg.in/check.v1"
 )
 

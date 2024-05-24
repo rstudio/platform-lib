@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rstudio/platform-lib/pkg/rsqueue/groups"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/groups"
 	"gopkg.in/check.v1"
 )
 

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 )
 
 type addParams struct {

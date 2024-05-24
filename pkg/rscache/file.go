@@ -9,8 +9,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/rstudio/platform-lib/pkg/rsstorage"
-	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
 )
 
 type QueueWork interface {

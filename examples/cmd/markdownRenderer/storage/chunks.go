@@ -5,10 +5,10 @@ package storage
 import (
 	"time"
 
-	"github.com/rstudio/platform-lib/examples/cmd/markdownRenderer/notifytypes"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
-	"github.com/rstudio/platform-lib/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v2/examples/cmd/markdownRenderer/notifytypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
 )
 
 type ExampleChunkWaiter struct {

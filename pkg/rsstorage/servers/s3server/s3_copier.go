@@ -19,7 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 
-	"github.com/rstudio/platform-lib/pkg/rsstorage/internal"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal"
 )
 
 // From https://github.com/aws/aws-sdk-go/pull/2653

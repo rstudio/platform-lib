@@ -15,10 +15,10 @@ import (
 	"time"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/rstudio/platform-lib/pkg/rscache"
-	"github.com/rstudio/platform-lib/pkg/rscache/test"
-	"github.com/rstudio/platform-lib/pkg/rsstorage"
-	"github.com/rstudio/platform-lib/pkg/rsstorage/servers/file"
+	"github.com/rstudio/platform-lib/v2/pkg/rscache"
+	"github.com/rstudio/platform-lib/v2/pkg/rscache/test"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/servers/file"
 	"gopkg.in/check.v1"
 )
 

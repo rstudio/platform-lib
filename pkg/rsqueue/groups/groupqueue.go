@@ -3,7 +3,7 @@ package groups
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
-	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 )
 
 /*

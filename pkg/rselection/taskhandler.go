@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
 )
 
 const (

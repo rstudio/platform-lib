@@ -5,10 +5,10 @@ package database
 import (
 	"errors"
 
-	"github.com/rstudio/platform-lib/pkg/rsqueue/groups"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/impls/database/dbqueuetypes"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/groups"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 	"gopkg.in/check.v1"
 )
 

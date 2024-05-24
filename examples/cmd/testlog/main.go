@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/rstudio/platform-lib/examples/cmd/testlog/cmd"
 	"github.com/rstudio/platform-lib/pkg/rslog"
+	"github.com/rstudio/platform-lib/v2/examples/cmd/testlog/cmd"
 )
 
 func init() {

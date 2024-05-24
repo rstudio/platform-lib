@@ -13,8 +13,8 @@ import (
 	"github.com/jarcoal/httpmock"
 	"gopkg.in/check.v1"
 
-	"github.com/rstudio/platform-lib/pkg/rsstorage"
-	"github.com/rstudio/platform-lib/pkg/rsstorage/internal/servertest"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal/servertest"
 )
 
 type S3WrapperSuite struct{}

@@ -8,10 +8,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/rstudio/platform-lib/examples/cmd/markdownRenderer/queuetypes"
-	"github.com/rstudio/platform-lib/pkg/rscache/test"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
-	"github.com/rstudio/platform-lib/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v2/examples/cmd/markdownRenderer/queuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rscache/test"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
 	"gopkg.in/check.v1"
 )
 
