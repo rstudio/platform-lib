@@ -78,21 +78,18 @@ func (s *PgxNotifySuite) TearDownSuite(c *check.C) {
 func (s *PgxNotifySuite) TestNewPgxListener(c *check.C) {
 	matcher := listener.NewMatcher("NotifyType")
 	matcher.Register(2, &testNotification{})
-	lgr := &listener.TestLogger{}
 	chName := listenerutils.SafeChannelName(c.TestName())
 	ipRep := &TestIPReporter{}
 	l := NewPgxListener(PgxListenerArgs{
-		Name:        chName,
-		Pool:        s.pool,
-		Matcher:     matcher,
-		DebugLogger: lgr,
-		IpReporter:  ipRep,
+		Name:       chName,
+		Pool:       s.pool,
+		Matcher:    matcher,
+		IpReporter: ipRep,
 	})
 	c.Check(l, check.DeepEquals, &PgxListener{
 		name:        chName,
 		pool:        s.pool,
 		matcher:     matcher,
-		debugLogger: lgr,
 		ipReporter:  ipRep,
 		notifyCache: make(map[string]map[int][]byte),
 	})

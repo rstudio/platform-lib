@@ -5,7 +5,6 @@ package servertest
 import (
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"time"
 
@@ -29,18 +28,6 @@ func (f *DummyChunkUtils) WriteChunked(dir, address string, sz uint64, resolve t
 
 func (f *DummyChunkUtils) ReadChunked(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, error) {
 	return f.Read, f.ReadCh, f.ReadSz, f.ReadMod, f.ReadErr
-}
-
-type TestLogger struct {
-	enabled bool
-}
-
-func (l *TestLogger) Debugf(msg string, args ...interface{}) {
-	log.Printf(msg, args...)
-}
-
-func (l *TestLogger) Enabled() bool {
-	return l.enabled
 }
 
 type DummyWaiterNotifier struct {

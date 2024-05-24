@@ -3,17 +3,17 @@ package groupprovider
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/rstudio/platform-lib/pkg/rsqueue/groups"
 	"github.com/rstudio/platform-lib/pkg/rsqueue/impls/database/dbqueuetypes"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/types"
 	"github.com/rstudio/platform-lib/pkg/rsqueue/utils"
 )
 
 type QueueGroupProvider struct {
 	cstore dbqueuetypes.QueueGroupStore
-	logger types.DebugLogger
 
 	// Interval at which to poll for the group status. We poll periodically
 	// to see if the queue group is complete.
@@ -23,15 +23,13 @@ type QueueGroupProvider struct {
 }
 
 type QueueGroupProviderConfig struct {
-	Store       dbqueuetypes.QueueGroupStore
-	DebugLogger types.DebugLogger
+	Store dbqueuetypes.QueueGroupStore
 }
 
 func NewQueueGroupProvider(cfg QueueGroupProviderConfig) *QueueGroupProvider {
 	return &QueueGroupProvider{
 		cstore:       cfg.Store,
 		pollInterval: 2 * time.Second,
-		logger:       cfg.DebugLogger,
 	}
 }
 
@@ -72,7 +70,7 @@ func (p *QueueGroupProvider) poll(job groups.GroupQueueJob) (done chan bool, err
 		for {
 			isDone, cancelled, err := p.cstore.QueueGroupComplete(job.GroupId())
 			if utils.IsSqliteLockError(err) {
-				p.logger.Debugf("Queue Group Poll() lock error: %s. Waiting to retry.", err)
+				slog.Debug(fmt.Sprintf("Queue Group Poll() lock error: %s. Waiting to retry.", err))
 			} else if err != nil {
 				errCh <- err
 				return

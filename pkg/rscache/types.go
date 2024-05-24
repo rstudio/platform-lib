@@ -8,8 +8,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log/slog"
 	"time"
 )
+
+const LevelTrace = slog.Level(-8)
 
 type ResolverSpec struct {
 	Priority      uint64

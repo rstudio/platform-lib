@@ -15,13 +15,11 @@ var _ = check.Suite(&ListenerFactorySuite{})
 
 func (s *ListenerFactorySuite) TestNewListener(c *check.C) {
 	pool := &pgxpool.Pool{}
-	lgr := &listener.TestLogger{}
 	ipRep := &listener.TestIPReporter{}
 
-	l2 := NewListenerFactory(ListenerFactoryArgs{Pool: pool, DebugLogger: lgr, IpReporter: ipRep})
+	l2 := NewListenerFactory(ListenerFactoryArgs{Pool: pool, IpReporter: ipRep})
 	c.Check(l2, check.DeepEquals, &ListenerFactory{
-		pool:        pool,
-		debugLogger: lgr,
-		ipReporter:  ipRep,
+		pool:       pool,
+		ipReporter: ipRep,
 	})
 }

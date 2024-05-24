@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/check.v1"
+
 	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
 	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/types"
-	"gopkg.in/check.v1"
 )
 
 type QueueGroupRunnerSuite struct{}
@@ -196,20 +196,13 @@ func (q *fakeGroup) CancelWork() GroupQueueJob {
 	}
 }
 
-type fakeLogger struct{}
-
-func (*fakeLogger) Debugf(message string, args ...interface{}) {}
-
-func (*fakeLogger) Enabled() bool { return false }
-
-func runnerCfg(q queue.Queue, provider GroupQueueProvider, matcher TypeMatcher, endRunnerFactory GroupQueueEndRunnerFactory, recurser *queue.OptionalRecurser, logger types.DebugLogger) QueueGroupRunnerConfig {
+func runnerCfg(q queue.Queue, provider GroupQueueProvider, matcher TypeMatcher, endRunnerFactory GroupQueueEndRunnerFactory, recurser *queue.OptionalRecurser) QueueGroupRunnerConfig {
 	return QueueGroupRunnerConfig{
 		Queue:            q,
 		Provider:         provider,
 		TypeMatcher:      matcher,
 		EndRunnerFactory: endRunnerFactory,
 		Recurser:         recurser,
-		DebugLogger:      logger,
 	}
 }
 
@@ -219,8 +212,7 @@ func (s *QueueGroupRunnerSuite) TestNewRunner(c *check.C) {
 	factory := &fakeFactory{}
 	matcher := NewMatcher("type")
 	rec := queue.NewOptionalRecurser(queue.OptionalRecurserConfig{FatalRecurseCheck: false})
-	lgr := &fakeLogger{}
-	r := NewQueueGroupRunner(runnerCfg(q, provider, matcher, factory, rec, lgr))
+	r := NewQueueGroupRunner(runnerCfg(q, provider, matcher, factory, rec))
 	c.Check(r, check.DeepEquals, &QueueGroupRunner{
 		queue:            q,
 		provider:         provider,
@@ -228,7 +220,6 @@ func (s *QueueGroupRunnerSuite) TestNewRunner(c *check.C) {
 		endRunnerFactory: factory,
 		recurser:         rec,
 		wg:               &sync.WaitGroup{},
-		logger:           lgr,
 	})
 }
 
@@ -239,8 +230,7 @@ func (s *QueueGroupRunnerSuite) TestUnmarshal(c *check.C) {
 	matcher := NewMatcher("type")
 	matcher.Register(3, &fakeGroup{})
 	rec := queue.NewOptionalRecurser(queue.OptionalRecurserConfig{FatalRecurseCheck: false})
-	lgr := &fakeLogger{}
-	r := NewQueueGroupRunner(runnerCfg(q, provider, matcher, factory, rec, lgr))
+	r := NewQueueGroupRunner(runnerCfg(q, provider, matcher, factory, rec))
 
 	// Ok case
 	work := []byte(`{"type":3,"value":"a test"}`)
@@ -283,7 +273,7 @@ func (s *QueueGroupRunnerSuite) TestRun(c *check.C) {
 	factory := &fakeFactory{}
 	matcher := NewMatcher("type")
 	matcher.Register(3, &fakeGroup{})
-	r := NewQueueGroupRunner(runnerCfg(q, p, matcher, factory, &queue.OptionalRecurser{}, &fakeLogger{}))
+	r := NewQueueGroupRunner(runnerCfg(q, p, matcher, factory, &queue.OptionalRecurser{}))
 
 	// Unmarshal errs
 	work := queue.RecursableWork{
@@ -327,7 +317,7 @@ func (s *QueueGroupRunnerSuite) TestRunInternal(c *check.C) {
 	p := &fakeRunnerProvider{}
 	factory := &fakeFactory{}
 	matcher := NewMatcher("type")
-	r := NewQueueGroupRunner(runnerCfg(q, p, matcher, factory, &queue.OptionalRecurser{}, &fakeLogger{}))
+	r := NewQueueGroupRunner(runnerCfg(q, p, matcher, factory, &queue.OptionalRecurser{}))
 
 	// Error on provider ready check
 	job := &fakeGroup{FlagVal: QueueGroupFlagStart}

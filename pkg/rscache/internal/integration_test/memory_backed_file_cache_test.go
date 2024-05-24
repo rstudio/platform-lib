@@ -28,15 +28,13 @@ type MemoryBackedFileCacheSuite struct {
 
 var _ = check.Suite(&MemoryBackedFileCacheSuite{})
 
-func fileCfg(q rscache.Queue, dup rscache.DuplicateMatcher, server rsstorage.StorageServer, recurser rscache.OptionalRecurser, timeout time.Duration, debugLogger, nfsTimeLogger rscache.DebugLogger) rscache.FileCacheConfig {
+func fileCfg(q rscache.Queue, dup rscache.DuplicateMatcher, server rsstorage.StorageServer, recurser rscache.OptionalRecurser, timeout time.Duration) rscache.FileCacheConfig {
 	return rscache.FileCacheConfig{
 		Queue:            q,
 		DuplicateMatcher: dup,
 		StorageServer:    server,
 		Recurser:         recurser,
 		Timeout:          timeout,
-		DebugLogger:      debugLogger,
-		NfsTimeLogger:    nfsTimeLogger,
 	}
 }
 
@@ -63,14 +61,6 @@ type FakeReadCloser struct {
 
 func (*FakeReadCloser) Close() error {
 	return nil
-}
-
-type fakeDebugLogger struct{}
-
-func (*fakeDebugLogger) Debugf(msg string, args ...interface{}) {}
-
-func (*fakeDebugLogger) Enabled() bool {
-	return true
 }
 
 var errDup = errors.New("dup")
@@ -124,12 +114,11 @@ func (s *MemoryBackedFileCacheSuite) TearDownSuite(c *check.C) {
 	c.Assert(s.tempdirhelper.TearDown(), check.IsNil)
 }
 
-func memCfg(fc rscache.FileCache, mc rscache.MemoryCache, maxMemoryPerObject int64, lgr rscache.DebugLogger) rscache.MemoryBackedFileCacheConfig {
+func memCfg(fc rscache.FileCache, mc rscache.MemoryCache, maxMemoryPerObject int64) rscache.MemoryBackedFileCacheConfig {
 	return rscache.MemoryBackedFileCacheConfig{
 		FileCache:          fc,
 		MemoryCache:        mc,
 		MaxMemoryPerObject: maxMemoryPerObject,
-		DebugLogger:        lgr,
 	}
 }
 
@@ -152,18 +141,16 @@ func (s *MemoryBackedFileCacheSuite) TestGetNotInMemoryPutsInMemory(c *check.C) 
 	fakeQueue := &fakeQueue{
 		PollErrs: errs,
 	}
-	d := &fakeDebugLogger{}
 	dup := &fakeDupMatcher{}
 	server := file.NewStorageServer(file.StorageServerArgs{
 		Dir:          s.tempdirhelper.Dir(),
 		ChunkSize:    4096,
 		Class:        "test",
-		DebugLogger:  d,
 		CacheTimeout: time.Minute,
 		WalkTimeout:  time.Minute,
 	})
-	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30, d, d))
-	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 10000000, d))
+	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30))
+	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 10000000))
 
 	close(errs)
 
@@ -228,18 +215,16 @@ func (s *MemoryBackedFileCacheSuite) TestGetNotInMemory(c *check.C) {
 	fakeQueue := &fakeQueue{
 		PollErrs: errs,
 	}
-	d := &fakeDebugLogger{}
 	dup := &fakeDupMatcher{}
 	server := file.NewStorageServer(file.StorageServerArgs{
 		Dir:          s.tempdirhelper.Dir(),
 		ChunkSize:    4096,
 		Class:        "test",
-		DebugLogger:  d,
 		CacheTimeout: time.Minute,
 		WalkTimeout:  time.Minute,
 	})
-	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30, d, d))
-	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 10000000, d))
+	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30))
+	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 10000000))
 
 	close(errs)
 
@@ -280,20 +265,18 @@ func (s *MemoryBackedFileCacheSuite) TestGetNotInMemoryGzipped(c *check.C) {
 	fakeQueue := &fakeQueue{
 		PollErrs: errs,
 	}
-	d := &fakeDebugLogger{}
 	dup := &fakeDupMatcher{}
 	server := file.NewStorageServer(file.StorageServerArgs{
 		Dir:          s.tempdirhelper.Dir(),
 		ChunkSize:    4096,
 		Class:        "test",
-		DebugLogger:  d,
 		CacheTimeout: time.Minute,
 		WalkTimeout:  time.Minute,
 	})
 	m := rscache.NewFakeMemoryCache(true)
 	err = m.Put("one", &rscache.CacheReturn{Value: &testItem{"one"}})
-	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30, d, d))
-	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 10000000, d))
+	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30))
+	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 10000000))
 
 	close(errs)
 
@@ -333,18 +316,16 @@ func (s *MemoryBackedFileCacheSuite) TestObjectGetNotInMemoryPutsInMemory(c *che
 	fakeQueue := &fakeQueue{
 		PollErrs: errs,
 	}
-	d := &fakeDebugLogger{}
 	dup := &fakeDupMatcher{}
 	server := file.NewStorageServer(file.StorageServerArgs{
 		Dir:          s.tempdirhelper.Dir(),
 		ChunkSize:    4096,
 		Class:        "test",
-		DebugLogger:  d,
 		CacheTimeout: time.Minute,
 		WalkTimeout:  time.Minute,
 	})
-	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30, d, d))
-	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 10000000, d))
+	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30))
+	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 10000000))
 
 	close(errs)
 
@@ -389,18 +370,16 @@ func (s *MemoryBackedFileCacheSuite) TestGetObjectTooLargeForMemory(c *check.C) 
 	fakeQueue := &fakeQueue{
 		PollErrs: errs,
 	}
-	d := &fakeDebugLogger{}
 	dup := &fakeDupMatcher{}
 	server := file.NewStorageServer(file.StorageServerArgs{
 		Dir:          s.tempdirhelper.Dir(),
 		ChunkSize:    4096,
 		Class:        "test",
-		DebugLogger:  d,
 		CacheTimeout: time.Minute,
 		WalkTimeout:  time.Minute,
 	})
-	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30, d, d))
-	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 1, d))
+	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30))
+	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 1))
 
 	close(errs)
 
@@ -461,18 +440,16 @@ func (s *MemoryBackedFileCacheSuite) TestGetObjectStoringInMemoryFailsDoesNotErr
 	fakeQueue := &fakeQueue{
 		PollErrs: errs,
 	}
-	d := &fakeDebugLogger{}
 	server := file.NewStorageServer(file.StorageServerArgs{
 		Dir:          s.tempdirhelper.Dir(),
 		ChunkSize:    4096,
 		Class:        "test",
-		DebugLogger:  d,
 		CacheTimeout: time.Minute,
 		WalkTimeout:  time.Minute,
 	})
 	dup := &fakeDupMatcher{}
-	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30, d, d))
-	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 10000000, d))
+	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30))
+	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 10000000))
 
 	close(errs)
 
@@ -499,18 +476,16 @@ func (s *MemoryBackedFileCacheSuite) TestGetStoringInMemoryFailsDoesNotError(c *
 	fakeQueue := &fakeQueue{
 		PollErrs: errs,
 	}
-	d := &fakeDebugLogger{}
 	dup := &fakeDupMatcher{}
 	server := file.NewStorageServer(file.StorageServerArgs{
 		Dir:          s.tempdirhelper.Dir(),
 		ChunkSize:    4096,
 		Class:        "test",
-		DebugLogger:  d,
 		CacheTimeout: time.Minute,
 		WalkTimeout:  time.Minute,
 	})
-	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30, d, d))
-	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 10000000, d))
+	fc := rscache.NewFileCache(fileCfg(fakeQueue, dup, server, &fakeRecurser{}, time.Second*30))
+	st := rscache.NewMemoryBackedFileCache(memCfg(fc, m, 10000000))
 
 	close(errs)
 

@@ -6,25 +6,23 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/rstudio/platform-lib/examples/cmd/markdownRenderer/runners"
 	"github.com/rstudio/platform-lib/pkg/rscache"
-	"github.com/rstudio/platform-lib/pkg/rslog"
 )
 
 type HttpHandler struct {
-	debug   rslog.DebugLogger
 	router  *mux.Router
 	address string
 	cache   rscache.FileCache
 }
 
-func NewHttpHandler(debug rslog.DebugLogger, address string, router *mux.Router, cache rscache.FileCache) *HttpHandler {
+func NewHttpHandler(address string, router *mux.Router, cache rscache.FileCache) *HttpHandler {
 	return &HttpHandler{
-		debug:   debug,
 		router:  router,
 		address: address,
 		cache:   cache,
@@ -53,7 +51,7 @@ func (h *HttpHandler) Start(ctx context.Context) {
 	// Create a context with a 30-second timeout, and attempt to shut down HTTP services.
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
-	h.debug.Debugf("Shutting down HTTP services.")
+	slog.Debug("Shutting down HTTP services.")
 	srv.Shutdown(shutdownCtx)
 }
 

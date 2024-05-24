@@ -51,21 +51,18 @@ func (s *PgCacheServerSuite) SetUpTest(c *check.C) {
 
 func (s *PgCacheServerSuite) TestNew(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{}
-	debugLogger := &servertest.TestLogger{}
 	server := NewStorageServer(StorageServerArgs{
-		ChunkSize:   100 * 1024,
-		Waiter:      wn,
-		Notifier:    wn,
-		Class:       "test",
-		DebugLogger: debugLogger,
-		Pool:        s.pool,
+		ChunkSize: 100 * 1024,
+		Waiter:    wn,
+		Notifier:  wn,
+		Class:     "test",
+		Pool:      s.pool,
 	})
 	c.Check(server.(*StorageServer).chunker, check.NotNil)
 	server.(*StorageServer).chunker = nil
 	c.Check(server, check.DeepEquals, &StorageServer{
-		pool:        s.pool,
-		class:       "test",
-		debugLogger: debugLogger,
+		pool:  s.pool,
+		class: "test",
 	})
 
 	c.Assert(server.Dir(), check.Equals, "pg:test")
@@ -73,10 +70,8 @@ func (s *PgCacheServerSuite) TestNew(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestCheckOk(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		pool:        s.pool,
-		debugLogger: debugLogger,
+		pool: s.pool,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		_, err := w.Write([]byte("this is a test"))
@@ -96,10 +91,8 @@ func (s *PgCacheServerSuite) TestCheckOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestCheckChunkedOk(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		pool:        s.pool,
-		debugLogger: debugLogger,
+		pool: s.pool,
 	}
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
@@ -129,10 +122,8 @@ func (s *PgCacheServerSuite) TestCheckChunkedOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestGetOk(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		pool:        s.pool,
-		debugLogger: debugLogger,
+		pool: s.pool,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		_, err := w.Write([]byte("this is a test"))
@@ -161,10 +152,8 @@ func (s *PgCacheServerSuite) TestGetOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestGetChunkedOk(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		pool:        s.pool,
-		debugLogger: debugLogger,
+		pool: s.pool,
 	}
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
@@ -211,10 +200,8 @@ func (s *PgCacheServerSuite) TestGetChunkedOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestPutResolveErr(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		pool:        s.pool,
-		debugLogger: debugLogger,
+		pool: s.pool,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", errors.New("resolver error")
@@ -224,10 +211,8 @@ func (s *PgCacheServerSuite) TestPutResolveErr(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestPutResolveErrPreserved(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		pool:        s.pool,
-		debugLogger: debugLogger,
+		pool: s.pool,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", errors.New("resolver error")
@@ -237,10 +222,8 @@ func (s *PgCacheServerSuite) TestPutResolveErrPreserved(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestPutOk(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		pool:        s.pool,
-		debugLogger: debugLogger,
+		pool: s.pool,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		_, err := w.Write([]byte("this is a test"))
@@ -255,10 +238,8 @@ func (s *PgCacheServerSuite) TestPutOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestPutDeferredAddressOk(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		pool:        s.pool,
-		debugLogger: debugLogger,
+		pool: s.pool,
 	}
 	resolve := func(w io.Writer) (string, string, error) {
 		_, err := w.Write([]byte("this is a test"))
@@ -281,10 +262,8 @@ func (s *PgCacheServerSuite) TestRemoveNonExisting(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestRemoveOk(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		pool:        s.pool,
-		debugLogger: debugLogger,
+		pool: s.pool,
 	}
 
 	resolve := func(w io.Writer) (string, string, error) {
@@ -301,10 +280,8 @@ func (s *PgCacheServerSuite) TestRemoveOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestRemoveChunkedOk(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		pool:        s.pool,
-		debugLogger: debugLogger,
+		pool: s.pool,
 	}
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
@@ -353,11 +330,9 @@ func put(server *StorageServer, dir, address string, c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestEnumerate(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		pool:        s.pool,
-		class:       "cache",
-		debugLogger: debugLogger,
+		pool:  s.pool,
+		class: "cache",
 	}
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
@@ -432,11 +407,9 @@ func (s *PgCacheServerSuite) TestEnumerate(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestCopy(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	sourceServer := &StorageServer{
-		pool:        s.pool,
-		class:       "packages",
-		debugLogger: debugLogger,
+		pool:  s.pool,
+		class: "packages",
 	}
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
@@ -448,9 +421,8 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 		Notifier:  wn,
 	}
 	destServer := &StorageServer{
-		pool:        s.pool,
-		class:       "cran",
-		debugLogger: debugLogger,
+		pool:  s.pool,
+		class: "cran",
 	}
 	destServer.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,
@@ -583,11 +555,9 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestMove(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	sourceServer := &StorageServer{
-		pool:        s.pool,
-		class:       "packages",
-		debugLogger: debugLogger,
+		pool:  s.pool,
+		class: "packages",
 	}
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
@@ -599,9 +569,8 @@ func (s *PgCacheServerSuite) TestMove(c *check.C) {
 		Notifier:  wn,
 	}
 	destServer := &StorageServer{
-		pool:        s.pool,
-		class:       "cran",
-		debugLogger: debugLogger,
+		pool:  s.pool,
+		class: "cran",
 	}
 	destServer.chunker = &internal.DefaultChunkUtils{
 		ChunkSize: 352,
@@ -708,10 +677,8 @@ func (s *PgCacheServerSuite) TestMove(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestLocate(c *check.C) {
-	debugLogger := &servertest.TestLogger{}
 	server := &StorageServer{
-		class:       "storage-class",
-		debugLogger: debugLogger,
+		class: "storage-class",
 	}
 	c.Check(server.Locate("dir", "address"), check.Equals, "storage-class/dir/address")
 	c.Check(server.Locate("", "address"), check.Equals, "storage-class/address")
@@ -719,13 +686,11 @@ func (s *PgCacheServerSuite) TestLocate(c *check.C) {
 
 func (s *PgCacheServerSuite) TestUsage(c *check.C) {
 	wn := &servertest.DummyWaiterNotifier{}
-	debugLogger := &servertest.TestLogger{}
 	server := NewStorageServer(StorageServerArgs{
-		ChunkSize:   100 * 1024,
-		Waiter:      wn,
-		Notifier:    wn,
-		Class:       "testclass",
-		DebugLogger: debugLogger,
+		ChunkSize: 100 * 1024,
+		Waiter:    wn,
+		Notifier:  wn,
+		Class:     "testclass",
 	})
 
 	c.Assert(server.Dir(), check.Equals, "pg:testclass")

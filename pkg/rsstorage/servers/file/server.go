@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -39,7 +40,6 @@ type StorageServer struct {
 	chunker      rsstorage.ChunkUtils
 	cacheTimeout time.Duration
 	walkTimeout  time.Duration
-	debugLogger  rsstorage.DebugLogger
 }
 
 type StorageServerArgs struct {
@@ -48,7 +48,6 @@ type StorageServerArgs struct {
 	Waiter       rsstorage.ChunkWaiter
 	Notifier     rsstorage.ChunkNotifier
 	Class        string
-	DebugLogger  rsstorage.DebugLogger
 	CacheTimeout time.Duration
 	WalkTimeout  time.Duration
 }
@@ -58,14 +57,12 @@ func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
 		dir:          args.Dir,
 		fileIO:       &defaultFileIO{},
 		class:        args.Class,
-		debugLogger:  args.DebugLogger,
 		cacheTimeout: args.CacheTimeout,
 		walkTimeout:  args.WalkTimeout,
 	}
 	return &StorageServer{
 		dir:          args.Dir,
 		fileIO:       &defaultFileIO{},
-		debugLogger:  args.DebugLogger,
 		cacheTimeout: args.CacheTimeout,
 		walkTimeout:  args.WalkTimeout,
 		chunker: &internal.DefaultChunkUtils{
@@ -135,7 +132,7 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 
 	timeInfo := time.Now()
 	elapsed := timeInfo.Sub(start)
-	s.debugLogger.Debugf("Calculated disk info for %s in %s.\n", s.dir, elapsed)
+	slog.Debug(fmt.Sprintf("Calculated disk info for %s in %s.\n", s.dir, elapsed))
 
 	actual, err := diskUsage(s.dir, s.cacheTimeout, s.walkTimeout)
 	if err != nil {
@@ -144,7 +141,7 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 
 	timeUsage := time.Now()
 	elapsed = timeUsage.Sub(timeInfo)
-	s.debugLogger.Debugf("Calculated disk usage for %s in %s.\n", s.dir, elapsed)
+	slog.Debug(fmt.Sprintf("Calculated disk usage for %s in %s.\n", s.dir, elapsed))
 
 	usage := types.Usage{
 		SizeBytes:       datasize.ByteSize(all),
@@ -317,7 +314,7 @@ func (s *StorageServer) write(resolve types.Resolver) (dir, address, staging str
 	defer stagingFile.Close()
 	staging = stagingFile.Name()
 
-	s.debugLogger.Debugf("Opened new staging file for storage: %s.\n", stagingFile.Name())
+	slog.Debug(fmt.Sprintf("Opened new staging file for storage: %s.\n", stagingFile.Name()))
 
 	// Resolve/get the data we need
 	dir, address, err = resolve(stagingFile)
@@ -333,7 +330,7 @@ func (s *StorageServer) cleanup(staging string) {
 	removeError := s.fileIO.Remove(staging)
 	if removeError != nil && !os.IsNotExist(removeError) {
 		// Warn and discard errors cleaning up
-		s.debugLogger.Debugf("file.StorageServer error while cleaning up staged data: %s", removeError)
+		slog.Debug(fmt.Sprintf("file.StorageServer error while cleaning up staged data: %s", removeError))
 	}
 }
 
@@ -442,10 +439,10 @@ func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error
 func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer) error {
 	source := s.Locate(dir, address)
 	dest := server.Locate(dir, address)
-	s.debugLogger.Debugf("Renaming %s to %s", source, dest)
+	slog.Debug(fmt.Sprintf("Renaming %s to %s", source, dest))
 	destDir := filepath.Dir(dest)
 	if destDir != dest {
-		s.debugLogger.Debugf("Ensuring directory %s exists", destDir)
+		slog.Debug(fmt.Sprintf("Ensuring directory %s exists", destDir))
 		err := os.MkdirAll(destDir, 0700)
 		if err != nil {
 			return err
@@ -453,7 +450,7 @@ func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer
 	}
 	err := os.Rename(source, dest)
 	if err != nil {
-		s.debugLogger.Debugf("Error moving with os.Rename: %s", err)
+		slog.Debug(fmt.Sprintf("Error moving with os.Rename: %s", err))
 		return err
 	}
 

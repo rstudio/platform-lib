@@ -15,8 +15,8 @@ import (
 )
 
 // GetStorageServer wraps getStorageServerAttempt, fatally erring if something goes wrong
-func GetStorageServer(cfg *rsstorage.Config, class string, destination string, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, pool *pgxpool.Pool, cstore rsstorage.CacheStore, debugLogger rsstorage.DebugLogger) (rsstorage.StorageServer, error) {
-	server, err := getStorageServerAttempt(cfg, class, destination, waiter, notifier, pool, debugLogger)
+func GetStorageServer(cfg *rsstorage.Config, class string, destination string, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, pool *pgxpool.Pool, cstore rsstorage.CacheStore) (rsstorage.StorageServer, error) {
+	server, err := getStorageServerAttempt(cfg, class, destination, waiter, notifier, pool)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +29,7 @@ func GetStorageServer(cfg *rsstorage.Config, class string, destination string, w
 }
 
 // getStorageServerAttempt creates storage services generically
-func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination string, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, pool *pgxpool.Pool, debugLogger rsstorage.DebugLogger) (rsstorage.StorageServer, error) {
+func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination string, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, pool *pgxpool.Pool) (rsstorage.StorageServer, error) {
 	var server rsstorage.StorageServer
 	switch destination {
 	case "file":
@@ -43,7 +43,6 @@ func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination st
 			Waiter:       waiter,
 			Notifier:     notifier,
 			Class:        class,
-			DebugLogger:  debugLogger,
 			CacheTimeout: cfg.CacheTimeout,
 			WalkTimeout:  30 * time.Second,
 		})
@@ -76,12 +75,11 @@ func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination st
 		}
 	case "postgres":
 		server = postgres.NewStorageServer(postgres.StorageServerArgs{
-			ChunkSize:   cfg.ChunkSizeBytes,
-			Waiter:      waiter,
-			Notifier:    notifier,
-			Class:       class,
-			DebugLogger: debugLogger,
-			Pool:        pool,
+			ChunkSize: cfg.ChunkSizeBytes,
+			Waiter:    waiter,
+			Notifier:  notifier,
+			Class:     class,
+			Pool:      pool,
 		})
 	default:
 		return nil, fmt.Errorf("Invalid destination '%s' for '%s'", destination, class)

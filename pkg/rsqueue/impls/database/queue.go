@@ -4,6 +4,8 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/rstudio/platform-lib/pkg/rsnotify/broadcaster"
@@ -19,8 +21,6 @@ import (
 )
 
 type DatabaseQueue struct {
-	debugLogger dbqueuetypes.DebugLogger
-
 	carrierFactory metrics.CarrierFactory
 
 	// The name of the queue. Each agent polls one named queue
@@ -56,7 +56,6 @@ type DatabaseQueueConfig struct {
 	NotifyTypeWorkComplete uint8
 	NotifyTypeChunk        uint8
 	ChunkMatcher           dbqueuetypes.DatabaseQueueChunkMatcher
-	DebugLogger            dbqueuetypes.DebugLogger
 	CarrierFactory         metrics.CarrierFactory
 	QueueStore             dbqueuetypes.QueueStore
 	QueueMsgsChan          <-chan listener.Notification
@@ -69,9 +68,8 @@ type DatabaseQueueConfig struct {
 
 func NewDatabaseQueue(cfg DatabaseQueueConfig) (queue.Queue, error) {
 	rq := &DatabaseQueue{
-		name:        cfg.QueueName,
-		debugLogger: cfg.DebugLogger,
-		store:       cfg.QueueStore,
+		name:  cfg.QueueName,
+		store: cfg.QueueStore,
 
 		carrierFactory: cfg.CarrierFactory,
 
@@ -262,7 +260,7 @@ func (q *DatabaseQueue) PollAddress(address string) <-chan error {
 					return
 				}
 			} else if isDone {
-				q.debugLogger.Debugf("Queue work with address %s completed", address)
+				slog.Debug(fmt.Sprintf("Queue work with address %s completed", address))
 				close(errCh)
 				if ticked && q.metrics != nil {
 					// We detected this work was done after a ticker tick instead of in response
@@ -291,10 +289,10 @@ func (q *DatabaseQueue) PollAddress(address string) <-chan error {
 				for {
 					select {
 					case <-completedMsgs:
-						q.debugLogger.Debugf("Queue was notified that work with address %s completed", address)
+						slog.Debug(fmt.Sprintf("Queue was notified that work with address %s completed", address))
 						return false, false
 					case <-chunkMsgs:
-						q.debugLogger.Debugf("Queue was notified that chunk with address %s is ready", address)
+						slog.Debug(fmt.Sprintf("Queue was notified that chunk with address %s is ready", address))
 						return true, false
 					case <-tick.C:
 						return false, true
@@ -341,16 +339,16 @@ func (q *DatabaseQueue) Push(priority uint64, groupId int64, work queue.Work) er
 func (q *DatabaseQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
 
 	start := time.Now()
-	q.debugLogger.Debugf("Queue Get() started")
+	slog.Debug(fmt.Sprintf("Queue Get() started"))
 
 	// First, try to get a job to avoid waiting for a tick
 	// if jobs are waiting
 	queueWork, err := q.store.QueuePop(q.name, maxPriority, types.Enabled())
 	defer func(queueWork *queue.QueueWork) {
 		if queueWork != nil {
-			q.debugLogger.Debugf("Queue Get() for work type %d at address %s returned in %d ms", queueWork.WorkType, queueWork.Address, time.Now().Sub(start).Nanoseconds()/1000000)
+			slog.Debug(fmt.Sprintf("Queue Get() for work type %d at address %s returned in %d ms", queueWork.WorkType, queueWork.Address, time.Now().Sub(start).Nanoseconds()/1000000))
 		} else {
-			q.debugLogger.Debugf("Queue Get() returned in %d ms", time.Now().Sub(start).Nanoseconds()/1000000)
+			slog.Debug(fmt.Sprintf("Queue Get() returned in %d ms", time.Now().Sub(start).Nanoseconds()/1000000))
 		}
 	}(queueWork)
 	if err != sql.ErrNoRows {
@@ -372,11 +370,11 @@ func (q *DatabaseQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, typ
 				return agent.ErrAgentStopped
 			case priority := <-maxPriorityChan:
 				if priority != maxPriority {
-					q.debugLogger.Debugf("Priority changed via channel from %d to %d.\n", maxPriority, priority)
+					slog.Debug(fmt.Sprintf("Priority changed via channel from %d to %d.\n", maxPriority, priority))
 					maxPriority = priority
 				}
 			case n := <-qAvail:
-				q.debugLogger.Debugf("Notification received: queue ready for processing: %s.", n.Guid())
+				slog.Debug(fmt.Sprintf("Notification received: queue ready for processing: %s.", n.Guid()))
 			}
 			return nil
 		}()

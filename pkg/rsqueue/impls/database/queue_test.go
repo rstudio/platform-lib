@@ -143,10 +143,6 @@ func (*FakeWork) Type() uint64 {
 	return 0
 }
 
-type fakeLogger struct{}
-
-func (*fakeLogger) Debugf(message string, args ...interface{}) {}
-
 type fakeChunkNotification struct {
 	address string
 }
@@ -194,7 +190,6 @@ func (f *fakeWrapper) Finish(data interface{}) {
 func (s *QueueSuite) TestNewQueue(c *check.C) {
 	msgs := make(chan listener.Notification)
 	stop := make(chan bool)
-	debugLogger := &fakeLogger{}
 	cf := &fakeCarrierFactory{}
 
 	q, err := NewDatabaseQueue(DatabaseQueueConfig{
@@ -203,7 +198,6 @@ func (s *QueueSuite) TestNewQueue(c *check.C) {
 		NotifyTypeWorkComplete: 2,
 		NotifyTypeChunk:        3,
 		ChunkMatcher:           &fakeMatcher{},
-		DebugLogger:            debugLogger,
 		CarrierFactory:         cf,
 		QueueStore:             s.store,
 		QueueMsgsChan:          msgs,
@@ -221,9 +215,8 @@ func (s *QueueSuite) TestNewQueue(c *check.C) {
 
 func (s *QueueSuite) TestRecord(c *check.C) {
 	q := &DatabaseQueue{
-		store:       s.store,
-		debugLogger: &fakeLogger{},
-		wrapper:     &fakeWrapper{},
+		store:   s.store,
+		wrapper: &fakeWrapper{},
 	}
 	err := q.RecordFailure("abc", errors.New("test"))
 	c.Assert(err, check.IsNil)
@@ -234,9 +227,8 @@ func (s *QueueSuite) TestRecord(c *check.C) {
 func (s *QueueSuite) TestRecordErrs(c *check.C) {
 	s.store.err = errors.New("kaboom!")
 	q := &DatabaseQueue{
-		store:       s.store,
-		debugLogger: &fakeLogger{},
-		wrapper:     &fakeWrapper{},
+		store:   s.store,
+		wrapper: &fakeWrapper{},
 	}
 	err := q.RecordFailure("abc", errors.New("test"))
 	c.Assert(err, check.NotNil)
@@ -246,7 +238,6 @@ func (s *QueueSuite) TestPush(c *check.C) {
 	q := &DatabaseQueue{
 		store:          s.store,
 		carrierFactory: &fakeCarrierFactory{},
-		debugLogger:    &fakeLogger{},
 		wrapper:        &fakeWrapper{},
 	}
 	err := q.Push(9, 0, &FakeWork{})
@@ -269,9 +260,8 @@ func (s *QueueSuite) TestPeek(c *check.C) {
 		peekErr: errors.New("peek error"),
 	}
 	q := &DatabaseQueue{
-		store:       cstore,
-		debugLogger: &fakeLogger{},
-		wrapper:     &fakeWrapper{},
+		store:   cstore,
+		wrapper: &fakeWrapper{},
 	}
 
 	// Error in store
@@ -310,9 +300,8 @@ func (*FakeJob) Type() uint64 {
 
 func (s *QueueSuite) TestGetAvailable(c *check.C) {
 	q := &DatabaseQueue{
-		store:       s.store,
-		debugLogger: &fakeLogger{},
-		wrapper:     &fakeWrapper{},
+		store:   s.store,
+		wrapper: &fakeWrapper{},
 	}
 	enabled := &queue.DefaultQueueSupportedTypes{}
 	enabled.SetEnabled(3, true)
@@ -327,7 +316,6 @@ func (s *QueueSuite) TestGetAvailable(c *check.C) {
 func (s *QueueSuite) TestGetWait(c *check.C) {
 	q := &DatabaseQueue{
 		store:       s.store,
-		debugLogger: &fakeLogger{},
 		subscribe:   make(chan broadcaster.Subscription),
 		unsubscribe: make(chan (<-chan listener.Notification)),
 		wrapper:     &fakeWrapper{},
@@ -426,9 +414,8 @@ func (s *QueueSuite) TestPushErrs(c *check.C) {
 func (s *QueueSuite) TestGetErrs(c *check.C) {
 	s.store.err = errors.New("Kaboom!")
 	q := &DatabaseQueue{
-		debugLogger: &fakeLogger{},
-		store:       s.store,
-		wrapper:     &fakeWrapper{},
+		store:   s.store,
+		wrapper: &fakeWrapper{},
 	}
 	enabled := &queue.DefaultQueueSupportedTypes{}
 	stop := make(chan bool)
@@ -463,7 +450,6 @@ func (s *QueueSuite) TestPollErr(c *check.C) {
 	s.store.pollErr = errors.New("horrible error")
 	q := &DatabaseQueue{
 		store:               s.store,
-		debugLogger:         &fakeLogger{},
 		addressPollInterval: time.Millisecond * 5,
 		subscribe:           make(chan broadcaster.Subscription),
 		unsubscribe:         make(chan (<-chan listener.Notification)),
@@ -496,7 +482,6 @@ func (s *QueueSuite) TestPollLockErr(c *check.C) {
 	s.store.pollErr = errors.New("database is locked")
 	q := &DatabaseQueue{
 		store:               s.store,
-		debugLogger:         &fakeLogger{},
 		addressPollInterval: time.Millisecond * 5,
 		subscribe:           make(chan broadcaster.Subscription),
 		unsubscribe:         make(chan (<-chan listener.Notification)),
@@ -534,7 +519,6 @@ func (s *QueueSuite) TestPollTickOk(c *check.C) {
 	fm := &fakeMetrics{}
 	q := &DatabaseQueue{
 		store:               s.store,
-		debugLogger:         &fakeLogger{},
 		addressPollInterval: time.Millisecond * 50,
 		subscribe:           make(chan broadcaster.Subscription),
 		unsubscribe:         make(chan (<-chan listener.Notification)),
@@ -571,7 +555,6 @@ func (s *QueueSuite) TestPollNotifyOk(c *check.C) {
 	cstore := &QueueTestStore{}
 	q := &DatabaseQueue{
 		store:               cstore,
-		debugLogger:         &fakeLogger{},
 		addressPollInterval: time.Hour,
 		subscribe:           make(chan broadcaster.Subscription),
 		unsubscribe:         make(chan (<-chan listener.Notification)),
@@ -619,7 +602,6 @@ func (s *QueueSuite) TestPollNotifyChunkOk(c *check.C) {
 	cstore := &QueueTestStore{}
 	q := &DatabaseQueue{
 		store:               cstore,
-		debugLogger:         &fakeLogger{},
 		addressPollInterval: time.Hour,
 		subscribe:           make(chan broadcaster.Subscription),
 		unsubscribe:         make(chan (<-chan listener.Notification)),
@@ -659,9 +641,8 @@ func (s *QueueSuite) TestHasAddressError(c *check.C) {
 		hasAddressErr: errors.New("check address error"),
 	}
 	q := &DatabaseQueue{
-		store:       cstore,
-		debugLogger: &fakeLogger{},
-		wrapper:     &fakeWrapper{},
+		store:   cstore,
+		wrapper: &fakeWrapper{},
 	}
 	_, err := q.IsAddressInQueue("something")
 	c.Assert(err, check.ErrorMatches, "check address error")
@@ -672,9 +653,8 @@ func (s *QueueSuite) TestHasAddressOk(c *check.C) {
 		hasAddress: true,
 	}
 	q := &DatabaseQueue{
-		store:       cstore,
-		debugLogger: &fakeLogger{},
-		wrapper:     &fakeWrapper{},
+		store:   cstore,
+		wrapper: &fakeWrapper{},
 	}
 	has, err := q.IsAddressInQueue("something")
 	c.Assert(err, check.IsNil)

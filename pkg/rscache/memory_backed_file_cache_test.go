@@ -38,12 +38,11 @@ func (s *MemoryBackedFileCacheSuite) TearDownSuite(c *check.C) {
 	c.Assert(s.tempdirhelper.TearDown(), check.IsNil)
 }
 
-func memCfg(fc FileCache, mc MemoryCache, maxMemoryPerObject int64, lgr DebugLogger) MemoryBackedFileCacheConfig {
+func memCfg(fc FileCache, mc MemoryCache, maxMemoryPerObject int64) MemoryBackedFileCacheConfig {
 	return MemoryBackedFileCacheConfig{
 		FileCache:          fc,
 		MemoryCache:        mc,
 		MaxMemoryPerObject: maxMemoryPerObject,
-		DebugLogger:        lgr,
 	}
 }
 
@@ -197,9 +196,8 @@ func (s *MemoryBackedFileCacheSuite) TestCheckInMemory(c *check.C) {
 	}
 
 	m := NewFakeMemoryCache(true)
-	d := &fakeDebugLogger{}
-	fc := NewFileCache(fileCfg(nil, nil, server, &fakeRecurser{}, time.Second*30, d, d))
-	st := NewMemoryBackedFileCache(memCfg(fc, m, 10000000, d))
+	fc := NewFileCache(fileCfg(nil, nil, server, &fakeRecurser{}, time.Second*30))
+	st := NewMemoryBackedFileCache(memCfg(fc, m, 10000000))
 
 	spec := ResolverSpec{
 		CacheInMemory: true,

@@ -16,14 +16,6 @@ type TaskHandlerSuite struct {
 
 var _ = check.Suite(&TaskHandlerSuite{})
 
-type fakeLogger struct{}
-
-func (*fakeLogger) Debugf(message string, args ...interface{}) {}
-
-func (*fakeLogger) Enabled() bool {
-	return true
-}
-
 // An example scheduled task
 type TestTask struct {
 	GenericTask
@@ -93,7 +85,7 @@ func (s *TaskHandlerSuite) TestGenericTaskHandler(c *check.C) {
 	}
 
 	// Create a task handler and start handling tasks
-	handler := NewGenericTaskHandler(GenericTaskHandlerConfig{DebugLogger: &fakeLogger{}})
+	handler := NewGenericTaskHandler(GenericTaskHandlerConfig{})
 	handler.Register("one", scheduledTask)
 	handler.Register("two", persistentTask)
 	handler.Handle(nil)

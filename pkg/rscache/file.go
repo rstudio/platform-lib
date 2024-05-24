@@ -6,16 +6,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/rstudio/platform-lib/pkg/rsstorage"
 	"github.com/rstudio/platform-lib/pkg/rsstorage/types"
 )
-
-type DebugLogger interface {
-	Debugf(msg string, args ...interface{})
-	Enabled() bool
-}
 
 type QueueWork interface {
 	Type() uint64
@@ -52,8 +48,6 @@ type FileCacheConfig struct {
 	StorageServer    rsstorage.StorageServer
 	Recurser         OptionalRecurser
 	Timeout          time.Duration
-	DebugLogger      DebugLogger
-	NfsTimeLogger    DebugLogger
 }
 
 func NewFileCache(cfg FileCacheConfig) FileCache {
@@ -63,8 +57,6 @@ func NewFileCache(cfg FileCacheConfig) FileCache {
 		server:           cfg.StorageServer,
 		timeout:          cfg.Timeout,
 		recurser:         cfg.Recurser,
-		debugLogger:      cfg.DebugLogger,
-		nfsTimeLogger:    cfg.NfsTimeLogger,
 
 		retry: time.Millisecond * 200,
 	}
@@ -87,10 +79,6 @@ type fileCache struct {
 
 	// retry delay
 	retry time.Duration
-
-	// Loggers
-	debugLogger   DebugLogger
-	nfsTimeLogger DebugLogger
 }
 
 func (o *fileCache) retryingGet(dir, address string, get func() bool) bool {
@@ -114,9 +102,9 @@ func (o *fileCache) retryingGet(dir, address string, get func() bool) bool {
 	// Preemptive get attempt
 	if flushingGet() {
 		if flushed == 0 {
-			o.nfsTimeLogger.Debugf("Found cached item at address '%s' immediately", address)
+			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Found cached item at address '%s' immediately", address))
 		} else {
-			o.nfsTimeLogger.Debugf("Found cached item at address '%s' after one flush", address)
+			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Found cached item at address '%s' after one flush", address))
 		}
 		return true
 	}
@@ -130,7 +118,7 @@ func (o *fileCache) retryingGet(dir, address string, get func() bool) bool {
 		case <-retry.C:
 			if flushingGet() {
 				elapsed := time.Now().Sub(start) / 1000000
-				o.nfsTimeLogger.Debugf("Found cached item at address '%s' after %d ms and %d flushes", address, elapsed, flushed)
+				slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Found cached item at address '%s' after %d ms and %d flushes", address, elapsed, flushed))
 				return true
 			}
 		case <-timeout.C:
@@ -187,7 +175,7 @@ func (o *fileCache) Head(ctx context.Context, resolver ResolverSpec) (size int64
 		err = o.queue.AddressedPush(resolver.Priority, resolver.GroupId, resolver.Address(), resolver.Work)
 		if o.duplicateMatcher.IsDuplicate(err) {
 			// Do nothing since; someone else has already inserted the work we need.
-			o.debugLogger.Debugf("FileCache: duplicate address push for '%s'", resolver.Address())
+			slog.Debug(fmt.Sprintf("FileCache: duplicate address push for '%s'", resolver.Address()))
 		} else if err != nil {
 			return
 		}
@@ -205,7 +193,7 @@ func (o *fileCache) Head(ctx context.Context, resolver ResolverSpec) (size int64
 				if o.retryingGet(resolver.Dir(), resolver.Address(), head) {
 					return
 				} else {
-					o.debugLogger.Debugf("error: FileCache reported address '%s' complete, but item was not found in cache", resolver.Address())
+					slog.Debug(fmt.Sprintf("error: FileCache reported address '%s' complete, but item was not found in cache", resolver.Address()))
 					err = fmt.Errorf("error: FileCache reported address '%s' complete, but item was not found in cache", resolver.Address())
 					return
 				}
@@ -274,7 +262,7 @@ func (o *fileCache) Get(ctx context.Context, resolver ResolverSpec) (value *Cach
 		err = o.queue.AddressedPush(resolver.Priority, resolver.GroupId, address, resolver.Work)
 		if o.duplicateMatcher.IsDuplicate(err) {
 			// Do nothing since; someone else has already inserted the work we need.
-			o.debugLogger.Debugf("FileCache: duplicate address push for '%s'", address)
+			slog.Debug(fmt.Sprintf("FileCache: duplicate address push for '%s'", address))
 		} else if err != nil {
 			value = &CacheReturn{
 				Err:      err,
@@ -297,7 +285,7 @@ func (o *fileCache) Get(ctx context.Context, resolver ResolverSpec) (value *Cach
 					return
 				} else {
 					err = fmt.Errorf("error: FileCache reported address '%s' complete, but item was not found in cache", address)
-					o.debugLogger.Debugf(err.Error())
+					slog.Debug(fmt.Sprintf(err.Error()))
 					return
 				}
 			}

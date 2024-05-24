@@ -45,9 +45,8 @@ func (s *SweeperSuite) TestSweepOk(c *check.C) {
 		},
 	}
 	q := &DatabaseQueueSweeperTask{
-		debugLogger: &fakeLogger{},
-		store:       cstore,
-		monitor:     monitor,
+		store:   cstore,
+		monitor: monitor,
 	}
 
 	q.Run(context.Background())
@@ -60,8 +59,7 @@ func (s *SweeperSuite) TestSweepErrs(c *check.C) {
 		permitsErr: errors.New("cannot list permits"),
 	}
 	q := &DatabaseQueueSweeperTask{
-		debugLogger: &fakeLogger{},
-		store:       cstore,
+		store: cstore,
 	}
 
 	q.Run(context.Background())

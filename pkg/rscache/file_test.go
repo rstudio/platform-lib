@@ -23,24 +23,14 @@ func TestPackage(t *testing.T) { check.TestingT(t) }
 
 var errDup = errors.New("dup")
 
-func fileCfg(q Queue, dup DuplicateMatcher, server rsstorage.StorageServer, recurser OptionalRecurser, timeout time.Duration, debugLogger, nfsTimeLogger DebugLogger) FileCacheConfig {
+func fileCfg(q Queue, dup DuplicateMatcher, server rsstorage.StorageServer, recurser OptionalRecurser, timeout time.Duration) FileCacheConfig {
 	return FileCacheConfig{
 		Queue:            q,
 		DuplicateMatcher: dup,
 		StorageServer:    server,
 		Recurser:         recurser,
 		Timeout:          timeout,
-		DebugLogger:      debugLogger,
-		NfsTimeLogger:    nfsTimeLogger,
 	}
-}
-
-type fakeDebugLogger struct{}
-
-func (*fakeDebugLogger) Debugf(msg string, args ...interface{}) {}
-
-func (*fakeDebugLogger) Enabled() bool {
-	return true
 }
 
 type fakeDupMatcher struct{}
@@ -110,11 +100,9 @@ func (w *worker) recurse(run func()) {
 func (s *FileCacheSuite) TestNew(c *check.C) {
 	q := &fakeQueue{}
 	server := &rsstorage.DummyStorageServer{}
-	lgr := &fakeDebugLogger{}
-	lgr2 := &fakeDebugLogger{}
 	r := &fakeRecurser{}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, r, time.Second*30, lgr, lgr2))
+	st := NewFileCache(fileCfg(q, dup, server, r, time.Second*30))
 	c.Check(st, check.DeepEquals, &fileCache{
 		queue:            q,
 		duplicateMatcher: dup,
@@ -122,9 +110,6 @@ func (s *FileCacheSuite) TestNew(c *check.C) {
 		recurser:         r,
 		timeout:          time.Second * 30,
 		retry:            time.Millisecond * 200,
-
-		debugLogger:   lgr,
-		nfsTimeLogger: lgr2,
 	})
 }
 
@@ -132,7 +117,7 @@ func (s *FileCacheSuite) TestCheckMissing(c *check.C) {
 	server := &rsstorage.DummyStorageServer{
 		GetOk: false,
 	}
-	st := NewFileCache(fileCfg(nil, nil, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(nil, nil, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -153,7 +138,7 @@ func (s *FileCacheSuite) TestCheckAlreadyCached(c *check.C) {
 		GetModTime: now,
 		GetReader:  f,
 	}
-	st := NewFileCache(fileCfg(nil, nil, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(nil, nil, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -177,7 +162,7 @@ func (s *FileCacheSuite) TestCheckAlreadyCachedChunked(c *check.C) {
 			Complete: true,
 		},
 	}
-	st := NewFileCache(fileCfg(nil, nil, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(nil, nil, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -201,7 +186,7 @@ func (s *FileCacheSuite) TestCheckAlreadyCachedChunkedButIncomplete(c *check.C) 
 			Complete: false,
 		},
 	}
-	st := NewFileCache(fileCfg(nil, nil, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(nil, nil, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -227,7 +212,7 @@ func (s *FileCacheSuite) TestHeadAlreadyCached(c *check.C) {
 		GetReader:  f,
 	}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -259,7 +244,7 @@ func (s *FileCacheSuite) TestHeadAlreadyCachedChunked(c *check.C) {
 		},
 	}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -292,7 +277,7 @@ func (s *FileCacheSuite) TestHeadAlreadyCachedChunkedButIncomplete(c *check.C) {
 		},
 	}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -308,7 +293,7 @@ func (s *FileCacheSuite) TestHeadResolvePushError(c *check.C) {
 	}
 	server := &rsstorage.DummyStorageServer{}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -329,7 +314,7 @@ func (s *FileCacheSuite) TestHeadResolvePollError(c *check.C) {
 
 	server := &rsstorage.DummyStorageServer{}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -350,12 +335,10 @@ func (s *FileCacheSuite) TestHeadResolveStillMissing(c *check.C) {
 		GetReader: f,
 	}
 	st := &fileCache{
-		queue:   q,
-		server:  server,
-		timeout: time.Millisecond * 100,
-		retry:   time.Millisecond * 10,
-
-		debugLogger:      &fakeDebugLogger{},
+		queue:            q,
+		server:           server,
+		timeout:          time.Millisecond * 100,
+		retry:            time.Millisecond * 10,
 		recurser:         &fakeRecurser{},
 		duplicateMatcher: &fakeDupMatcher{},
 	}
@@ -397,7 +380,7 @@ func (s *FileCacheSuite) TestHeadResolveSuccess(c *check.C) {
 		GetModTime: now,
 	}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -438,7 +421,7 @@ func (s *FileCacheSuite) TestHeadResolveOkDuplicateResolver(c *check.C) {
 		GetModTime: now,
 	}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -477,7 +460,7 @@ func (s *FileCacheSuite) TestGetAlreadyCached(c *check.C) {
 		GetReader: f,
 	}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -511,7 +494,7 @@ func (s *FileCacheSuite) TestGetAlreadyCachedChunked(c *check.C) {
 		},
 	}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -544,7 +527,7 @@ func (s *FileCacheSuite) TestGetAlreadyCachedChunkedButIncomplete(c *check.C) {
 		},
 	}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -560,7 +543,7 @@ func (s *FileCacheSuite) TestGetResolvePushError(c *check.C) {
 	}
 	server := &rsstorage.DummyStorageServer{}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -581,7 +564,7 @@ func (s *FileCacheSuite) TestGetResolvePollError(c *check.C) {
 
 	server := &rsstorage.DummyStorageServer{}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -602,12 +585,10 @@ func (s *FileCacheSuite) TestGetResolveStillMissing(c *check.C) {
 		GetReader: f,
 	}
 	st := &fileCache{
-		queue:   q,
-		server:  server,
-		timeout: time.Millisecond * 100,
-		retry:   time.Millisecond * 10,
-
-		debugLogger:      &fakeDebugLogger{},
+		queue:            q,
+		server:           server,
+		timeout:          time.Millisecond * 100,
+		retry:            time.Millisecond * 10,
 		recurser:         &fakeRecurser{},
 		duplicateMatcher: &fakeDupMatcher{},
 	}
@@ -648,7 +629,7 @@ func (s *FileCacheSuite) TestGetResolveSuccess(c *check.C) {
 		GetReader: f,
 	}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -687,7 +668,7 @@ func (s *FileCacheSuite) TestGetResolveOkDuplicateResolver(c *check.C) {
 		GetReader: f,
 	}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -720,7 +701,7 @@ func (s *FileCacheSuite) TestUncacheError(c *check.C) {
 		RemoveErr: errors.New("remove error"),
 	}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -735,7 +716,7 @@ func (s *FileCacheSuite) TestUncacheOk(c *check.C) {
 	q := &fakeQueue{}
 	server := &rsstorage.DummyStorageServer{}
 	dup := &fakeDupMatcher{}
-	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30, &fakeDebugLogger{}, &fakeDebugLogger{}))
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
 	spec := ResolverSpec{
 		Work: &FakeWork{
 			address: "two",
@@ -764,8 +745,6 @@ func (f *fakeGet) get() bool {
 
 func (s *FileCacheSuite) TestRetryingGetInitialSuccess(c *check.C) {
 	st := &fileCache{
-		debugLogger:      &fakeDebugLogger{},
-		nfsTimeLogger:    &fakeDebugLogger{},
 		recurser:         &fakeRecurser{},
 		duplicateMatcher: &fakeDupMatcher{},
 	}
@@ -777,11 +756,9 @@ func (s *FileCacheSuite) TestRetryingGetInitialSuccess(c *check.C) {
 func (s *FileCacheSuite) TestRetryingGetTimeout(c *check.C) {
 
 	st := &fileCache{
-		timeout: 10 * time.Millisecond,
-		retry:   50 * time.Millisecond,
-		server:  &rsstorage.DummyStorageServer{},
-
-		debugLogger:      &fakeDebugLogger{},
+		timeout:          10 * time.Millisecond,
+		retry:            50 * time.Millisecond,
+		server:           &rsstorage.DummyStorageServer{},
 		recurser:         &fakeRecurser{},
 		duplicateMatcher: &fakeDupMatcher{},
 	}
@@ -795,12 +772,9 @@ func (s *FileCacheSuite) TestRetryingGetRetryOk(c *check.C) {
 
 	server := &rsstorage.DummyStorageServer{}
 	st := &fileCache{
-		timeout: 500 * time.Millisecond,
-		retry:   1 * time.Millisecond,
-		server:  server,
-
-		debugLogger:      &fakeDebugLogger{},
-		nfsTimeLogger:    &fakeDebugLogger{},
+		timeout:          500 * time.Millisecond,
+		retry:            1 * time.Millisecond,
+		server:           server,
 		recurser:         &fakeRecurser{},
 		duplicateMatcher: &fakeDupMatcher{},
 	}

@@ -4,17 +4,31 @@ package main
 
 import (
 	"log"
+	"log/slog"
 	"os"
 
 	"github.com/rstudio/platform-lib/examples/cmd/testnotify/cmd"
 )
+
+type leveler struct {
+	level slog.Level
+}
+
+func (l *leveler) Level() slog.Level {
+	return l.level
+}
 
 func init() {
 	log.SetFlags(0)
 }
 
 func main() {
-	log.SetOutput(os.Stdout)
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: &leveler{level: slog.LevelDebug},
+	}))
+	slog.SetDefault(logger)
+
 	cmd.RootCmd.SetOut(os.Stdout)
 	cmd.RootCmd.SetErr(os.Stderr)
 	// Each command is in the cmd subdirectory and the RootCmd houses

@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"math"
 	"sync"
 	"time"
@@ -16,9 +18,10 @@ import (
 	"github.com/rstudio/platform-lib/pkg/rsqueue/metrics"
 	"github.com/rstudio/platform-lib/pkg/rsqueue/permit"
 	"github.com/rstudio/platform-lib/pkg/rsqueue/queue"
-	"github.com/rstudio/platform-lib/pkg/rsqueue/types"
 	"github.com/rstudio/platform-lib/pkg/rsqueue/utils"
 )
+
+const LevelTrace = slog.Level(-8)
 
 type DefaultAgent struct {
 	runner      queue.WorkRunner
@@ -28,10 +31,6 @@ type DefaultAgent struct {
 	cEnforcer   *ConcurrencyEnforcer
 	extend      time.Duration
 	types       queue.QueueSupportedTypes
-
-	logger      types.DebugLogger
-	traceLogger types.DebugLogger
-	jobLogger   types.DebugLogger
 
 	wrapper metrics.JobLifecycleWrapper
 
@@ -59,9 +58,6 @@ type AgentConfig struct {
 	ConcurrencyEnforcer    *ConcurrencyEnforcer
 	SupportedTypes         queue.QueueSupportedTypes
 	NotificationsChan      <-chan listener.Notification
-	DebugLogger            types.DebugLogger
-	TraceLogger            types.DebugLogger
-	JobLogger              types.DebugLogger
 	NotifyTypeWorkComplete uint8
 	JobLifecycleWrapper    metrics.JobLifecycleWrapper
 }
@@ -79,10 +75,6 @@ func NewAgent(cfg AgentConfig) *DefaultAgent {
 
 		// Optional JobLifecycle wrapper for metrics/tracing.
 		wrapper: cfg.JobLifecycleWrapper,
-
-		logger:      cfg.DebugLogger,
-		traceLogger: cfg.TraceLogger,
-		jobLogger:   cfg.JobLogger,
 
 		notifyTypeWorkComplete: cfg.NotifyTypeWorkComplete,
 	}
@@ -184,9 +176,9 @@ func (a *DefaultAgent) Wait(runningJobs int64, jobDone chan int64) uint64 {
 			return priority
 
 		} else {
-			a.traceLogger.Debugf("Concurrency limit reached. Waiting for a job to complete...")
+			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Concurrency limit reached. Waiting for a job to complete..."))
 			runningJobs = <-jobDone
-			a.traceLogger.Debugf("Job completed. Checking for capacity again.")
+			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Job completed. Checking for capacity again."))
 		}
 	}
 }
@@ -227,7 +219,7 @@ func (a *DefaultAgent) Run(notify agenttypes.Notify) {
 		if utils.IsSqliteLockError(err) {
 			// Do nothing, but sleep a bit to allow competing work through.
 			// Only log if tracing.
-			a.traceLogger.Debugf("Database lock error during queue Get(): %s", err)
+			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Database lock error during queue Get(): %s", err))
 			time.Sleep(100 * time.Millisecond)
 			continue
 		} else if err == ErrAgentStopped {
@@ -235,7 +227,7 @@ func (a *DefaultAgent) Run(notify agenttypes.Notify) {
 			return
 		} else if err != nil {
 			// Otherwise, log the error
-			a.logger.Debugf("Waiting for retry after queue Get() returned error: %s", err)
+			slog.Debug(fmt.Sprintf("Waiting for retry after queue Get() returned error: %s", err))
 			// Add exponential back-off to avoid spamming
 			exp := time.Duration(math.Min(1000, math.Pow(2, float64(retry))))
 			time.Sleep((exp * 100) * time.Millisecond)
@@ -245,12 +237,10 @@ func (a *DefaultAgent) Run(notify agenttypes.Notify) {
 
 		retry = 0
 
-		a.traceLogger.Debugf("Grabbed a new job with a maxPriority of '%d', type '%d', address '%s', and permit '%d'", maxPriority, queueWork.WorkType, queueWork.Address, queueWork.Permit)
-		if a.jobLogger.Enabled() {
-			jsonDst := bytes.Buffer{}
-			json.Indent(&jsonDst, queueWork.Work, "", "  ")
-			a.jobLogger.Debugf(jsonDst.String())
-		}
+		slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Grabbed a new job with a maxPriority of '%d', type '%d', address '%s', and permit '%d'", maxPriority, queueWork.WorkType, queueWork.Address, queueWork.Permit))
+		jsonDst := bytes.Buffer{}
+		json.Indent(&jsonDst, queueWork.Work, "", "  ")
+		slog.Log(context.Background(), LevelTrace, jsonDst.String())
 
 		// Create a context for the work
 		ctx := queue.ContextWithRecursion(context.Background(), queueWork.WorkType, a.getRecurseFn(jobDone))
@@ -308,7 +298,7 @@ func (a *DefaultAgent) getRecurseFn(jobDone chan int64) queue.RecurseFunc {
 		// during the recursive call.
 		a.mutex.Lock()
 		a.runningJobs -= 1
-		a.traceLogger.Debugf("Recursion function reduced running job count from %d to %d", a.runningJobs+1, a.runningJobs)
+		slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Recursion function reduced running job count from %d to %d", a.runningJobs+1, a.runningJobs))
 		a.mutex.Unlock()
 
 		// Notify the runner that we've freed up capacity due to recursion
@@ -343,7 +333,7 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 		var data interface{}
 		ctx, data, err = a.wrapper.Start(ctx, queueWork)
 		if err != nil {
-			a.traceLogger.Debugf("agent.runJob tracing wrapper start error: %s", err)
+			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("agent.runJob tracing wrapper start error: %s", err))
 		}
 		defer a.wrapper.Finish(data)
 	}
@@ -361,10 +351,10 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 				select {
 				case <-ticker.C:
 					// Extend the job visibility
-					a.traceLogger.Debugf("Job of type %d visibility timeout needs to be extended: %d\n", queueWork.WorkType, queueWork.Permit)
+					slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Job of type %d visibility timeout needs to be extended: %d\n", queueWork.WorkType, queueWork.Permit))
 					err := a.queue.Extend(queueWork.Permit)
 					if err != nil {
-						a.logger.Debugf("Error extending job for work type %d: %s", queueWork.WorkType, err)
+						slog.Debug(fmt.Sprintf("Error extending job for work type %d: %s", queueWork.WorkType, err))
 					}
 				case <-done:
 					return
@@ -373,14 +363,14 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 		}()
 
 		// Actually run the job
-		a.traceLogger.Debugf("Running job with type %d, address '%s', and permit '%d'", queueWork.WorkType, queueWork.Address, queueWork.Permit)
+		slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Running job with type %d, address '%s', and permit '%d'", queueWork.WorkType, queueWork.Address, queueWork.Permit))
 		err := a.runner.Run(queue.RecursableWork{
 			Work:     queueWork.Work,
 			WorkType: queueWork.WorkType,
 			Context:  ctx,
 		})
 		if err != nil {
-			a.logger.Debugf("Job type %d: address: %s work: %#v returned error: %s\n", queueWork.WorkType, queueWork.Address, string(queueWork.Work), err)
+			slog.Debug(fmt.Sprintf("Job type %d: address: %s work: %#v returned error: %s\n", queueWork.WorkType, queueWork.Address, string(queueWork.Work), err))
 		}
 
 		// If the work was addressed, record the result
@@ -389,7 +379,7 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 			// err == nil, then it clears any recorded error for the address.
 			err = a.queue.RecordFailure(queueWork.Address, err)
 			if err != nil {
-				a.logger.Debugf("Failed while recording addressed work success/failure: %s\n", err)
+				slog.Debug(fmt.Sprintf("Failed while recording addressed work success/failure: %s\n", err))
 			}
 		}
 	}()
@@ -414,19 +404,19 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 	}()
 
 	// Delete the job from the queue
-	a.traceLogger.Debugf("Deleting job from queue: %d\n", queueWork.Permit)
+	slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Deleting job from queue: %d\n", queueWork.Permit))
 
 	if err := a.queue.Delete(queueWork.Permit); err != nil {
-		a.logger.Debugf("queue Delete() returned error: %s", err)
+		slog.Debug(fmt.Sprintf("queue Delete() returned error: %s", err))
 	}
 
 	// Notify that work is complete if work is addressed. This must happen after the work has been deleted from the
 	// queue.
 	if queueWork.Address != "" {
 		n := time.Now()
-		a.traceLogger.Debugf("Ready to notify of address %s", queueWork.Address)
+		slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Ready to notify of address %s", queueWork.Address))
 		notify(agenttypes.NewWorkCompleteNotification(queueWork.Address, a.notifyTypeWorkComplete))
-		a.traceLogger.Debugf("Notified of address %s in %d ms", queueWork.Address, time.Now().Sub(n).Nanoseconds()/1000000)
+		slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Notified of address %s in %d ms", queueWork.Address, time.Now().Sub(n).Nanoseconds()/1000000))
 	}
 
 	// Calculate the new max priority we have capacity for
@@ -439,12 +429,12 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 	if capacity {
 		// Attempt to notify channel. This notification will succeed if the queue Get is
 		// waiting for work, but it will not block if the queue is busy
-		a.traceLogger.Debugf("Notifying maxPriorityChan of priority %d\n", maxPriority)
+		slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Notifying maxPriorityChan of priority %d\n", maxPriority))
 		select {
 		case maxPriorityChan <- maxPriority:
-			a.traceLogger.Debugf("Notified maxPriorityChan of priority %d\n", maxPriority)
+			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Notified maxPriorityChan of priority %d\n", maxPriority))
 		default:
-			a.traceLogger.Debugf("Not receiving on maxPriorityChan; skipped notification of priority %d\n", maxPriority)
+			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Not receiving on maxPriorityChan; skipped notification of priority %d\n", maxPriority))
 		}
 	}
 }

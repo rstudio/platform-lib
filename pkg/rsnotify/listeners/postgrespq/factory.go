@@ -8,20 +8,17 @@ import (
 )
 
 type ListenerFactory struct {
-	factory     PqRetrieveListenerFactory
-	debugLogger listener.DebugLogger
-	listeners   []*PqListener
+	factory   PqRetrieveListenerFactory
+	listeners []*PqListener
 }
 
 type ListenerFactoryArgs struct {
-	Factory     PqRetrieveListenerFactory
-	DebugLogger listener.DebugLogger
+	Factory PqRetrieveListenerFactory
 }
 
 func NewListenerFactory(args ListenerFactoryArgs) *ListenerFactory {
 	return &ListenerFactory{
-		factory:     args.Factory,
-		debugLogger: args.DebugLogger,
+		factory: args.Factory,
 	}
 }
 
@@ -36,10 +33,9 @@ func (l *ListenerFactory) New(channelName string, matcher listener.TypeMatcher) 
 	channelName = listenerutils.SafeChannelName(channelName)
 
 	listener := NewPqListener(PqListenerArgs{
-		Name:        channelName,
-		Factory:     l.factory,
-		Matcher:     matcher,
-		DebugLogger: l.debugLogger,
+		Name:    channelName,
+		Factory: l.factory,
+		Matcher: matcher,
 	})
 	l.listeners = append(l.listeners, listener)
 	return listener

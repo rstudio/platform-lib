@@ -7,7 +7,6 @@ demonstrates using the following platform-lib modules:
 
 - [rscache](../../../pkg/rscache/README.md) to avoid duplicate work by caching
   HTML rendered from markdown.
-- [rslog](../../../pkg/rslog/README.md) for debug logging.
 - [rsnotify](../../../pkg/rsnotify/README.md) to provide a notification
   mechanism for `rscache`, `rsqueue`, and `rsstorage`.
 - [rsqueue](../../../pkg/rsqueue/README.md) for queuing the jobs that render

@@ -101,11 +101,6 @@ type Logger interface {
 	Debugf(msg string, args ...interface{})
 }
 
-type DebugLogger interface {
-	Logger
-	Enabled() bool
-}
-
 type MoveCopyFn func(dir, address string, server StorageServer) error
 
 type CacheStore interface {

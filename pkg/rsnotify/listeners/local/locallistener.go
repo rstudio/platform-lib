@@ -4,7 +4,9 @@ package local
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -26,16 +28,12 @@ type Listener struct {
 }
 
 type ListenerProvider struct {
-	mutex     *sync.RWMutex
-	listeners map[string]*Listener
-
-	debugLogger listener.DebugLogger
-
+	mutex         *sync.RWMutex
+	listeners     map[string]*Listener
 	notifyTimeout time.Duration
 }
 
 type ListenerProviderArgs struct {
-	DebugLogger listener.DebugLogger
 }
 
 func NewListenerProvider(args ListenerProviderArgs) *ListenerProvider {
@@ -44,8 +42,6 @@ func NewListenerProvider(args ListenerProviderArgs) *ListenerProvider {
 		mutex:     &sync.RWMutex{},
 
 		notifyTimeout: 500 * time.Millisecond,
-
-		debugLogger: args.DebugLogger,
 	}
 }
 
@@ -86,10 +82,10 @@ func (l *Listener) Listen() (chan listener.Notification, chan error, error) {
 
 func (l *Listener) listen(msgs chan listener.Notification, errs chan error) {
 	defer func() {
-		l.provider.Debugf("Stopping listener...")
+		slog.Debug(fmt.Sprintf("Stopping listener..."))
 		l.items = nil
 		close(l.stop)
-		l.provider.Debugf("Stopped.")
+		slog.Debug(fmt.Sprintf("Stopped."))
 	}()
 
 	l.wait(msgs, errs, l.stop)
@@ -117,11 +113,11 @@ func (l *Listener) wait(msgs chan listener.Notification, errs chan error, stop c
 	for {
 		select {
 		case <-stop:
-			l.provider.Debugf("Stopping wait")
+			slog.Debug(fmt.Sprintf("Stopping wait"))
 			return
 		case i := <-l.items:
 			if msg, ok := i.(listener.Notification); ok {
-				l.provider.Debugf("Received message: %s. Sending to buffered channel with current size %d", msg.Guid(), len(msgs))
+				slog.Debug(fmt.Sprintf("Received message: %s. Sending to buffered channel with current size %d", msg.Guid(), len(msgs)))
 				msgs <- msg
 			} else {
 				errs <- ErrNotNotificationType
@@ -133,25 +129,19 @@ func (l *Listener) wait(msgs chan listener.Notification, errs chan error, stop c
 func (l *Listener) Stop() {
 	if l.stop != nil {
 		// Signal to stop
-		l.provider.Debugf("Signaling stop channel to stop...")
+		slog.Debug(fmt.Sprintf("Signaling stop channel to stop..."))
 		l.stop <- true
 
 		// Wait for stop
-		l.provider.Debugf("Waiting for stop channel to close...")
+		slog.Debug(fmt.Sprintf("Waiting for stop channel to close..."))
 		<-l.stop
-		l.provider.Debugf("Stop channel for %s closed.", l.guid)
+		slog.Debug(fmt.Sprintf("Stop channel for %s closed.", l.guid))
 		l.stop = nil
 
 		// Remove from provider
 		l.provider.mutex.Lock()
 		defer l.provider.mutex.Unlock()
 		delete(l.provider.listeners, l.guid)
-	}
-}
-
-func (l *ListenerProvider) Debugf(msg string, args ...interface{}) {
-	if l.debugLogger != nil {
-		l.debugLogger.Debugf(msg, args...)
 	}
 }
 
@@ -179,7 +169,7 @@ func (l *ListenerProvider) notify(channel string, n interface{}, prevMissedItems
 		notifyTxt = "renotify"
 	}
 
-	l.Debugf("Notify called with type=%s on %d listeners", notifyTxt, len(l.listeners))
+	slog.Debug(fmt.Sprintf("Notify called with type=%s on %d listeners", notifyTxt, len(l.listeners)))
 	for _, ll := range l.listeners {
 		var needNotify bool
 		if prevMissedItems == nil {
@@ -194,7 +184,7 @@ func (l *ListenerProvider) notify(channel string, n interface{}, prevMissedItems
 			// There's a chance that `ll.items` could be non-nil, but not receiving. Timeout
 			// to prevent deadlock, but keep trying until we're sure that the listener is
 			// closed.
-			l.Debugf("Ready to %s internal items with guid %s for channel %s %s: %+v", notifyTxt, notifyGuid, ll.guid, channel, n)
+			slog.Debug(fmt.Sprintf("Ready to %s internal items with guid %s for channel %s %s: %+v", notifyTxt, notifyGuid, ll.guid, channel, n))
 			func() {
 				// It's important to create a ticker and stop it so it doesn't leak. This has the potential to be called
 				// thousands of times in a relatively short period on a busy server, so timer leaks can result in
@@ -203,9 +193,9 @@ func (l *ListenerProvider) notify(channel string, n interface{}, prevMissedItems
 				defer timeout.Stop()
 				select {
 				case ll.items <- n:
-					l.Debugf("Done with %s in local listener with guid %s for channel %s: %+v", notifyTxt, notifyGuid, channel, n)
+					slog.Debug(fmt.Sprintf("Done with %s in local listener with guid %s for channel %s: %+v", notifyTxt, notifyGuid, channel, n))
 				case <-timeout.C:
-					l.Debugf("Timeout during %s for listener %s/%s with guid %s for channel %s: %+v", notifyTxt, ll.guid, ll.name, notifyGuid, channel, n)
+					slog.Debug(fmt.Sprintf("Timeout during %s for listener %s/%s with guid %s for channel %s: %+v", notifyTxt, ll.guid, ll.name, notifyGuid, channel, n))
 					// Record the timed-out notification in the `missed` map so we can retry it
 					missed[ll.guid] = notifyGuid
 				}
@@ -222,25 +212,23 @@ func (l *ListenerProvider) notify(channel string, n interface{}, prevMissedItems
 	// provider after the mutex is again locked by the recursive call to `notify` will be
 	// attempted again as needed.
 	if len(missed) > 0 {
-		l.Debugf("calling l.notify for %+v with guid %s for %d missed items on channel %s", n, notifyGuid, len(missed), channel)
+		slog.Debug(fmt.Sprintf("calling l.notify for %+v with guid %s for %d missed items on channel %s", n, notifyGuid, len(missed), channel))
 		stopCh := make(chan struct{})
 		defer close(stopCh)
 		// If logging is enabled, periodically record notifications that are still waiting
-		if l.debugLogger != nil && l.debugLogger.Enabled() {
-			go func(stop chan struct{}) {
-				tick := time.NewTicker(30 * time.Second)
-				defer tick.Stop()
-				for {
-					select {
-					case <-tick.C:
-						l.Debugf("still waiting on l.notify for +%v with guid %s on channel %s", n, notifyGuid, channel)
-					case <-stop:
-						return
-					}
+		go func(stop chan struct{}) {
+			tick := time.NewTicker(30 * time.Second)
+			defer tick.Stop()
+			for {
+				select {
+				case <-tick.C:
+					slog.Debug(fmt.Sprintf("still waiting on l.notify for +%v with guid %s on channel %s", n, notifyGuid, channel))
+				case <-stop:
+					return
 				}
-			}(stopCh)
-		}
+			}
+		}(stopCh)
 		l.notify(channel, n, missed)
-		l.Debugf("completed calling l.notify for %d missed items with guid %s on channel %s", len(missed), notifyGuid, channel)
+		slog.Debug(fmt.Sprintf("completed calling l.notify for %d missed items with guid %s on channel %s", len(missed), notifyGuid, channel))
 	}
 }

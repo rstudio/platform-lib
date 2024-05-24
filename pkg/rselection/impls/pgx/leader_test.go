@@ -134,9 +134,6 @@ func (s *LeaderSuite) TestLeaderLeadStartStopSelfAware(c *check.C) {
 		ping:        time.Minute,
 		sweep:       time.Minute,
 		stop:        make(chan bool),
-
-		debugLogger: &fakeLogger{},
-		traceLogger: &fakeLogger{},
 	}
 
 	// Check key
@@ -229,8 +226,6 @@ func (s *LeaderSuite) TestLeaderLeadInternal(c *check.C) {
 		maxPingAge:         time.Minute,
 		loopAwareChTEST:    loopCh,
 		pingResponseChTEST: pingCh,
-		debugLogger:        &fakeLogger{},
-		traceLogger:        &fakeLogger{},
 	}
 
 	pingTick := make(chan time.Time)
@@ -349,9 +344,6 @@ func (s *LeaderSuite) TestPingNodes(c *check.C) {
 		chLeader:   "leader",
 		chFollower: "fake",
 		notify:     fakeNotifier,
-
-		debugLogger: &fakeLogger{},
-		traceLogger: &fakeLogger{},
 	}
 
 	leader.pingNodes()
@@ -404,8 +396,6 @@ func (s *LeaderSuite) TestLeaderPingSelf(c *check.C) {
 		nodes:              map[string]*electiontypes.ClusterNode{},
 		pingResponseChTEST: pingCh,
 		taskHandler:        &fakeTaskHandler{},
-		debugLogger:        &fakeLogger{},
-		traceLogger:        &fakeLogger{},
 	}
 
 	// Notified when leader exits
@@ -476,8 +466,6 @@ func (s *LeaderSuite) TestLeaderDemotion(c *check.C) {
 		address:     "leader",
 		stop:        stop,
 		taskHandler: &fakeTaskHandler{},
-		debugLogger: &fakeLogger{},
-		traceLogger: &fakeLogger{},
 	}
 
 	// Notified when leader exits

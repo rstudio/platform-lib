@@ -7,7 +7,9 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/gob"
+	"fmt"
 	"io"
+	"log/slog"
 	"time"
 )
 
@@ -49,14 +51,12 @@ type MemoryBackedFileCache struct {
 	fc                 FileCache
 	mc                 MemoryCache
 	maxMemoryPerObject int64
-	debugLogger        DebugLogger
 }
 
 type MemoryBackedFileCacheConfig struct {
 	FileCache          FileCache
 	MemoryCache        MemoryCache
 	MaxMemoryPerObject int64
-	DebugLogger        DebugLogger
 }
 
 func NewMemoryBackedFileCache(cfg MemoryBackedFileCacheConfig) *MemoryBackedFileCache {
@@ -64,7 +64,6 @@ func NewMemoryBackedFileCache(cfg MemoryBackedFileCacheConfig) *MemoryBackedFile
 		fc:                 cfg.FileCache,
 		mc:                 cfg.MemoryCache,
 		maxMemoryPerObject: cfg.MaxMemoryPerObject,
-		debugLogger:        cfg.DebugLogger,
 	}
 }
 
@@ -88,7 +87,7 @@ func (mbfc *MemoryBackedFileCache) Get(ctx context.Context, resolver ResolverSpe
 	if resolver.CacheInMemory && mbfc.mc != nil && mbfc.mc.Enabled() && ptr.GetSize() < mbfc.maxMemoryPerObject {
 		err = mbfc.mc.Put(address, ptr)
 		if err != nil {
-			mbfc.debugLogger.Debugf("error caching to memory: %s", err.Error())
+			slog.Debug(fmt.Sprintf("error caching to memory: %s", err.Error()))
 		}
 	}
 	return *ptr
@@ -127,7 +126,7 @@ func (mbfc *MemoryBackedFileCache) GetObject(ctx context.Context, resolver Resol
 	if err == nil && resolver.CacheInMemory && mbfc.mc != nil && mbfc.mc.Enabled() && ptr.GetSize() < mbfc.maxMemoryPerObject {
 		err = mbfc.mc.Put(address, ptr)
 		if err != nil {
-			mbfc.debugLogger.Debugf("error caching to memory: %s", err.Error())
+			slog.Debug(fmt.Sprintf("error caching to memory: %s", err.Error()))
 		}
 	}
 

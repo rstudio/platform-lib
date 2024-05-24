@@ -74,12 +74,6 @@ func (s *fakeProviderStore) QueueGroupStart(id int64) error {
 func (s *fakeProviderStore) CompleteTransaction(err *error) {
 }
 
-type fakeLogger struct{}
-
-func (*fakeLogger) Debugf(message string, args ...interface{}) {}
-
-func (*fakeLogger) Enabled() bool { return false }
-
 type fakeGroup struct {
 }
 
@@ -124,11 +118,9 @@ func (q *fakeGroup) CancelWork() groups.GroupQueueJob {
 
 func (s *DatabaseProviderSuite) TestNewRunner(c *check.C) {
 	cstore := &fakeProviderStore{}
-	lgr := &fakeLogger{}
-	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore, DebugLogger: lgr})
+	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore})
 	c.Assert(p, check.DeepEquals, &QueueGroupProvider{
 		cstore:       cstore,
-		logger:       lgr,
 		pollInterval: 2 * time.Second,
 	})
 }
@@ -137,8 +129,7 @@ func (s *DatabaseProviderSuite) TestPollOk(c *check.C) {
 	cstore := &fakeProviderStore{
 		result: true,
 	}
-	lgr := &fakeLogger{}
-	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore, DebugLogger: lgr})
+	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore})
 	group := &fakeGroup{}
 	done, _ := p.poll(group)
 	cancelled := <-done
@@ -150,8 +141,7 @@ func (s *DatabaseProviderSuite) TestPollCancelled(c *check.C) {
 		result: true, // group work is done
 		cancel: true, // cancel work
 	}
-	lgr := &fakeLogger{}
-	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore, DebugLogger: lgr})
+	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore})
 	group := &fakeGroup{}
 	done, _ := p.poll(group)
 	cancelled := <-done
@@ -162,8 +152,7 @@ func (s *DatabaseProviderSuite) TestPollFast(c *check.C) {
 	cstore := &fakeProviderStore{
 		result: false, // group work is not done at first
 	}
-	lgr := &fakeLogger{}
-	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore, DebugLogger: lgr})
+	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore})
 	group := &fakeGroup{}
 	// Poll fast
 	p.pollInterval = 1 * time.Millisecond
@@ -191,8 +180,7 @@ func (s *DatabaseProviderSuite) TestPollErr(c *check.C) {
 	cstore := &fakeProviderStore{
 		errs: errors.New("db error"), // db errs
 	}
-	lgr := &fakeLogger{}
-	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore, DebugLogger: lgr})
+	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore})
 	group := &fakeGroup{}
 	_, errCh := p.poll(group)
 	err := <-errCh
@@ -204,8 +192,7 @@ func (s *DatabaseProviderSuite) TestPollLockError(c *check.C) {
 		errs: errors.New("database is locked"),
 	}
 	allDone := make(chan struct{})
-	lgr := &fakeLogger{}
-	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore, DebugLogger: lgr})
+	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore})
 	group := &fakeGroup{}
 	go func() {
 		p.pollInterval = time.Millisecond * 1
