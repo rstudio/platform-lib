@@ -3,7 +3,7 @@ module github.com/rstudio/platform-lib/v2
 go 1.20
 
 require (
-	github.com/aws/aws-sdk-go v1.53.9
+	github.com/aws/aws-sdk-go v1.53.10
 	github.com/c2h5oh/datasize v0.0.0-20231215233829-aa82cc1e6500
 	github.com/dgraph-io/ristretto v0.1.1
 	github.com/fortytw2/leaktest v1.3.0
@@ -21,8 +21,8 @@ require (
 	github.com/rstudio/platform-lib/pkg/rslog v1.6.0
 	github.com/spf13/cobra v1.8.0
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
-	gorm.io/driver/sqlite v1.3.1
-	gorm.io/gorm v1.23.2
+	gorm.io/driver/sqlite v1.5.5
+	gorm.io/gorm v1.25.7-0.20240204074919-46816ad31dde
 )
 
 require (
