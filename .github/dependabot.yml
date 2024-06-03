@@ -20,6 +20,12 @@ updates:
         dependency-type: development
     reviewers:
       - rstudio/ppm
+    ignore:
+      # updating gorm causes the `markdownRenderer` example to fail
+      # it's unclear why; gorm doesn't have a changelog
+      # https://github.com/rstudio/platform-lib/issues/182
+      - dependency-name: gorm.io/driver/sqlite
+      - dependency-name: gorm.io/gorm
   - package-ecosystem: gomod
     directory: /pkg/rslog/
     schedule:
