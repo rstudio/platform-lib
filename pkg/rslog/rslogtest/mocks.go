@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"regexp"
+	"sync"
 
 	"github.com/rstudio/platform-lib/pkg/rslog"
 	"github.com/stretchr/testify/mock"
@@ -33,6 +34,10 @@ type EntryMock struct {
 type LoggerMock struct {
 	mock.Mock
 
+	// mutex guards stringCalls.
+	mutex sync.Mutex
+
+	// stringCalls stores formatted messages.
 	stringCalls []string
 }
 
@@ -50,17 +55,25 @@ func (m *LoggerMock) AllowAny(methods ...string) {
 
 // Remove all calls history
 func (m *LoggerMock) Clear() {
+	m.mutex.Lock()
 	m.stringCalls = make([]string, 0)
-	m.Calls = make([]mock.Call, 0)
+	m.mutex.Unlock()
+	// Mock.Calls is not concurrency-safe.
+	// See: https://github.com/stretchr/testify/issues/1128
+	m.Mock.Calls = make([]mock.Call, 0)
 }
 
 // Get logging call result message by index
 func (m *LoggerMock) Call(index int) string {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	return m.stringCalls[index]
 }
 
 // Get the last logging call result message
 func (m *LoggerMock) LastCall() string {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	calls := m.stringCalls
 	return calls[len(calls)-1]
 }
@@ -90,54 +103,78 @@ func (m *LoggerMock) MessagesMatch(matchRgx []string) bool {
 	return true
 }
 
+// recordCallFormatted formats and retains the message.
+//
+// Available through Call(int) and LastCall().
+func (m *LoggerMock) recordCallFormatted(msg string, args ...interface{}) {
+	// keep the critical section by formatting outside.
+	formatted := fmt.Sprintf(msg, args...)
+
+	m.mutex.Lock()
+	m.stringCalls = append(m.stringCalls, formatted)
+	m.mutex.Unlock()
+}
+
+// recordCallSimple retains a message that does not require formatting.
+//
+// Available through Call(int) and LastCall().
+func (m *LoggerMock) recordCallSimple(parts ...interface{}) {
+	// keep the critical section small by formatting outside.
+	simple := fmt.Sprint(parts...)
+
+	m.mutex.Lock()
+	m.stringCalls = append(m.stringCalls, simple)
+	m.mutex.Unlock()
+}
+
 func (m *LoggerMock) Debugf(msg string, args ...interface{}) {
-	m.stringCalls = append(m.stringCalls, fmt.Sprintf(msg, args...))
+	m.recordCallFormatted(msg, args...)
 	m.Called(msg, args)
 }
 
 func (m *LoggerMock) Tracef(msg string, args ...interface{}) {
-	m.stringCalls = append(m.stringCalls, fmt.Sprintf(msg, args...))
+	m.recordCallFormatted(msg, args...)
 	m.Called(msg, args)
 }
 
 func (m *LoggerMock) Info(msg string) {
-	m.stringCalls = append(m.stringCalls, msg)
+	m.recordCallSimple(msg)
 	m.Called(msg, []interface{}(nil))
 }
 
 func (m *LoggerMock) Infof(msg string, args ...interface{}) {
-	m.stringCalls = append(m.stringCalls, fmt.Sprintf(msg, args...))
+	m.recordCallFormatted(msg, args...)
 	m.Called(msg, args)
 }
 
 func (m *LoggerMock) Warnf(msg string, args ...interface{}) {
-	m.stringCalls = append(m.stringCalls, fmt.Sprintf(msg, args...))
+	m.recordCallFormatted(msg, args...)
 	m.Called(msg, args)
 }
 
 func (m *LoggerMock) Errorf(msg string, args ...interface{}) {
-	m.stringCalls = append(m.stringCalls, fmt.Sprintf(msg, args...))
+	m.recordCallFormatted(msg, args...)
 	m.Called(msg, args)
 }
 
 func (m *LoggerMock) Fatal(args ...interface{}) {
-	m.stringCalls = append(m.stringCalls, fmt.Sprint(args...))
+	m.recordCallSimple(args...)
 	m.Called(args)
 }
 
 func (m *LoggerMock) Fatalf(msg string, args ...interface{}) {
-	m.stringCalls = append(m.stringCalls, fmt.Sprintf(msg, args...))
+	m.recordCallFormatted(msg, args...)
 	m.Called(msg, args)
 }
 
 // TODO: remove this function when the Connect migration process to the new logging standard is complete.
 func (m *LoggerMock) Logf(msg string, args ...interface{}) {
-	m.stringCalls = append(m.stringCalls, fmt.Sprintf(msg, args...))
+	m.recordCallFormatted(msg, args...)
 	m.Called(msg, args)
 }
 
 func (m *LoggerMock) Panicf(msg string, args ...interface{}) {
-	m.stringCalls = append(m.stringCalls, fmt.Sprintf(msg, args...))
+	m.recordCallFormatted(msg, args...)
 	m.Called(msg, args)
 }
 
