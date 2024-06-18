@@ -112,10 +112,11 @@ git tag v0.1.2
 git push origin v0.1.2
 ```
 
-To enumerate the latest version tag for each module, run:
+The `rslog` package is versioned separately. To release a new `rslog` version:
 
 ```shell
-just versions
+git tag pkg/rslog/v1.6.1
+git push origin pkg/rslog/v1.6.1
 ```
 
 ## Badges
