@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func EphemeralPgxPool(dbname string) (pool *pgxpool.Pool, err error) {
@@ -18,7 +18,7 @@ func EphemeralPgxPool(dbname string) (pool *pgxpool.Pool, err error) {
 
 	config.MaxConns = int32(10)
 
-	pool, err = pgxpool.ConnectConfig(context.Background(), config)
+	pool, err = pgxpool.NewWithConfig(context.Background(), config)
 	return
 }
 

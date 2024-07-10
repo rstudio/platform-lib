@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rstudio/platform-lib/v2/pkg/rselection/electiontypes"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
@@ -335,5 +335,5 @@ func EphemeralPgxPool(dbname string) (*pgxpool.Pool, error) {
 
 	config.MaxConns = int32(10)
 
-	return pgxpool.ConnectConfig(context.Background(), config)
+	return pgxpool.NewWithConfig(context.Background(), config)
 }

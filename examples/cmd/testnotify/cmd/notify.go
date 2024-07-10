@@ -10,13 +10,13 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jmoiron/sqlx"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
 	"github.com/spf13/cobra"
 
-	// Must import github.com/jackc/pgx/v4/stdlib for sqlx support.
-	_ "github.com/jackc/pgx/v4/stdlib"
+	// Must import github.com/jackc/pgx/v5/stdlib for sqlx support.
+	_ "github.com/jackc/pgx/v5/stdlib"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listenerfactory"
@@ -85,7 +85,7 @@ func setup(drv string) (string, listenerfactory.ListenerFactory, *local.Listener
 		prov = local.NewListenerProvider(local.ListenerProviderArgs{})
 		fact = local.NewListenerFactory(prov)
 	case "pgx":
-		pool, err := pgxpool.Connect(context.Background(), connstr)
+		pool, err := pgxpool.New(context.Background(), connstr)
 		if err != nil {
 			return drv, nil, nil, fmt.Errorf("error connecting to pool: %s", err)
 		}

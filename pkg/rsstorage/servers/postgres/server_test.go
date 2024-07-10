@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
@@ -731,7 +731,7 @@ func EphemeralPostgresPool(dbname string) (pool *pgxpool.Pool, err error) {
 
 	config.MaxConns = int32(10)
 
-	pool, err = pgxpool.ConnectConfig(context.Background(), config)
+	pool, err = pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
 		return
 	}
