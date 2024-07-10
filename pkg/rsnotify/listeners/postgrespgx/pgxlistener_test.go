@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listenerutils"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/notifier"
 	"gopkg.in/check.v1"

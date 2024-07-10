@@ -3,7 +3,7 @@ package postgrespgx
 // Copyright (C) 2022 by RStudio, PBC.
 
 import (
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listenerutils"

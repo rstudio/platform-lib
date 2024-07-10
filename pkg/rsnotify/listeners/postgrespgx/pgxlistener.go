@@ -14,9 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/notifier"
 )
@@ -37,15 +36,14 @@ func (p *PgxIPReporter) IP() string {
 	query := "SELECT inet_client_addr()"
 
 	if p.pool != nil {
-		row := p.pool.QueryRow(context.Background(), query)
-		pgIp := pgtype.Inet{}
-		err := row.Scan(&pgIp)
+		var ipNet net.IPNet
+		err := p.pool.QueryRow(context.Background(), query).Scan(&ipNet)
 		if err != nil {
 			log.Printf("Unable to determine client IP with inet_client_addr(). %s", err)
 			return ip
 		}
-		if pgIp.IPNet != nil && pgIp.IPNet.IP != nil {
-			ip = pgIp.IPNet.IP.String()
+		if ipNet.IP != nil {
+			ip = ipNet.IP.String()
 		} else {
 			log.Printf("Unable to determine client IP with inet_client_addr().")
 		}
