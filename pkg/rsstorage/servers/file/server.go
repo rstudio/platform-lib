@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/c2h5oh/datasize"
@@ -118,17 +117,22 @@ func (s *StorageServer) Type() types.StorageType {
 	return rsstorage.StorageTypeFile
 }
 
+type StatfsData struct {
+	Bfree  uint64
+	Bsize  int64
+	Blocks uint64
+}
+
 func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 	start := time.Now()
 
-	fs := syscall.Statfs_t{}
-	err := syscall.Statfs(s.dir, &fs)
+	stat, err := Statfs(s.dir)
 	if err != nil {
 		return types.Usage{}, fmt.Errorf("error calculating filesystem capacity for %s: %s.\n", s.dir, err)
 	}
 
-	all := fs.Blocks * uint64(fs.Bsize)
-	free := fs.Bfree * uint64(fs.Bsize)
+	all := stat.Blocks * uint64(stat.Bsize)
+	free := stat.Bfree * uint64(stat.Bsize)
 
 	timeInfo := time.Now()
 	elapsed := timeInfo.Sub(start)
