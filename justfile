@@ -28,7 +28,7 @@ test-integration *args:
 
     # use a randomized project name to allow simultaneous test runs
     project="platform-lib-it-$(openssl rand -hex 4)"
-    dc="docker-compose -f docker/docker-compose.test.yml -p ${project}"
+    dc="docker compose -f docker/docker-compose.test.yml -p ${project}"
 
     function cleanup() {
         ${dc} logs --no-color > test-integration-${project}.log
