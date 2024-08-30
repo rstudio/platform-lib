@@ -251,17 +251,17 @@ func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (string
 	// Resolve (read) the item using the piped writer
 	var wdir string
 	var waddress string
+	var resolverErr error
 	go func() {
 		// Make sure an EOF gets sent to the pipe writer. Without this, we end
 		// up hanging forever while the uploader reads from the pipe.
-		var err error
-		wdir, waddress, err = resolve(w)
-		if err != nil {
-			w.CloseWithError(err)
+		wdir, waddress, resolverErr = resolve(w)
+		if resolverErr != nil {
+			_ = w.CloseWithError(resolverErr)
 			return
 		}
 		// Close with EOF if successful
-		w.CloseWithError(io.EOF)
+		_ = w.CloseWithError(io.EOF)
 	}()
 
 	// Upload to a temporary S3 address using the piped reader
@@ -274,6 +274,11 @@ func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (string
 
 	if err != nil {
 		cancel()
+		// If the upload failed because of a resolver error, return the original error
+		// instead of a generic upload error
+		if resolverErr != nil {
+			return "", "", resolverErr
+		}
 		return "", "", err
 	}
 

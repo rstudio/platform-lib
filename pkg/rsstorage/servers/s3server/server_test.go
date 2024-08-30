@@ -162,6 +162,8 @@ func (s *fakeS3) Upload(input *s3manager.UploadInput, ctx context.Context, optio
 		s.address = *input.Key
 
 	}
+	// If there's an upload error, copy anyway to ensure that the resolver runs
+	_, _ = io.Copy(io.Discard, input.Body)
 	return s.upload, s.uploadErr
 }
 
@@ -419,7 +421,7 @@ func (s *S3StorageServerSuite) TestPut(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "upload error")
 
 	// Resolve error
-	svc.uploadErr = nil
+	svc.uploadErr = errors.New("upload error (should not be returned)")
 	resolver = func(w io.Writer) (string, string, error) {
 		return "", "", errors.New("resolver error")
 	}
