@@ -15,7 +15,7 @@ func Statfs(path string) (*StatfsData, error) {
 		return nil, err
 	}
 	return &StatfsData{
-		Bsize:  fs.Bsize,
+		Bsize:  int64(fs.Bsize),
 		Blocks: fs.Blocks,
 		Bfree:  fs.Bfree,
 	}, nil
