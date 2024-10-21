@@ -56,6 +56,10 @@ type DummyStorageServer struct {
 	GetCheckLock sync.RWMutex
 }
 
+func (f *DummyStorageServer) AddChunker(chunkSize uint64, waiter ChunkWaiter, notifier ChunkNotifier) StorageServer {
+	return f
+}
+
 func (f *DummyStorageServer) Check(dir, address string) (bool, *types.ChunksInfo, int64, time.Time, error) {
 	f.GetCheckLock.RLock()
 	defer f.GetCheckLock.RUnlock()

@@ -69,6 +69,51 @@ func (s *PgCacheServerSuite) TestNew(c *check.C) {
 	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypePostgres)
 }
 
+func (s *PgCacheServerSuite) TestNewWithoutChunker(c *check.C) {
+	server := NewStorageServerWithoutChunker(StorageServerArgs{
+		Class: "test",
+		Pool:  s.pool,
+	})
+	c.Check(server, check.DeepEquals, &StorageServer{
+		pool:  s.pool,
+		class: "test",
+	})
+
+	c.Assert(server.Dir(), check.Equals, "pg:test")
+	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypePostgres)
+}
+
+func (s *PgCacheServerSuite) TestAddChunker(c *check.C) {
+	server := NewStorageServerWithoutChunker(StorageServerArgs{
+		Class: "test",
+		Pool:  s.pool,
+	})
+	wn := &servertest.DummyWaiterNotifier{}
+	server = server.AddChunker(100*1024, wn, wn)
+	c.Check(server.(*StorageServer).chunker, check.NotNil)
+	server.(*StorageServer).chunker = nil
+	c.Check(server, check.DeepEquals, &StorageServer{
+		pool:  s.pool,
+		class: "test",
+	})
+
+	c.Assert(server.Dir(), check.Equals, "pg:test")
+	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypePostgres)
+}
+
+func (s *PgCacheServerSuite) TestPutChunkedErr(c *check.C) {
+	server := &StorageServer{
+		pool: s.pool,
+	}
+	resolve := func(w io.Writer) (string, string, error) {
+		_, err := w.Write([]byte(servertest.TestDESC))
+		return "", "", err
+	}
+
+	_, _, err := server.PutChunked(resolve, "dir", "cacheaddress", uint64(len(servertest.TestDESC)))
+	c.Assert(err, check.ErrorMatches, "chunker not initialized for storage server")
+}
+
 func (s *PgCacheServerSuite) TestCheckOk(c *check.C) {
 	server := &StorageServer{
 		pool: s.pool,
@@ -149,6 +194,36 @@ func (s *PgCacheServerSuite) TestGetOk(c *check.C) {
 
 	// Close it
 	c.Assert(r.Close(), check.IsNil)
+}
+
+func (s *PgCacheServerSuite) TestGetChunkedErr(c *check.C) {
+	server := &StorageServer{
+		pool: s.pool,
+	}
+	wn := &servertest.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
+	}
+	server.chunker = &internal.DefaultChunkUtils{
+		ChunkSize: 512,
+		Server:    server,
+		Waiter:    wn,
+		Notifier:  wn,
+	}
+	resolve := func(w io.Writer) (string, string, error) {
+		_, err := w.Write([]byte(servertest.TestDESC))
+		return "", "", err
+	}
+
+	// First, cache something
+	_, _, err := server.PutChunked(resolve, "dir", "cacheaddress", uint64(len(servertest.TestDESC)))
+	c.Assert(err, check.IsNil)
+
+	// Remove the chunker
+	server.chunker = nil
+
+	// Try and get it, it will throw an error because the chunker is not available
+	_, _, _, _, _, err = server.Get("dir", "cacheaddress")
+	c.Assert(err, check.ErrorMatches, "chunker not initialized for storage server")
 }
 
 func (s *PgCacheServerSuite) TestGetChunkedOk(c *check.C) {

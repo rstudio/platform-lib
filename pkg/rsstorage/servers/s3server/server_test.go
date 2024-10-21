@@ -194,6 +194,54 @@ func (s *S3StorageServerSuite) TestNew(c *check.C) {
 	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypeS3)
 }
 
+func (s *S3StorageServerSuite) TestNewWithoutChunker(c *check.C) {
+	svc := &fakeS3{}
+	server := NewStorageServerWithoutChunker(StorageServerArgs{
+		Bucket: "test",
+		Prefix: "prefix",
+		Svc:    svc,
+	})
+	c.Assert(server.(*StorageServer).move, check.NotNil)
+	c.Assert(server.(*StorageServer).copy, check.NotNil)
+	server.(*StorageServer).move = nil
+	server.(*StorageServer).copy = nil
+	c.Check(server, check.DeepEquals, &StorageServer{
+		bucket: "test",
+		prefix: "prefix",
+		svc:    svc,
+	})
+
+	c.Assert(server.Dir(), check.Equals, "s3:test")
+	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypeS3)
+}
+
+func (s *S3StorageServerSuite) TestAddChunker(c *check.C) {
+	svc := &fakeS3{}
+	server := NewStorageServerWithoutChunker(StorageServerArgs{
+		Bucket: "test",
+		Prefix: "prefix",
+		Svc:    svc,
+	})
+	wn := &servertest.DummyWaiterNotifier{}
+	server = server.AddChunker(4096, wn, wn)
+
+	c.Assert(server.(*StorageServer).move, check.NotNil)
+	c.Assert(server.(*StorageServer).copy, check.NotNil)
+	c.Assert(server.(*StorageServer).chunker, check.NotNil)
+	server.(*StorageServer).move = nil
+	server.(*StorageServer).copy = nil
+	server.(*StorageServer).chunker = nil
+	c.Check(server, check.DeepEquals, &StorageServer{
+		bucket: "test",
+		prefix: "prefix",
+		svc:    svc,
+	})
+
+	c.Assert(server.Dir(), check.Equals, "s3:test")
+	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypeS3)
+
+}
+
 func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 	now := time.Now()
 	svc := &fakeS3{
@@ -359,6 +407,10 @@ func (s *S3StorageServerSuite) TestGet(c *check.C) {
 			head: &s3.HeadObjectOutput{},
 		},
 	}
+
+	_, _, _, _, _, err = server.Get("dir", "address")
+	c.Assert(err, check.ErrorMatches, "chunker not initialized for storage server")
+
 	chunker := &servertest.DummyChunkUtils{
 		Read: output,
 		ReadCh: &types.ChunksInfo{
@@ -427,6 +479,28 @@ func (s *S3StorageServerSuite) TestPut(c *check.C) {
 	}
 	_, _, err = server.Put(resolver, "dir", "address")
 	c.Assert(err, check.ErrorMatches, "resolver error")
+}
+
+func (s *S3StorageServerSuite) TestPutChunkedErr(c *check.C) {
+	defer leaktest.Check(c)
+
+	input := bytes.NewBufferString("test input")
+	resolver := func(w io.Writer) (string, string, error) {
+		_, err := io.Copy(w, input)
+		return "mydir", "deferred_address", err
+	}
+	output := &s3manager.UploadOutput{}
+	svc := &fakeS3{
+		upload: output,
+	}
+	server := &StorageServer{
+		svc:    svc,
+		bucket: "test-bucket",
+		prefix: "prefix",
+	}
+
+	_, _, err := server.PutChunked(resolver, "", "", 0)
+	c.Check(err, check.ErrorMatches, "chunker not initialized for storage server")
 }
 
 func (s *S3StorageServerSuite) TestPutDeferredAddress(c *check.C) {

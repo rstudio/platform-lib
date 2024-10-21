@@ -95,6 +95,11 @@ type StorageServer interface {
 
 	// Base returns the base storage server in case the server is wrapped
 	Base() StorageServer
+
+	// AddChunker adds a chunker to a storage server
+	// This can be used if the storage server was initialized with
+	// NewStorageServerWithoutChunker() instead of NewStorageServer()
+	AddChunker(chunkSize uint64, waiter ChunkWaiter, notifier ChunkNotifier) StorageServer
 }
 
 type Logger interface {

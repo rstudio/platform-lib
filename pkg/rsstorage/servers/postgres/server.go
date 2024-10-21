@@ -56,6 +56,28 @@ func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
 	}
 }
 
+func NewStorageServerWithoutChunker(args StorageServerArgs) rsstorage.StorageServer {
+	return &StorageServer{
+		class: args.Class,
+		pool:  args.Pool,
+	}
+}
+
+func (s *StorageServer) AddChunker(chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier) rsstorage.StorageServer {
+	return &StorageServer{
+		class: s.class,
+		pool:  s.pool,
+		chunker: &internal.DefaultChunkUtils{
+			ChunkSize:   chunkSize,
+			Server:      s,
+			Waiter:      waiter,
+			Notifier:    notifier,
+			PollTimeout: rsstorage.DefaultChunkPollTimeout,
+			MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
+		},
+	}
+}
+
 func pgxCommit(tx pgx.Tx, desc string, err *error) {
 	var finErr error
 	if *err == nil {
@@ -238,6 +260,9 @@ func (s *StorageServer) Get(dir, address string) (f io.ReadCloser, chunks *types
 	}
 
 	if chunked {
+		if s.chunker == nil {
+			return nil, nil, 0, time.Time{}, false, fmt.Errorf("chunker not initialized for storage server")
+		}
 		// Read the info.json file
 		f, chunks, sz, lastMod, err = s.chunker.ReadChunked(dir, address)
 		if err != nil {
@@ -292,6 +317,9 @@ func (s *StorageServer) Flush(dir, address string) {
 }
 
 func (s *StorageServer) PutChunked(resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
+	if s.chunker == nil {
+		return "", "", fmt.Errorf("chunker not initialized for storage server")
+	}
 	if address == "" {
 		return "", "", fmt.Errorf("cache only supports pre-addressed chunked put commands")
 	}

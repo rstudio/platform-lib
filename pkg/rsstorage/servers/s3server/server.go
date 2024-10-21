@@ -71,6 +71,34 @@ func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
 	}
 }
 
+func NewStorageServerWithoutChunker(args StorageServerArgs) rsstorage.StorageServer {
+	return &StorageServer{
+		bucket: args.Bucket,
+		prefix: args.Prefix,
+		svc:    args.Svc,
+		move:   args.Svc.MoveObject,
+		copy:   args.Svc.CopyObject,
+	}
+}
+
+func (s *StorageServer) AddChunker(chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier) rsstorage.StorageServer {
+	return &StorageServer{
+		bucket: s.bucket,
+		prefix: s.prefix,
+		svc:    s.svc,
+		move:   s.move,
+		copy:   s.copy,
+		chunker: &internal.DefaultChunkUtils{
+			ChunkSize:   chunkSize,
+			Server:      s,
+			Waiter:      waiter,
+			Notifier:    notifier,
+			PollTimeout: rsstorage.DefaultChunkPollTimeout,
+			MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
+		},
+	}
+}
+
 // Validate performs S3 actions to ensure that the s3:GetObject, s3:PutObject, and s3:DeleteObject permissions are
 // configured correctly. Note: This doesn't validate all the permissions (e.g. s3:AbortMultipartUpload), but it should
 // be enough to confirm that the storage class is working.
@@ -215,6 +243,9 @@ func (s *StorageServer) Get(dir, address string) (io.ReadCloser, *types.ChunksIn
 	}
 
 	if chunked {
+		if s.chunker == nil {
+			return nil, nil, 0, time.Time{}, false, fmt.Errorf("chunker not initialized for storage server")
+		}
 		// For chunked assets, use the chunk utils to read the chunks sequentially
 		r, c, sz, mod, err := s.chunker.ReadChunked(dir, address)
 		if err != nil {
@@ -302,6 +333,9 @@ func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (string
 }
 
 func (s *StorageServer) PutChunked(resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
+	if s.chunker == nil {
+		return "", "", fmt.Errorf("chunker not initialized for storage server")
+	}
 	if address == "" {
 		return "", "", fmt.Errorf("cache only supports pre-addressed chunked put commands")
 	}

@@ -76,6 +76,34 @@ func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
 	}
 }
 
+func NewStorageServerWithoutChunker(args StorageServerArgs) rsstorage.StorageServer {
+	return &StorageServer{
+		dir:          args.Dir,
+		fileIO:       &defaultFileIO{},
+		class:        args.Class,
+		cacheTimeout: args.CacheTimeout,
+		walkTimeout:  args.WalkTimeout,
+	}
+}
+
+func (s *StorageServer) AddChunker(chunkSize uint64, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier) rsstorage.StorageServer {
+	return &StorageServer{
+		dir:          s.dir,
+		fileIO:       &defaultFileIO{},
+		cacheTimeout: s.cacheTimeout,
+		walkTimeout:  s.walkTimeout,
+		chunker: &internal.DefaultChunkUtils{
+			ChunkSize:   chunkSize,
+			Server:      s,
+			Waiter:      waiter,
+			Notifier:    notifier,
+			PollTimeout: rsstorage.DefaultChunkPollTimeout,
+			MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
+		},
+		class: s.class,
+	}
+}
+
 func (s *StorageServer) Check(dir, address string) (bool, *types.ChunksInfo, int64, time.Time, error) {
 	// Determine the location for this file
 	filePath := filepath.Join(s.dir, dir, address)
@@ -240,6 +268,10 @@ func (s *StorageServer) Get(dir, address string) (io.ReadCloser, *types.ChunksIn
 	}
 
 	if stat.IsDir() {
+		if s.chunker == nil {
+			return nil, nil, 0, time.Time{}, false, fmt.Errorf("chunker not initialized for storage server")
+		}
+
 		r, c, sz, mod, err := s.chunker.ReadChunked(dir, address)
 		if err != nil {
 			return nil, nil, 0, time.Time{}, false, fmt.Errorf("error reading chunked directory files for %s: %s", address, err)
@@ -295,6 +327,9 @@ func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (string
 }
 
 func (s *StorageServer) PutChunked(resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
+	if s.chunker == nil {
+		return "", "", fmt.Errorf("chunker not initialized for storage server")
+	}
 	if address == "" {
 		return "", "", fmt.Errorf("cache only supports pre-addressed chunked put commands")
 	}

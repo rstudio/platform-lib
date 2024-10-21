@@ -88,6 +88,66 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypeFile)
 }
 
+func (s *FileStorageServerSuite) TestNewWithoutChunker(c *check.C) {
+	server := NewStorageServerWithoutChunker(StorageServerArgs{
+		Dir:          "test",
+		Class:        "classname",
+		CacheTimeout: time.Minute,
+		WalkTimeout:  time.Minute * 2,
+	})
+
+	c.Check(server, check.DeepEquals, &StorageServer{
+		dir:          "test",
+		fileIO:       &defaultFileIO{},
+		cacheTimeout: time.Minute,
+		walkTimeout:  time.Minute * 2,
+		class:        "classname",
+	})
+
+	c.Assert(server.Dir(), check.Equals, "test")
+	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypeFile)
+}
+
+func (s *FileStorageServerSuite) TestAddChunker(c *check.C) {
+	server := NewStorageServerWithoutChunker(StorageServerArgs{
+		Dir:          "test",
+		Class:        "classname",
+		CacheTimeout: time.Minute,
+		WalkTimeout:  time.Minute * 2,
+	})
+
+	wn := &servertest.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
+	}
+
+	server = server.AddChunker(4096, wn, wn)
+
+	c.Check(server, check.DeepEquals, &StorageServer{
+		dir:    "test",
+		fileIO: &defaultFileIO{},
+		chunker: &internal.DefaultChunkUtils{
+			ChunkSize: 4096,
+			Server: &StorageServer{
+				dir:          "test",
+				fileIO:       &defaultFileIO{},
+				cacheTimeout: time.Minute,
+				walkTimeout:  time.Minute * 2,
+				class:        "classname",
+			},
+			Waiter:      wn,
+			Notifier:    wn,
+			PollTimeout: rsstorage.DefaultChunkPollTimeout,
+			MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
+		},
+		cacheTimeout: time.Minute,
+		walkTimeout:  time.Minute * 2,
+		class:        "classname",
+	})
+
+	c.Assert(server.Dir(), check.Equals, "test")
+	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypeFile)
+}
+
 type fakeFileIO struct {
 	open           fileIOFile
 	openErr        error
@@ -508,14 +568,17 @@ func (s *FileStorageServerSuite) TestPutChunked(c *check.C) {
 	f := &servertest.DummyChunkUtils{
 		WriteErr: errors.New("write error"),
 	}
-	server := &StorageServer{
-		chunker: f,
-	}
+	server := &StorageServer{}
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
 	}
 
 	_, _, err := server.PutChunked(resolve, "", "", 0)
+	c.Check(err, check.ErrorMatches, "chunker not initialized for storage server")
+
+	server.chunker = f
+
+	_, _, err = server.PutChunked(resolve, "", "", 0)
 	c.Check(err, check.ErrorMatches, "cache only supports pre-addressed chunked put commands")
 
 	_, _, err = server.PutChunked(resolve, "", "storageaddress", 0)
@@ -915,24 +978,9 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 		dir:    dirSource,
 		fileIO: &defaultFileIO{},
 	}
-	wn := &servertest.DummyWaiterNotifier{
-		Ch: make(chan bool, 1),
-	}
-	serverSource.chunker = &internal.DefaultChunkUtils{
-		ChunkSize: 352,
-		Server:    serverSource,
-		Waiter:    wn,
-		Notifier:  wn,
-	}
 	serverDest := &StorageServer{
 		dir:    dirDest,
 		fileIO: &defaultFileIO{},
-	}
-	serverDest.chunker = &internal.DefaultChunkUtils{
-		ChunkSize: 352,
-		Server:    serverDest,
-		Waiter:    wn,
-		Notifier:  wn,
 	}
 
 	// Create some files
@@ -948,9 +996,34 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 	}
 	sz := uint64(len(servertest.TestDESC))
 	_, _, err = serverSource.PutChunked(resolve, "dir", "CHUNK", sz)
+	c.Check(err, check.ErrorMatches, "chunker not initialized for storage server")
+
+	wn := &servertest.DummyWaiterNotifier{
+		Ch: make(chan bool, 1),
+	}
+	serverSource.chunker = &internal.DefaultChunkUtils{
+		ChunkSize: 352,
+		Server:    serverSource,
+		Waiter:    wn,
+		Notifier:  wn,
+	}
+
+	_, _, err = serverSource.PutChunked(resolve, "dir", "CHUNK", sz)
 	c.Check(err, check.IsNil)
 	_, _, err = serverSource.PutChunked(resolve, "", "CHUNK2", sz)
 	c.Check(err, check.IsNil)
+
+	// Failure if file is chunked on source server and dest server
+	// does not have chunker initialized
+	err = serverSource.Copy("dir", "CHUNK", serverDest)
+	c.Check(err, check.ErrorMatches, "chunker not initialized for storage server")
+
+	serverDest.chunker = &internal.DefaultChunkUtils{
+		ChunkSize: 352,
+		Server:    serverDest,
+		Waiter:    wn,
+		Notifier:  wn,
+	}
 
 	// Successfully copy files
 	err = serverSource.Copy("", "PACKAGES", serverDest)
