@@ -4,7 +4,7 @@
 __EXITCODE=0
 
 # Matches a copyright
-COPYRIGHT_REGEX="// Copyright \(C\) [0-9]{4} by RStudio, PBC"
+COPYRIGHT_REGEX="// Copyright \(C\) [0-9]{4} by (RStudio|Posit Software), PBC"
 
 # Collect a list of go files.
 for gofile in $(find . -name *.go); do
