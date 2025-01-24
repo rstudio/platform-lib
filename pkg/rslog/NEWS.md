@@ -1,37 +1,12 @@
 # `rslog` package 
 
-Unreleased
+pkg/rslog/v1.6.1
 --------------------------------------------------------------------------------
 
-<!--
-### New
-
-*   Uncomment when items are available.
--->
-
-<!--
 ### Fixed
 
-*   Uncomment when items are available.
--->
-
-<!--
-### Breaking
-
-*   Uncomment when items are available.
--->
-
-<!--
-### Deprecated / Removed
-
-*   Uncomment when items are available.
--->
-
-<!--
-### New Contributors
-
-*   Uncomment when items are available.
--->
+*   Debug loggers are no longer attached to a global set of callbacks, which
+    means that those loggers are available for garbage collection.
 
 
 pkg/rslog/v1.6.0

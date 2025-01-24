@@ -7,10 +7,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
-	"gopkg.in/check.v1"
 )
 
-func TestPackage(t *testing.T) {
+func TestLoggerSuite(t *testing.T) {
 	suite.Run(t, &LoggerSuite{})
 }
 
@@ -200,7 +199,7 @@ func (s *LoggerSuite) TestBuildPreamble() {
 			expected: "[first: 42; second: 13] ",
 		},
 	} {
-		s.Equal(BuildPreamble(each.args...), each.expected, check.Commentf(each.description))
+		s.Equal(BuildPreamble(each.args...), each.expected, each.description)
 	}
 }
 
