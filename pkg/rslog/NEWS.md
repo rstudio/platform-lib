@@ -1,12 +1,19 @@
 # `rslog` package 
 
-pkg/rslog/v1.6.1
+pkg/rslog/v1.6.2
 --------------------------------------------------------------------------------
 
 ### Fixed
 
 *   Debug loggers are no longer attached to a global set of callbacks, which
-    means that those loggers are available for garbage collection.
+    means that those loggers are available for garbage collection. (#209)
+
+pkg/rslog/v1.6.1
+--------------------------------------------------------------------------------
+
+### Fixed
+
+*   Add some synchronization to `rslogtest.LoggerMock. (#185)
 
 
 pkg/rslog/v1.6.0
