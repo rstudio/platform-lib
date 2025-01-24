@@ -63,8 +63,8 @@ func RegionByName(name string) ProductRegion {
 	debugMutex.RLock()
 	defer debugMutex.RUnlock()
 
-	for region, region_name := range debugRegions {
-		if name == region_name {
+	for region, regionName := range debugRegions {
+		if name == regionName {
 			return region
 		}
 	}

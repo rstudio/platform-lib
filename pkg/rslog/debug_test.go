@@ -10,8 +10,6 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// Copyright (C) 2025 by Posit Software, PBC.
-
 func TestDebugSuite(t *testing.T) {
 	suite.Run(t, &DebugSuite{})
 }
