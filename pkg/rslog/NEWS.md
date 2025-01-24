@@ -9,11 +9,10 @@ Unreleased
 *   Uncomment when items are available.
 -->
 
-<!--
 ### Fixed
 
-*   Uncomment when items are available.
--->
+*   Debug loggers are no longer attached to a global set of callbacks, which
+    means that those loggers are available for garbage collection.
 
 <!--
 ### Breaking
