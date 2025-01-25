@@ -1,12 +1,18 @@
 # `rslog` package 
 
-pkg/rslog/v1.6.2
+pkg/rslog/v1.6.3
 --------------------------------------------------------------------------------
 
 ### Fixed
 
 *   Debug loggers are no longer attached to a global set of callbacks, which
     means that those loggers are available for garbage collection. (#209)
+
+pkg/rslog/v1.6.2
+--------------------------------------------------------------------------------
+
+Accidental tag between 1.6.1 and 1.6.2.
+
 
 pkg/rslog/v1.6.1
 --------------------------------------------------------------------------------
