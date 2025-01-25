@@ -17,3 +17,7 @@ require (
 	golang.org/x/sys v0.20.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+retract (
+	v1.6.2 // accidental tag of the wrong commit
+)
