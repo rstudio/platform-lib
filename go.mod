@@ -16,7 +16,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/pkg/errors v0.9.1
-	github.com/rstudio/platform-lib/pkg/rslog v1.6.1
+	github.com/rstudio/platform-lib/pkg/rslog v1.6.3
 	github.com/spf13/cobra v1.8.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gorm.io/driver/sqlite v1.3.1
