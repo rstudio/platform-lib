@@ -3,117 +3,86 @@ package s3server
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3crypto"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	encryptClient "github.com/aws/amazon-s3-encryption-client-go/v3/client"
+	"github.com/aws/amazon-s3-encryption-client-go/v3/materials"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
 )
 
 type encryptedS3Service struct {
-	defaultS3Wrapper
-	keyID string
+	client *encryptClient.S3EncryptionClientV3
 }
 
-func (s *encryptedS3Service) encryptionClient() (*s3crypto.EncryptionClientV2, error) {
-	kmsClient := kms.New(s.session)
-	// Create the KeyProvider
-	var matdesc s3crypto.MaterialDescription
-	handler := s3crypto.NewKMSContextKeyGenerator(kmsClient, s.keyID, matdesc)
-
-	// Create an encryption and decryption client
-	// We need to pass the session here so S3 can use it. In addition, any decryption that
-	// occurs will use the KMS client.
-	svc, err := s3crypto.NewEncryptionClientV2(s.session, s3crypto.AESGCMContentCipherBuilderV2(handler))
-	if err != nil {
-		return nil, err
+func NewEncryptedS3Wrapper(ctx context.Context, configInput rsstorage.ConfigS3, keyID string) (S3Wrapper, error) {
+	if configInput.Region == "" {
+		return nil, fmt.Errorf("'region' field of ConfigS3 is required")
 	}
 
-	return svc, err
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load default config: %s", err.Error())
+	}
+
+	s3Options := s3.Options{
+		BaseEndpoint:    &configInput.Endpoint,
+		EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: configInput.DisableSSL},
+		UsePathStyle:    configInput.S3ForcePathStyle,
+		Region:          configInput.Region,
+	}
+	s3Client := s3.New(s3Options)
+	kmsClient := kms.NewFromConfig(cfg)
+
+	cmm, err := materials.NewCryptographicMaterialsManager(materials.NewKmsKeyring(kmsClient, keyID))
+	if err != nil {
+		return nil, fmt.Errorf("unable to ")
+	}
+	client, err := encryptClient.New(s3Client, cmm)
+	if err != nil {
+		return nil, fmt.Errorf("unable to initialize S3 encryption client: %w", err)
+	}
+
+	return &encryptedS3Service{
+		client: client,
+	}, nil
 }
 
-func (s *encryptedS3Service) decryptionClient() (*s3crypto.DecryptionClientV2, error) {
-	kmsClient := kms.New(s.session)
-	cr := s3crypto.NewCryptoRegistry()
-	if err := s3crypto.RegisterAESGCMContentCipher(cr); err != nil {
-		return nil, err
-	}
-
-	if err := s3crypto.RegisterKMSContextWrapWithAnyCMK(cr, kmsClient); err != nil {
-		return nil, err
-	}
-
-	// Create a decryption client to decrypt artifacts
-	svc, err := s3crypto.NewDecryptionClientV2(s.session, cr)
-	if err != nil {
-		return nil, err
-	}
-
-	return svc, err
+func (s *encryptedS3Service) CreateBucket(ctx context.Context, input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {
+	return s.client.CreateBucket(ctx, input)
 }
 
-// Upload takes the same input as the defaultS3Service *s3manager.UploadInput, and converts it to a PutObjectInput
-// since the EncryptionClient does not have an equivalent to s3manager today. This means it will potentially upload
-// content more slowly, and in an unoptimized format.
-func (s *encryptedS3Service) Upload(input *s3manager.UploadInput, ctx context.Context, options ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error) {
-	svc, err := s.encryptionClient()
-	if err != nil {
-		return nil, err
-	}
+func (s *encryptedS3Service) DeleteBucket(ctx context.Context, input *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error) {
+	return s.client.DeleteBucket(ctx, input)
+}
 
-	// The s3crypto V2 client requires an io.ReadSeeker for signing and content-length purposes, but we use an
-	// io.PipeReader under the hood here. As a first pass for this functionality, we'll have to add two caveats to
-	// the docs:
-	// 1. Higher memory requirements and
-	// 2. May be slower as the AWS SDK doesn't currently support the same optimizations for encrypted payloads
-	b, err := ioutil.ReadAll(input.Body)
-	if err != nil {
-		return nil, fmt.Errorf("encryptedS3Service.Upload: Failed to read body %w", err)
-	}
+func (s *encryptedS3Service) HeadObject(ctx context.Context, input *s3.HeadObjectInput) (*s3.HeadObjectOutput, error) {
+	return s.client.HeadObject(ctx, input)
+}
 
-	putObjectInput := &s3.PutObjectInput{
-		Key:    input.Key,
-		Bucket: input.Bucket,
-		Body:   bytes.NewReader(b),
-	}
+func (s *encryptedS3Service) DeleteObject(ctx context.Context, input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error) {
+	return s.client.DeleteObject(ctx, input)
+}
 
-	output, err := svc.PutObjectWithContext(ctx, putObjectInput)
-	if err != nil {
-		return nil, fmt.Errorf("encryptedS3Service.Upload: Something went wrong uploading to S3. You may want to check your configuration, error: %s", err.Error())
-	}
+func (s *encryptedS3Service) CopyObject(ctx context.Context, input *s3.CopyObjectInput) (*s3.CopyObjectOutput, error) {
+	return s.client.CopyObject(ctx, input)
+}
 
-	// Pass the supported fields from the PutObjectOutput to the UploadOutput format.
-	s3managerOutput := &s3manager.UploadOutput{
-		VersionID: output.VersionId,
-		ETag:      output.ETag,
-	}
+func (s *encryptedS3Service) ListObjects(ctx context.Context, input *s3.ListObjectsInput) (*s3.ListObjectsOutput, error) {
+	return s.client.ListObjects(ctx, input)
+}
 
-	return s3managerOutput, nil
+// Upload takes the same input as the defaultS3Service *s3.UploadInput,
+func (s *encryptedS3Service) Upload(ctx context.Context, input *s3.UploadPartInput, options ...func(*s3.Options)) (*s3.UploadPartOutput, error) {
+	return s.client.UploadPart(ctx, input, options...)
 }
 
 // GetObject downloads an encrypted file from S3 and returns the plaintext value using client-side KMS decryption
-func (s *encryptedS3Service) GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, error) {
-	svc, err := s.decryptionClient()
-	if err != nil {
-		return nil, err
-	}
-
-	out, err := svc.GetObject(input)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == s3.ErrCodeNoSuchKey {
-				return nil, err
-			} else {
-				return nil, fmt.Errorf("encryptedS3Service.GetObject: Something went wrong getting an object from S3. You may want to check your configuration, error: %s", err.Error())
-			}
-		}
-	}
-	return out, err
+func (s *encryptedS3Service) GetObject(ctx context.Context, input *s3.GetObjectInput) (*s3.GetObjectOutput, error) {
+	return s.client.GetObject(ctx, input)
 }
 
 func (s *encryptedS3Service) KmsEncrypted() bool {

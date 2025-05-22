@@ -32,23 +32,19 @@ type defaultS3Wrapper struct {
 	client *s3.Client
 }
 
-func NewS3Wrapper(configInput rsstorage.ConfigS3, keyID string) (S3Wrapper, error) {
-	// Create a session
-	s3Client, err := getS3Options(configInput)
-	if err != nil {
-		return nil, err
+func NewS3Wrapper(configInput rsstorage.ConfigS3) (S3Wrapper, error) {
+	if configInput.Region == "" {
+		return nil, fmt.Errorf("'region' field of ConfigS3 is required")
 	}
-
-	if keyID != "" {
-		svc := &encryptedS3Service{
-			keyID: keyID,
-		}
-		svc.client = s3Client
-		return svc, nil
+	options := s3.Options{
+		BaseEndpoint:    &configInput.Endpoint,
+		EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: configInput.DisableSSL},
+		UsePathStyle:    configInput.S3ForcePathStyle,
+		Region:          configInput.Region,
 	}
 
 	return &defaultS3Wrapper{
-		client: s3Client,
+		client: s3.New(options),
 	}, nil
 }
 

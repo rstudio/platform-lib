@@ -120,16 +120,16 @@ type ConfigFile struct {
 }
 
 type ConfigS3 struct {
-	Bucket             string
-	Prefix             string
-	Profile            string
-	Region             string
-	Endpoint           string
-	KeyID              string
-	SkipValidation     bool
-	DisableSSL         bool
-	S3ForcePathStyle   bool
-	EnableSharedConfig bool
+	Bucket             string // S3 bucket to use
+	Prefix             string // prefix to prepend to item addresses
+	Profile            string // AWS profile to use
+	Region             string // AWS regions to use
+	Endpoint           string // S3 service endpoint to use
+	KeyID              string // the AWS KMS ID to use for client-side S3 encryption
+	SkipValidation     bool   // skip the validation of the S3 configuration
+	DisableSSL         bool   // disable SSL for S3
+	S3ForcePathStyle   bool   // force path style for URLs for S3 objects
+	EnableSharedConfig bool   // overrides the AWS_SKD_LOAD_CONFIG env var and enables shared config functionality
 }
 
 type CopyPart struct {
