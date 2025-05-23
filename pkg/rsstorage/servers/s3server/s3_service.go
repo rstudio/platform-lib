@@ -24,7 +24,7 @@ type S3Wrapper interface {
 	GetObject(ctx context.Context, input *s3.GetObjectInput) (*s3.GetObjectOutput, error)
 	DeleteObject(ctx context.Context, input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error)
 	Upload(ctx context.Context, input *s3.UploadPartInput, optFns ...func(options *s3.Options)) (*s3.UploadPartOutput, error)
-	CopyObject(ctx context.Context, input *s3.CopyObjectInput) (*s3.CopyObjectOutput, error)
+	CopyObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error)
 	MoveObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error)
 	ListObjects(ctx context.Context, input *s3.ListObjectsInput) (*s3.ListObjectsOutput, error)
 	KmsEncrypted() bool
@@ -130,8 +130,25 @@ func (s *defaultS3Wrapper) Upload(
 	return out, err
 }
 
-func (s *defaultS3Wrapper) CopyObject(ctx context.Context, input *s3.CopyObjectInput) (*s3.CopyObjectOutput, error) {
-	out, err := s.client.CopyObject(ctx, input)
+func (s *defaultS3Wrapper) CopyObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
+	head, err := s.HeadObject(ctx, &s3.HeadObjectInput{Key: &oldKey, Bucket: &oldBucket})
+	if err != nil {
+		return nil, fmt.Errorf(
+			"error encountered while getting the HEAD for an S3 object; try checking your configuration: %w",
+			err,
+		)
+	}
+
+	copySource := internal.NotEmptyJoin([]string{oldBucket, oldKey}, "/")
+	out, err := s.client.CopyObject(
+		ctx, &s3.CopyObjectInput{
+			Bucket:            &newBucket,
+			Key:               &newKey,
+			CopySource:        &copySource,
+			MetadataDirective: types.MetadataDirectiveReplace,
+			Metadata:          head.Metadata,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -33,7 +33,7 @@ type StorageServer struct {
 	prefix  string
 	svc     S3Wrapper
 	move    moveOrCopyFn
-	copy    copyFn
+	copy    moveOrCopyFn
 	chunker rsstorage.ChunkUtils
 }
 
