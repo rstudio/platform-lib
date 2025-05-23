@@ -11,7 +11,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal"
 )
 
 type encryptedS3Service struct {
@@ -69,6 +71,32 @@ func (s *encryptedS3Service) DeleteObject(ctx context.Context, input *s3.DeleteO
 
 func (s *encryptedS3Service) CopyObject(ctx context.Context, input *s3.CopyObjectInput) (*s3.CopyObjectOutput, error) {
 	return s.client.CopyObject(ctx, input)
+}
+
+func (s *encryptedS3Service) MoveObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
+	head, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Key:    &oldKey,
+		Bucket: &oldBucket,
+	})
+	if err != nil {
+		return nil, fmt.Errorf(
+			"error encountered while getting the HEAD for an S3 object; try checking your configuration: %w",
+			err,
+		)
+	}
+	copySource := internal.NotEmptyJoin([]string{oldBucket, oldKey}, "/")
+	input := s3.CopyObjectInput{
+		Bucket:            &newBucket,
+		Key:               &newKey,
+		CopySource:        &copySource,
+		MetadataDirective: types.MetadataDirectiveReplace,
+		Metadata:          head.Metadata,
+	}
+	out, err := s.client.CopyObject(ctx, &input)
+	if err != nil {
+		return nil, fmt.Errorf("error encountered while moving an S3 object; try checking your configuration: %w", err)
+	}
+	return out, nil
 }
 
 func (s *encryptedS3Service) ListObjects(ctx context.Context, input *s3.ListObjectsInput) (*s3.ListObjectsOutput, error) {

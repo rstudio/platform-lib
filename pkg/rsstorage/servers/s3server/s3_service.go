@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal"
 )
 
 const S3Concurrency = 20
@@ -24,6 +25,7 @@ type S3Wrapper interface {
 	DeleteObject(ctx context.Context, input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error)
 	Upload(ctx context.Context, input *s3.UploadPartInput, optFns ...func(options *s3.Options)) (*s3.UploadPartOutput, error)
 	CopyObject(ctx context.Context, input *s3.CopyObjectInput) (*s3.CopyObjectOutput, error)
+	MoveObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error)
 	ListObjects(ctx context.Context, input *s3.ListObjectsInput) (*s3.ListObjectsOutput, error)
 	KmsEncrypted() bool
 }
@@ -64,8 +66,8 @@ func (s *defaultS3Wrapper) DeleteBucket(ctx context.Context, input *s3.DeleteBuc
 	out, err := s.client.DeleteBucket(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"error encountered while deleting an S3 bucket; try checking your configuration, error: %s",
-			err.Error(),
+			"error encountered while deleting an S3 bucket; try checking your configuration, error: %w",
+			err,
 		)
 	}
 	return out, nil
@@ -79,8 +81,8 @@ func (s *defaultS3Wrapper) HeadObject(ctx context.Context, input *s3.HeadObjectI
 			return nil, err
 		}
 		return nil, fmt.Errorf(
-			"error encountered while getting the HEAD for an S3 object; try checking your configuration, error: %s",
-			err.Error(),
+			"error encountered while getting the HEAD for an S3 object; try checking your configuration, error: %w",
+			err,
 		)
 	}
 	return out, err
@@ -94,8 +96,8 @@ func (s *defaultS3Wrapper) GetObject(ctx context.Context, input *s3.GetObjectInp
 			return nil, err
 		}
 		return nil, fmt.Errorf(
-			"error encountered while getting an S3 object; try checking your configuration, error: %s",
-			err.Error(),
+			"error encountered while getting an S3 object; try checking your configuration, error: %w",
+			err,
 		)
 	}
 	return out, err
@@ -105,8 +107,8 @@ func (s *defaultS3Wrapper) DeleteObject(ctx context.Context, input *s3.DeleteObj
 	out, err := s.client.DeleteObject(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"error encountered while deleting an S3 object, try checking your configuration, error: %s",
-			err.Error(),
+			"error encountered while deleting an S3 object, try checking your configuration, error: %w",
+			err,
 		)
 	}
 	return out, nil
@@ -121,8 +123,8 @@ func (s *defaultS3Wrapper) Upload(
 	out, err := s.client.UploadPart(ctx, input, optFns...)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"error encountered while uploading to S3; try checking your configuration, error: %s",
-			err.Error(),
+			"error encountered while uploading to S3; try checking your configuration, error: %w",
+			err,
 		)
 	}
 	return out, err
@@ -134,6 +136,33 @@ func (s *defaultS3Wrapper) CopyObject(ctx context.Context, input *s3.CopyObjectI
 		return nil, err
 	}
 
+	return out, nil
+}
+
+func (s *defaultS3Wrapper) MoveObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
+	head, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Key:    &oldKey,
+		Bucket: &oldBucket,
+	})
+	if err != nil {
+		return nil, fmt.Errorf(
+			"error encountered while getting the HEAD for an S3 object; try checking your configuration: %w",
+			err,
+		)
+	}
+
+	copySource := internal.NotEmptyJoin([]string{oldBucket, oldKey}, "/")
+	input := s3.CopyObjectInput{
+		Bucket:            &newBucket,
+		Key:               &newKey,
+		CopySource:        &copySource,
+		MetadataDirective: types.MetadataDirectiveReplace,
+		Metadata:          head.Metadata,
+	}
+	out, err := s.client.CopyObject(ctx, &input)
+	if err != nil {
+		return nil, fmt.Errorf("error encountered while moving an S3 object; try checking your configuration: %w", err)
+	}
 	return out, nil
 }
 
