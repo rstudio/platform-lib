@@ -359,7 +359,7 @@ func (s *StorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, erro
 	}
 
 	for _, path := range s3Objects.Contents {
-		dir := filepath.Dir(path)
+		dir := filepath.Dir(path.Key)
 		if dir == "." {
 			dir = ""
 		}

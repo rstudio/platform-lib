@@ -20,7 +20,7 @@ type encryptedS3Service struct {
 	client *encryptClient.S3EncryptionClientV3
 }
 
-func NewEncryptedS3Wrapper(ctx context.Context, configInput rsstorage.ConfigS3, keyID string) (S3Wrapper, error) {
+func NewEncryptedS3Wrapper(ctx context.Context, configInput rsstorage.ConfigS3, keyID string, httpClient s3.HTTPClient) (S3Wrapper, error) {
 	if configInput.Region == "" {
 		return nil, fmt.Errorf("'region' field of ConfigS3 is required")
 	}
@@ -36,12 +36,16 @@ func NewEncryptedS3Wrapper(ctx context.Context, configInput rsstorage.ConfigS3, 
 		UsePathStyle:    configInput.S3ForcePathStyle,
 		Region:          configInput.Region,
 	}
+
+	if httpClient != nil {
+		s3Options.HTTPClient = httpClient
+	}
 	s3Client := s3.New(s3Options)
 	kmsClient := kms.NewFromConfig(cfg)
 
 	cmm, err := materials.NewCryptographicMaterialsManager(materials.NewKmsKeyring(kmsClient, keyID))
 	if err != nil {
-		return nil, fmt.Errorf("unable to ")
+		return nil, fmt.Errorf("error encounted while initializing crytographic manager: %w", err)
 	}
 	client, err := encryptClient.New(s3Client, cmm)
 	if err != nil {
@@ -51,6 +55,10 @@ func NewEncryptedS3Wrapper(ctx context.Context, configInput rsstorage.ConfigS3, 
 	return &encryptedS3Service{
 		client: client,
 	}, nil
+}
+
+func (s *encryptedS3Service) getConfig() config.Config {
+	return s.client.Options
 }
 
 func (s *encryptedS3Service) CreateBucket(ctx context.Context, input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {
@@ -69,8 +77,30 @@ func (s *encryptedS3Service) DeleteObject(ctx context.Context, input *s3.DeleteO
 	return s.client.DeleteObject(ctx, input)
 }
 
-func (s *encryptedS3Service) CopyObject(ctx context.Context, input *s3.CopyObjectInput) (*s3.CopyObjectOutput, error) {
-	return s.client.CopyObject(ctx, input)
+func (s *encryptedS3Service) CopyObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
+	head, err := s.HeadObject(ctx, &s3.HeadObjectInput{Key: &oldKey, Bucket: &oldBucket})
+	if err != nil {
+		return nil, fmt.Errorf(
+			"error encountered while getting the HEAD for an S3 object; try checking your configuration: %w",
+			err,
+		)
+	}
+
+	copySource := internal.NotEmptyJoin([]string{oldBucket, oldKey}, "/")
+	out, err := s.client.CopyObject(
+		ctx, &s3.CopyObjectInput{
+			Bucket:            &newBucket,
+			Key:               &newKey,
+			CopySource:        &copySource,
+			MetadataDirective: types.MetadataDirectiveReplace,
+			Metadata:          head.Metadata,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
 }
 
 func (s *encryptedS3Service) MoveObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
