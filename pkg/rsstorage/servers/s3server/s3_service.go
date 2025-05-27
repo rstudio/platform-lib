@@ -34,7 +34,7 @@ type defaultS3Wrapper struct {
 	client *s3.Client
 }
 
-func NewS3Wrapper(configInput rsstorage.ConfigS3) (S3Wrapper, error) {
+func NewS3Wrapper(configInput rsstorage.ConfigS3, httpClient s3.HTTPClient) (S3Wrapper, error) {
 	if configInput.Region == "" {
 		return nil, fmt.Errorf("'region' field of ConfigS3 is required")
 	}
@@ -43,6 +43,10 @@ func NewS3Wrapper(configInput rsstorage.ConfigS3) (S3Wrapper, error) {
 		EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: configInput.DisableSSL},
 		UsePathStyle:    configInput.S3ForcePathStyle,
 		Region:          configInput.Region,
+	}
+
+	if httpClient != nil {
+		options.HTTPClient = httpClient
 	}
 
 	return &defaultS3Wrapper{

@@ -3,13 +3,16 @@ package s3server
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/jarcoal/httpmock"
 	"gopkg.in/check.v1"
 
@@ -22,148 +25,148 @@ type S3WrapperSuite struct{}
 var _ = check.Suite(&S3WrapperSuite{})
 
 func (s *S3WrapperSuite) TestCreateBucket(c *check.C) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-1"),
-		Credentials: credentials.AnonymousCredentials,
-	})
-	c.Assert(err, check.IsNil)
-
-	httpmock.ActivateNonDefault(sess.Config.HTTPClient)
+	client := http.Client{}
+	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("PUT", `https://foo.s3.amazonaws.com/`,
-		httpmock.NewStringResponder(http.StatusNotFound, ``))
+	httpmock.RegisterResponder(
+		"PUT",
+		`https://foo.s3.amazonaws.com/`,
+		httpmock.NewStringResponder(http.StatusNotFound, ``),
+	)
 
-	wrapper := &defaultS3Wrapper{session: sess}
+	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	c.Assert(err, check.IsNil)
 
 	input := &s3.CreateBucketInput{
 		Bucket: aws.String("foo"),
 	}
-	_, err = wrapper.CreateBucket(input)
+	_, err = wrapper.CreateBucket(context.Background(), input)
+	c.Assert(err, check.NotNil)
 	expected := "NotFound: Not Found\tstatus code: 404, request id: , host id: "
 	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
 }
 
 func (s *S3WrapperSuite) TestHeadObject(c *check.C) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-1"),
-		Credentials: credentials.AnonymousCredentials,
-	})
-	c.Assert(err, check.IsNil)
-
-	httpmock.ActivateNonDefault(sess.Config.HTTPClient)
+	client := http.Client{}
+	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("HEAD", `https://foo.s3.amazonaws.com/foo`,
-		httpmock.NewStringResponder(http.StatusNotFound, ``))
+	httpmock.RegisterResponder(
+		"HEAD",
+		`https://foo.s3.amazonaws.com/foo`,
+		httpmock.NewStringResponder(http.StatusNotFound, ``),
+	)
 
-	wrapper := &defaultS3Wrapper{session: sess}
+	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	c.Assert(err, check.IsNil)
 
 	input := &s3.HeadObjectInput{
 		Bucket: aws.String("foo"),
 		Key:    aws.String("foo"),
 	}
-	_, err = wrapper.HeadObject(input)
+	_, err = wrapper.HeadObject(context.Background(), input)
+	c.Assert(err, check.NotNil)
 	expected := "NotFound: Not Found\tstatus code: 404, request id: , host id: "
 	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
 }
 
 func (s *S3WrapperSuite) TestGetObject(c *check.C) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-1"),
-		Credentials: credentials.AnonymousCredentials,
-	})
-	c.Assert(err, check.IsNil)
+	client := http.Client{}
 
-	httpmock.ActivateNonDefault(sess.Config.HTTPClient)
+	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("GET", `https://foo.s3.amazonaws.com/foo`,
-		httpmock.NewStringResponder(http.StatusNotFound, ``))
+	httpmock.RegisterResponder(
+		"GET",
+		`https://foo.s3.amazonaws.com/foo`,
+		httpmock.NewStringResponder(http.StatusNotFound, ``),
+	)
 
-	wrapper := &defaultS3Wrapper{session: sess}
+	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	c.Assert(err, check.IsNil)
 
 	input := &s3.GetObjectInput{
 		Bucket: aws.String("foo"),
 		Key:    aws.String("foo"),
 	}
-	_, err = wrapper.GetObject(input)
+	_, err = wrapper.GetObject(context.Background(), input)
+	c.Assert(err, check.NotNil)
 	expected := "Something went wrong getting an object from S3. You may want to check your configuration, error: NotFound: Not Found\tstatus code: 404, request id: , host id: "
 	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
 }
 
 func (s *S3WrapperSuite) TestDeleteObject(c *check.C) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-1"),
-		Credentials: credentials.AnonymousCredentials,
-	})
-	c.Assert(err, check.IsNil)
+	client := http.Client{}
 
-	httpmock.ActivateNonDefault(sess.Config.HTTPClient)
+	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("DELETE", `https://foo.s3.amazonaws.com/foo`,
-		httpmock.NewStringResponder(http.StatusNotFound, ``))
+	httpmock.RegisterResponder(
+		"DELETE",
+		`https://foo.s3.amazonaws.com/foo`,
+		httpmock.NewStringResponder(http.StatusNotFound, ``),
+	)
 
-	wrapper := &defaultS3Wrapper{session: sess}
+	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	c.Assert(err, check.IsNil)
 
 	input := &s3.DeleteObjectInput{
 		Bucket: aws.String("foo"),
 		Key:    aws.String("foo"),
 	}
-	_, err = wrapper.DeleteObject(input)
+	_, err = wrapper.DeleteObject(context.Background(), input)
+	c.Assert(err, check.NotNil)
 	expected := "Something went wrong deleting from S3. You may want to check your configuration, error: NotFound: Not Found\tstatus code: 404, request id: , host id: "
 	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
 }
 
 func (s *S3WrapperSuite) TestMoveObject(c *check.C) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-1"),
-		Credentials: credentials.AnonymousCredentials,
-	})
-	c.Assert(err, check.IsNil)
+	client := http.Client{}
 
-	httpmock.ActivateNonDefault(sess.Config.HTTPClient)
+	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("HEAD", `https://foo.s3.amazonaws.com/foo`,
-		httpmock.NewStringResponder(http.StatusNotFound, ``))
+	httpmock.RegisterResponder(
+		"HEAD",
+		`https://foo.s3.amazonaws.com/foo`,
+		httpmock.NewStringResponder(http.StatusNotFound, ``),
+	)
 
-	wrapper := &defaultS3Wrapper{session: sess}
+	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	c.Assert(err, check.IsNil)
 
-	_, err = wrapper.MoveObject("foo", "foo", "foo2", "newFoo")
+	_, err = wrapper.MoveObject(context.Background(), "foo", "foo", "foo2", "newFoo")
+	c.Assert(err, check.NotNil)
 	expected := "Something went wrong checking an object on S3. You may want to check your configuration, copy error: NotFound: Not Found\tstatus code: 404, request id: , host id: "
 	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
 }
 
 func (s *S3WrapperSuite) TestCopyObject(c *check.C) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-1"),
-		Credentials: credentials.AnonymousCredentials,
-	})
-	c.Assert(err, check.IsNil)
+	client := http.Client{}
 
-	httpmock.ActivateNonDefault(sess.Config.HTTPClient)
+	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("HEAD", `https://foo.s3.amazonaws.com/foo`,
-		httpmock.NewStringResponder(http.StatusNotFound, ``))
+	httpmock.RegisterResponder(
+		"HEAD",
+		`https://foo.s3.amazonaws.com/foo`,
+		httpmock.NewStringResponder(http.StatusNotFound, ``),
+	)
 
-	wrapper := &defaultS3Wrapper{session: sess}
+	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	c.Assert(err, check.IsNil)
 
-	_, err = wrapper.CopyObject("foo", "foo", "foo2", "newFoo")
+	_, err = wrapper.CopyObject(context.Background(), "foo", "foo", "foo2", "newFoo")
+	c.Assert(err, check.NotNil)
 	expected := "Something went wrong checking an object on S3. You may want to check your configuration, copy error: NotFound: Not Found\tstatus code: 404, request id: , host id: "
 	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
 }
 
 func (s *S3WrapperSuite) TestListObjects(c *check.C) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-1"),
-		Credentials: credentials.AnonymousCredentials,
-	})
-	c.Assert(err, check.IsNil)
+	client := http.Client{}
 
-	httpmock.ActivateNonDefault(sess.Config.HTTPClient)
+	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
 	httpmock.RegisterResponder("GET", `https://sync.s3.amazonaws.com/?prefix=bin%2F3.5-xenial%2F`,
@@ -187,9 +190,14 @@ func (s *S3WrapperSuite) TestListObjects(c *check.C) {
 	httpmock.RegisterResponder("GET", `https://no-sync.s3.amazonaws.com/?prefix=bin%2F3.5-xenial%2F`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``))
 
-	wrapper := &defaultS3Wrapper{session: sess}
+	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	c.Assert(err, check.IsNil)
 
-	files, err := wrapper.ListObjects("no-sync", "bin/3.5-xenial")
+	ctx := context.Background()
+	bucket := "no-sync"
+	prefix := "bin/3.5-xenial"
+	files, err := wrapper.ListObjects(ctx, &s3.ListObjectsInput{Bucket: &bucket, Prefix: &prefix})
+	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Equals, "something went wrong listing objects: NotFound: Not Found\n"+
 		"\tstatus code: 404, request id: , host id: ")
 
