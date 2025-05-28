@@ -31,15 +31,15 @@ type OptionalRecurser interface {
 }
 
 type FileCache interface {
-	//  * resolver The queue Work to perform if the item is not cached
+	// Get The queue Work to perform if the item is not cached
 	Get(ctx context.Context, resolver ResolverSpec) (value *CacheReturn)
 
-	// Returns `true` if we have the entire asset cached.
-	Check(resolver ResolverSpec) (ok bool, err error)
+	// Check Returns `true` if we have the entire asset cached.
+	Check(ctx context.Context, resolver ResolverSpec) (ok bool, err error)
 
 	Head(ctx context.Context, resolver ResolverSpec) (int64, time.Time, error)
 
-	Uncache(resolver ResolverSpec) error
+	Uncache(ctx context.Context, resolver ResolverSpec) error
 }
 
 type FileCacheConfig struct {
@@ -81,7 +81,7 @@ type fileCache struct {
 	retry time.Duration
 }
 
-func (o *fileCache) retryingGet(dir, address string, get func() bool) bool {
+func (o *fileCache) retryingGet(ctx context.Context, dir, address string, get func() bool) bool {
 
 	// Record start time
 	start := time.Now()
@@ -93,7 +93,7 @@ func (o *fileCache) retryingGet(dir, address string, get func() bool) bool {
 			return true
 		} else {
 			// Attempt to flush the NFS cache
-			o.server.Flush(dir, address)
+			o.server.Flush(ctx, dir, address)
 			flushed++
 		}
 		return get()
@@ -102,9 +102,9 @@ func (o *fileCache) retryingGet(dir, address string, get func() bool) bool {
 	// Preemptive get attempt
 	if flushingGet() {
 		if flushed == 0 {
-			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Found cached item at address '%s' immediately", address))
+			slog.Log(ctx, LevelTrace, fmt.Sprintf("Found cached item at address '%s' immediately", address))
 		} else {
-			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Found cached item at address '%s' after one flush", address))
+			slog.Log(ctx, LevelTrace, fmt.Sprintf("Found cached item at address '%s' after one flush", address))
 		}
 		return true
 	}
@@ -118,7 +118,16 @@ func (o *fileCache) retryingGet(dir, address string, get func() bool) bool {
 		case <-retry.C:
 			if flushingGet() {
 				elapsed := time.Now().Sub(start) / 1000000
-				slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Found cached item at address '%s' after %d ms and %d flushes", address, elapsed, flushed))
+				slog.Log(
+					ctx,
+					LevelTrace,
+					fmt.Sprintf(
+						"Found cached item at address '%s' after %d ms and %d flushes",
+						address,
+						elapsed,
+						flushed,
+					),
+				)
 				return true
 			}
 		case <-timeout.C:
@@ -127,11 +136,11 @@ func (o *fileCache) retryingGet(dir, address string, get func() bool) bool {
 	}
 }
 
-func (o *fileCache) Check(resolver ResolverSpec) (ok bool, err error) {
+func (o *fileCache) Check(ctx context.Context, resolver ResolverSpec) (ok bool, err error) {
 	address := resolver.Address()
 
 	var chunked *types.ChunksInfo
-	ok, chunked, _, _, err = o.server.Check(resolver.Dir(), address)
+	ok, chunked, _, _, err = o.server.Check(ctx, resolver.Dir(), address)
 	if chunked != nil && !chunked.Complete {
 		// We treat incomplete chunked assets as missing
 		ok = false
@@ -143,7 +152,7 @@ func (o *fileCache) Head(ctx context.Context, resolver ResolverSpec) (size int64
 	head := func() bool {
 		var ok bool
 		var chunks *types.ChunksInfo
-		ok, chunks, size, modTime, err = o.server.Check(resolver.Dir(), resolver.Address())
+		ok, chunks, size, modTime, err = o.server.Check(ctx, resolver.Dir(), resolver.Address())
 
 		// `Check` returns `ok==true` for chunked assets even if they're not complete.
 		// Since we don't know if the queue has in-progress work for incomplete chunked
@@ -186,11 +195,17 @@ func (o *fileCache) Head(ctx context.Context, resolver ResolverSpec) (size int64
 		// Wait
 		for {
 			select {
+			case <-ctx.Done():
+				return
+			default:
+
+			}
+			select {
 			case err = <-errCh:
 				if err != nil {
 					return
 				}
-				if o.retryingGet(resolver.Dir(), resolver.Address(), head) {
+				if o.retryingGet(ctx, resolver.Dir(), resolver.Address(), head) {
 					return
 				} else {
 					slog.Debug(fmt.Sprintf("error: FileCache reported address '%s' complete, but item was not found in cache", resolver.Address()))
@@ -218,7 +233,7 @@ func (o *fileCache) Get(ctx context.Context, resolver ResolverSpec) (value *Cach
 	address := resolver.Address()
 
 	get := func() (ok bool) {
-		reader, _, size, modTime, ok, err = o.server.Get(resolver.Dir(), address)
+		reader, _, size, modTime, ok, err = o.server.Get(ctx, resolver.Dir(), address)
 
 		// If we got the item successfully (ok), or if there was an error (err != nil),
 		// then we return `true` so the caller knows we have all the info we need
@@ -236,7 +251,7 @@ func (o *fileCache) Get(ctx context.Context, resolver ResolverSpec) (value *Cach
 	// assets, we should indicate that `ok = false` so the work is pushed into the
 	// queue if not already in progress. This ensures that partial chunked assets
 	// that have been aborted before storage fulfillment are restarted.
-	ok, chunks, size, modTime, err = o.server.Check(resolver.Dir(), address)
+	ok, chunks, size, modTime, err = o.server.Check(ctx, resolver.Dir(), address)
 	if ok && chunks != nil && !chunks.Complete {
 		ok = false
 	}
@@ -281,7 +296,7 @@ func (o *fileCache) Get(ctx context.Context, resolver ResolverSpec) (value *Cach
 				if err != nil {
 					return
 				}
-				if o.retryingGet(resolver.Dir(), address, get) {
+				if o.retryingGet(ctx, resolver.Dir(), address, get) {
 					return
 				} else {
 					err = fmt.Errorf("error: FileCache reported address '%s' complete, but item was not found in cache", address)
@@ -305,6 +320,6 @@ func (o *fileCache) Get(ctx context.Context, resolver ResolverSpec) (value *Cach
 	return
 }
 
-func (o *fileCache) Uncache(resolver ResolverSpec) error {
-	return o.server.Remove(resolver.Dir(), resolver.Address())
+func (o *fileCache) Uncache(ctx context.Context, resolver ResolverSpec) error {
+	return o.server.Remove(ctx, resolver.Dir(), resolver.Address())
 }

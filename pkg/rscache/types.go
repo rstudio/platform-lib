@@ -108,7 +108,7 @@ type CacheProvider interface {
 	Get(ctx context.Context, resolver ResolverSpec) (value CacheReturn)
 	// GetObject - for objects that will be decoded from gob files, we must pass in the type example.
 	GetObject(ctx context.Context, resolver ResolverSpec, typeExample interface{}) (value CacheReturn)
-	Check(resolver ResolverSpec) (bool, error)
+	Check(ctx context.Context, resolver ResolverSpec) (bool, error)
 	Head(ctx context.Context, resolver ResolverSpec) (size int64, modTime time.Time, err error)
 	Uncache(resolver ResolverSpec) error
 }

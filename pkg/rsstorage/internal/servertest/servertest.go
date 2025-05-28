@@ -3,6 +3,7 @@ package servertest
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 	"os"
@@ -22,11 +23,11 @@ type DummyChunkUtils struct {
 	ReadErr  error
 }
 
-func (f *DummyChunkUtils) WriteChunked(dir, address string, sz uint64, resolve types.Resolver) error {
+func (f *DummyChunkUtils) WriteChunked(ctx context.Context, dir, address string, sz uint64, resolve types.Resolver) error {
 	return f.WriteErr
 }
 
-func (f *DummyChunkUtils) ReadChunked(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, error) {
+func (f *DummyChunkUtils) ReadChunked(ctx context.Context, dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, error) {
 	return f.Read, f.ReadCh, f.ReadSz, f.ReadMod, f.ReadErr
 }
 

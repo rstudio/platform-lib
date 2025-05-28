@@ -3,12 +3,12 @@ package file
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"log/slog"
 	"os"
@@ -52,7 +52,7 @@ type StorageServerArgs struct {
 }
 
 func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
-	fs := &StorageServer{
+	fileBackedStorageServer := &StorageServer{
 		dir:          args.Dir,
 		fileIO:       &defaultFileIO{},
 		class:        args.Class,
@@ -66,7 +66,7 @@ func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
 		walkTimeout:  args.WalkTimeout,
 		chunker: &internal.DefaultChunkUtils{
 			ChunkSize:   args.ChunkSize,
-			Server:      fs,
+			Server:      fileBackedStorageServer,
 			Waiter:      args.Waiter,
 			Notifier:    args.Notifier,
 			PollTimeout: rsstorage.DefaultChunkPollTimeout,
@@ -76,7 +76,7 @@ func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
 	}
 }
 
-func (s *StorageServer) Check(dir, address string) (bool, *types.ChunksInfo, int64, time.Time, error) {
+func (s *StorageServer) Check(ctx context.Context, dir, address string) (bool, *types.ChunksInfo, int64, time.Time, error) {
 	// Determine the location for this file
 	filePath := filepath.Join(s.dir, dir, address)
 
@@ -93,6 +93,7 @@ func (s *StorageServer) Check(dir, address string) (bool, *types.ChunksInfo, int
 		if err != nil {
 			return false, nil, 0, time.Time{}, fmt.Errorf("no chunked directory 'info.json' for %s: %s", address, err)
 		}
+		// TODO: Handle this error
 		defer infoFile.Close()
 
 		info := types.ChunksInfo{}
@@ -221,7 +222,7 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 	}
 }
 
-func (s *StorageServer) Get(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
+func (s *StorageServer) Get(ctx context.Context, dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
 	// Determine the location for this file
 	filePath := filepath.Join(s.dir, dir, address)
 
@@ -240,7 +241,7 @@ func (s *StorageServer) Get(dir, address string) (io.ReadCloser, *types.ChunksIn
 	}
 
 	if stat.IsDir() {
-		r, c, sz, mod, err := s.chunker.ReadChunked(dir, address)
+		r, c, sz, mod, err := s.chunker.ReadChunked(ctx, dir, address)
 		if err != nil {
 			return nil, nil, 0, time.Time{}, false, fmt.Errorf("error reading chunked directory files for %s: %s", address, err)
 		}
@@ -251,7 +252,7 @@ func (s *StorageServer) Get(dir, address string) (io.ReadCloser, *types.ChunksIn
 	}
 }
 
-func (s *StorageServer) Flush(dir, address string) {
+func (s *StorageServer) Flush(ctx context.Context, dir, address string) {
 	// Determine location for this file
 	filePath := filepath.Join(s.dir, dir, address)
 
@@ -259,7 +260,7 @@ func (s *StorageServer) Flush(dir, address string) {
 	s.fileIO.FlushWithChownAndStat(filePath)
 }
 
-func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (string, string, error) {
+func (s *StorageServer) Put(ctx context.Context, resolve types.Resolver, dir, address string) (string, string, error) {
 
 	// Store the data
 	wdir, waddress, staging, err := s.write(resolve)
@@ -294,14 +295,14 @@ func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (string
 	return dir, address, nil
 }
 
-func (s *StorageServer) PutChunked(resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
+func (s *StorageServer) PutChunked(ctx context.Context, resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
 	if address == "" {
 		return "", "", fmt.Errorf("cache only supports pre-addressed chunked put commands")
 	}
 	if sz == 0 {
 		return "", "", fmt.Errorf("cache only supports pre-sized chunked put commands")
 	}
-	err := s.chunker.WriteChunked(dir, address, sz, resolve)
+	err := s.chunker.WriteChunked(ctx, dir, address, sz, resolve)
 	if err != nil {
 		return "", "", err
 	}
@@ -315,6 +316,7 @@ func (s *StorageServer) write(resolve types.Resolver) (dir, address, staging str
 	if err != nil {
 		return
 	}
+	// TODO: Handle this error
 	defer stagingFile.Close()
 	staging = stagingFile.Name()
 
@@ -338,9 +340,9 @@ func (s *StorageServer) cleanup(staging string) {
 	}
 }
 
-func (s *StorageServer) Remove(dir, address string) error {
+func (s *StorageServer) Remove(ctx context.Context, dir, address string) error {
 	// Determine the location for this file
-	ok, chunked, _, _, err := s.Check(dir, address)
+	ok, chunked, _, _, err := s.Check(ctx, dir, address)
 	if err != nil {
 		return err
 	}
@@ -356,7 +358,7 @@ func (s *StorageServer) Remove(dir, address string) error {
 	}
 }
 
-func (s *StorageServer) Enumerate() ([]types.StoredItem, error) {
+func (s *StorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, error) {
 	items, err := enumerate(s.dir, s.walkTimeout)
 	if err != nil {
 		log.Printf("Error enumerating storage: %s", err)
@@ -461,28 +463,28 @@ func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer
 	return nil
 }
 
-func (s *StorageServer) Move(dir, address string, server rsstorage.StorageServer) error {
-	copy := true
+func (s *StorageServer) Move(ctx context.Context, dir, address string, server rsstorage.StorageServer) error {
+	copyOp := true
 	switch server.(type) {
 	case *StorageServer:
 		// Attempt move
 		err := s.move(dir, address, server)
 		if err == nil {
-			copy = false
+			copyOp = false
 		}
 	default:
 		// Don't do anything. Just copy
 	}
 
 	// Copy the file, if needed
-	if copy {
-		err := s.Copy(dir, address, server)
+	if copyOp {
+		err := s.Copy(ctx, dir, address, server)
 		if err != nil {
 			return err
 		}
 
 		// Then, remove the file
-		err = s.Remove(dir, address)
+		err = s.Remove(ctx, dir, address)
 		if err != nil {
 			return err
 		}
@@ -491,9 +493,9 @@ func (s *StorageServer) Move(dir, address string, server rsstorage.StorageServer
 	return nil
 }
 
-func (s *StorageServer) Copy(dir, address string, server rsstorage.StorageServer) error {
+func (s *StorageServer) Copy(ctx context.Context, dir, address string, server rsstorage.StorageServer) error {
 	// Open the file
-	f, chunked, sz, _, ok, err := s.Get(dir, address)
+	f, chunked, sz, _, ok, err := s.Get(ctx, dir, address)
 	if err != nil {
 		return err
 	}
@@ -510,9 +512,9 @@ func (s *StorageServer) Copy(dir, address string, server rsstorage.StorageServer
 
 	// Use the server Base() in case the server is wrapped, e.g., `Metadatarsstorage.StorageServer`
 	if chunked != nil {
-		_, _, err = server.Base().PutChunked(install(f), dir, address, uint64(sz))
+		_, _, err = server.Base().PutChunked(ctx, install(f), dir, address, uint64(sz))
 	} else {
-		_, _, err = server.Base().Put(install(f), dir, address)
+		_, _, err = server.Base().Put(ctx, install(f), dir, address)
 	}
 	return err
 }
@@ -560,7 +562,7 @@ func (f *defaultFileIO) Open(name string) (fileIOFile, error) {
 }
 
 func (f *defaultFileIO) OpenStaging(dir, prefix string) (fileIOFile, error) {
-	return ioutil.TempFile(dir, prefix)
+	return os.CreateTemp(dir, prefix)
 }
 
 func (f *defaultFileIO) Move(stagedAt, permanent string) error {

@@ -105,7 +105,7 @@ func (r *RendererRunner) getResolverText(job *RendererWork) storagetypes.Resolve
 			parser.Strikethrough |
 			parser.SpaceHeadings |
 			parser.AutoHeadingIDs
-		parser := parser.NewWithExtensions(extensions)
+		p := parser.NewWithExtensions(extensions)
 
 		// Specify some helpful flags and create a renderer.
 		htmlFlags := html.CommonFlags | html.HrefTargetBlank
@@ -114,8 +114,8 @@ func (r *RendererRunner) getResolverText(job *RendererWork) storagetypes.Resolve
 
 		// Render the markdown and write it to storage.
 		normalized := markdown.NormalizeNewlines([]byte(job.Markdown))
-		html := markdown.ToHTML(normalized, parser, renderer)
-		_, err := writer.Write(html)
+		renderedHtml := markdown.ToHTML(normalized, p, renderer)
+		_, err := writer.Write(renderedHtml)
 		return "", "", err
 	}
 }

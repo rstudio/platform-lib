@@ -3,6 +3,7 @@ package rsstorage
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"errors"
 	"io"
 	"time"
@@ -21,8 +22,8 @@ const (
 )
 
 type ChunkUtils interface {
-	WriteChunked(dir, address string, sz uint64, resolve types.Resolver) error
-	ReadChunked(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, error)
+	WriteChunked(ctx context.Context, dir, address string, sz uint64, resolve types.Resolver) error
+	ReadChunked(ctx context.Context, dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, error)
 }
 
 type ChunkWaiter interface {

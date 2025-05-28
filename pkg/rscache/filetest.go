@@ -174,8 +174,6 @@ func (f *DummyMemoryBackedFileCache) getObject(address string, typeExample inter
 }
 
 func (f *DummyMemoryBackedFileCache) GetObject(ctx context.Context, resolver ResolverSpec, typeExample interface{}) (value CacheReturn) {
-	var err error
-
 	f.GotSpec = resolver
 	if f.GotSpecs == nil {
 		f.GotSpecs = make([]ResolverSpec, 0)
@@ -218,9 +216,8 @@ func (f *DummyMemoryBackedFileCache) GetObject(ctx context.Context, resolver Res
 		value = f.getObject(address, typeExample)
 	}
 
-	if err == nil {
-		f.GetObjectCount++
-	}
+	f.GetObjectCount++
+
 	return
 }
 
