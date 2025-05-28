@@ -4,6 +4,7 @@ package runners
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -66,9 +67,7 @@ func (s *RendererRunnerSuite) TestRunUnmarshalError(c *check.C) {
 	server := &rsstorage.DummyStorageServer{}
 	r := NewRendererRunner(server)
 	bWork := []byte("bad")
-	err := r.Run(queue.RecursableWork{
-		Work: bWork,
-	})
+	err := r.Run(context.Background(), queue.RecursableWork{Work: bWork})
 	c.Check(err, check.ErrorMatches, "invalid character 'b' looking for beginning of value")
 }
 
@@ -81,9 +80,7 @@ func (s *RendererRunnerSuite) TestRunCacheError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	bWork, err := json.Marshal(w)
 	c.Assert(err, check.IsNil)
-	err = r.Run(queue.RecursableWork{
-		Work: bWork,
-	})
+	err = r.Run(context.Background(), queue.RecursableWork{Work: bWork})
 	c.Check(err, check.ErrorMatches, `renderer_runner error: cache error`)
 }
 
@@ -94,9 +91,7 @@ func (s *RendererRunnerSuite) TestRunOk(c *check.C) {
 	c.Assert(err, check.IsNil)
 	bWork, err := json.Marshal(w)
 	c.Assert(err, check.IsNil)
-	err = r.Run(queue.RecursableWork{
-		Work: bWork,
-	})
+	err = r.Run(context.Background(), queue.RecursableWork{Work: bWork})
 	c.Check(err, check.IsNil)
 	c.Check(server.PutCalled, check.Equals, 1)
 }

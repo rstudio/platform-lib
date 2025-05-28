@@ -20,7 +20,7 @@ type AddressableWork interface {
 
 type WorkRunner interface {
 	// Run the work
-	Run(work RecursableWork) error
+	Run(ctx context.Context, work RecursableWork) error
 
 	// Stop the runner. For most implementations, this method should be
 	// empty and return `nil`. If special logic is required to stop
@@ -29,7 +29,7 @@ type WorkRunner interface {
 	Stop(timeout time.Duration) error
 }
 
-// Implements the WorkRunner's `Stop` function to avoid boilerplate
+// BaseRunner implements the WorkRunner's `Stop` function to avoid boilerplate
 // since most runners don't need special stop logic
 type BaseRunner struct{}
 

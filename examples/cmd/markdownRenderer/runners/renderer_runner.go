@@ -3,6 +3,7 @@ package runners
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -20,7 +21,7 @@ import (
 )
 
 // RendererRunner is a runner is registered with the queue agent that knows how
-// to render markdown text to HTML.
+// to render Markdown text to HTML.
 type RendererRunner struct {
 	queue.BaseRunner
 
@@ -74,7 +75,7 @@ func (w RendererWork) Dir() string {
 	return ""
 }
 
-func (r *RendererRunner) Run(work queue.RecursableWork) error {
+func (r *RendererRunner) Run(ctx context.Context, work queue.RecursableWork) error {
 
 	job := &RendererWork{}
 	err := json.Unmarshal(work.Work, &job)
@@ -84,7 +85,7 @@ func (r *RendererRunner) Run(work queue.RecursableWork) error {
 
 	for {
 		// Render the markdown to HTML and "Put" it into storage.
-		_, _, err = r.server.Put(r.getResolverText(job), job.Dir(), job.Address())
+		_, _, err = r.server.Put(ctx, r.getResolverText(job), job.Dir(), job.Address())
 		if err != nil {
 			return errors.Wrap(err, "renderer_runner error")
 		} else {

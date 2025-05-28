@@ -1,8 +1,9 @@
 package internal
 
-// Copyright (C) 2022 by RStudio, PBC
+// Copyright (C) 2025 by Posit, PBC
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,7 +25,13 @@ type DefaultChunkUtils struct {
 	MaxAttempts int
 }
 
-func (w *DefaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve types.Resolver) (err error) {
+func (w *DefaultChunkUtils) WriteChunked(
+	ctx context.Context,
+	dir string,
+	address string,
+	sz uint64,
+	resolve types.Resolver,
+) (err error) {
 
 	// Determine number of chunks we will need to create
 	numChunks := sz / w.ChunkSize
@@ -33,7 +40,7 @@ func (w *DefaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve
 	}
 
 	// Clear the directory if it already exists
-	err = w.Server.Remove(dir, address)
+	err = w.Server.Remove(ctx, dir, address)
 	if err != nil {
 		return nil
 	}
@@ -51,7 +58,7 @@ func (w *DefaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve
 		return
 	}
 	chunkDir := filepath.Join(dir, address)
-	_, _, err = w.Server.Put(infoResolver, chunkDir, "info.json")
+	_, _, err = w.Server.Put(ctx, infoResolver, chunkDir, "info.json")
 	if err != nil {
 		return
 	}
@@ -62,14 +69,15 @@ func (w *DefaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve
 	// Clean up on error
 	defer func(err *error) {
 		if *err != nil {
-			w.Server.Remove(dir, address)
+			// TODO: Handle this error gracefully
+			w.Server.Remove(ctx, dir, address)
 		}
 	}(&err)
 
 	// Write all chunks
 	results := make(chan uint64)
 	errs := make(chan error)
-	go w.writeChunks(numChunks, chunkDir, pR, results, errs)
+	go w.writeChunks(ctx, numChunks, chunkDir, pR, results, errs)
 
 	// Resolve/get the data we need
 	resolverErrs := make(chan error)
@@ -98,6 +106,7 @@ func (w *DefaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve
 					Chunk:   count,
 				})
 				if err != nil {
+					// TODO: Update DefaultChunkUtils to acceptable a logger
 					log.Printf("Error notifying store of chunk completion for address=%s; chunk=%d: %s", address, count, err)
 				}
 				if count == numChunks {
@@ -113,7 +122,7 @@ func (w *DefaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve
 	// Update `info.json` when complete
 	info.Complete = true
 	info.ModTime = time.Now()
-	_, _, err = w.Server.Put(infoResolver, chunkDir, "info.json")
+	_, _, err = w.Server.Put(ctx, infoResolver, chunkDir, "info.json")
 	if err != nil {
 		return
 	}
@@ -121,7 +130,15 @@ func (w *DefaultChunkUtils) WriteChunked(dir, address string, sz uint64, resolve
 	return
 }
 
-func (w *DefaultChunkUtils) writeChunks(numChunks uint64, chunkDir string, r *io.PipeReader, results chan uint64, errs chan error) {
+func (w *DefaultChunkUtils) writeChunks(
+	ctx context.Context,
+	numChunks uint64,
+	chunkDir string,
+	r *io.PipeReader,
+	results chan uint64,
+	errs chan error,
+) {
+	// TODO: Handle this error
 	defer r.Close()
 	defer close(results)
 	defer close(errs)
@@ -136,7 +153,7 @@ func (w *DefaultChunkUtils) writeChunks(numChunks uint64, chunkDir string, r *io
 			}
 
 			chunkFile := fmt.Sprintf("%08d", i)
-			_, _, err := w.Server.Put(resolve, chunkDir, chunkFile)
+			_, _, err := w.Server.Put(ctx, resolve, chunkDir, chunkFile)
 			if err != nil {
 				return err
 			}
@@ -151,10 +168,14 @@ func (w *DefaultChunkUtils) writeChunks(numChunks uint64, chunkDir string, r *io
 	}
 }
 
-func (w *DefaultChunkUtils) ReadChunked(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, error) {
+func (w *DefaultChunkUtils) ReadChunked(
+	ctx context.Context,
+	dir string,
+	address string,
+) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, error) {
 	chunkDir := filepath.Join(dir, address)
 
-	infoFile, _, _, _, ok, err := w.Server.Get(chunkDir, "info.json")
+	infoFile, _, _, _, ok, err := w.Server.Get(ctx, chunkDir, "info.json")
 	if err != nil {
 		return nil, nil, 0, time.Time{}, err
 	} else if !ok {
@@ -170,17 +191,26 @@ func (w *DefaultChunkUtils) ReadChunked(dir, address string) (io.ReadCloser, *ty
 	}
 
 	pR, pW := io.Pipe()
-	go w.readChunks(address, chunkDir, info.NumChunks, info.Complete, pW)
+	go w.readChunks(ctx, address, chunkDir, info.NumChunks, info.Complete, pW)
 
 	return pR, &info, int64(info.FileSize), info.ModTime, nil
 }
 
-func (w *DefaultChunkUtils) readChunks(address, chunkDir string, numChunks uint64, complete bool, writer *io.PipeWriter) {
+func (w *DefaultChunkUtils) readChunks(
+	ctx context.Context,
+	address string,
+	chunkDir string,
+	numChunks uint64,
+	complete bool,
+	writer *io.PipeWriter,
+) {
+	// TODO: Handle this error
 	defer writer.Close()
 
 	for i := uint64(1); i <= numChunks; i++ {
-		err := w.retryingChunkRead(i, address, chunkDir, complete, writer)
+		err := w.retryingChunkRead(ctx, i, address, chunkDir, complete, writer)
 		if err != nil {
+			// TODO: Handle this error
 			writer.CloseWithError(err)
 			return
 		}
@@ -189,23 +219,38 @@ func (w *DefaultChunkUtils) readChunks(address, chunkDir string, numChunks uint6
 	return
 }
 
-func (w *DefaultChunkUtils) retryingChunkRead(chunkIndex uint64, address, chunkDir string, complete bool, writer *io.PipeWriter) (err error) {
+func (w *DefaultChunkUtils) retryingChunkRead(
+	ctx context.Context,
+	chunkIndex uint64,
+	address string,
+	chunkDir string,
+	complete bool,
+	writer *io.PipeWriter,
+) (err error) {
 	attempts := 0
 	for {
 		attempts += 1
 		var done bool
-		done, err = w.tryChunkRead(attempts, chunkIndex, address, chunkDir, complete, writer)
+		done, err = w.tryChunkRead(ctx, attempts, chunkIndex, address, chunkDir, complete, writer)
 		if err != nil || done {
 			return
 		}
 	}
 }
 
-func (w *DefaultChunkUtils) tryChunkRead(attempts int, chunkIndex uint64, address, chunkDir string, complete bool, writer *io.PipeWriter) (bool, error) {
+func (w *DefaultChunkUtils) tryChunkRead(
+	ctx context.Context,
+	attempts int,
+	chunkIndex uint64,
+	address string,
+	chunkDir string,
+	complete bool,
+	writer *io.PipeWriter,
+) (bool, error) {
 	chunkFile := fmt.Sprintf("%08d", chunkIndex)
 
 	// Open the chunks sequentially
-	chunk, _, _, _, ok, err := w.Server.Get(chunkDir, chunkFile)
+	chunk, _, _, _, ok, err := w.Server.Get(ctx, chunkDir, chunkFile)
 	if err != nil {
 		return false, fmt.Errorf("error opening chunk file at %s: %s", chunkDir, err)
 	} else if !ok {
@@ -227,6 +272,7 @@ func (w *DefaultChunkUtils) tryChunkRead(attempts int, chunkIndex uint64, addres
 			return false, rsstorage.ErrNoChunk
 		}
 	}
+	// TODO: handle this error
 	defer chunk.Close()
 
 	// Read the current chunk
