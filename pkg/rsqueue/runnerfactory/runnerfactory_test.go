@@ -3,6 +3,7 @@ package runnerfactory
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ type FakeRunnerOne struct {
 	ran bool
 }
 
-func (f *FakeRunnerOne) Run(work queue.RecursableWork) error {
+func (f *FakeRunnerOne) Run(ctx context.Context, work queue.RecursableWork) error {
 	f.ran = true
 	return nil
 }
@@ -39,7 +40,7 @@ type FakeRunnerTwo struct {
 	accepting bool
 }
 
-func (f *FakeRunnerTwo) Run(work queue.RecursableWork) error {
+func (f *FakeRunnerTwo) Run(ctx context.Context, work queue.RecursableWork) error {
 	f.ran = true
 	return nil
 }
@@ -53,6 +54,7 @@ func (f *FakeRunnerTwo) Accepting() bool {
 }
 
 func (s *RunnerFactorySuite) TestNewRunner(c *check.C) {
+	ctx := context.Background()
 	types := &queue.DefaultQueueSupportedTypes{}
 	r := NewRunnerFactory(RunnerFactoryConfig{SupportedTypes: types})
 	c.Check(r, check.DeepEquals, &RunnerFactory{
@@ -70,7 +72,7 @@ func (s *RunnerFactorySuite) TestNewRunner(c *check.C) {
 	c.Check(fr2.ran, check.Equals, false)
 
 	// Run something with the first runner
-	err := r.Run(queue.RecursableWork{
+	err := r.Run(ctx, queue.RecursableWork{
 		Work:     []byte{},
 		WorkType: 0,
 	})
@@ -80,7 +82,7 @@ func (s *RunnerFactorySuite) TestNewRunner(c *check.C) {
 
 	// Run something with the second runner
 	fr1.ran = false
-	err = r.Run(queue.RecursableWork{
+	err = r.Run(ctx, queue.RecursableWork{
 		Work:     []byte{},
 		WorkType: 1,
 	})
@@ -89,7 +91,7 @@ func (s *RunnerFactorySuite) TestNewRunner(c *check.C) {
 	c.Check(fr2.ran, check.Equals, true)
 
 	// Try to run something invalid
-	err = r.Run(queue.RecursableWork{
+	err = r.Run(ctx, queue.RecursableWork{
 		Work:     []byte{},
 		WorkType: 2,
 	})
