@@ -7,12 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
-
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jarcoal/httpmock"
 	"gopkg.in/check.v1"
 
@@ -201,49 +197,54 @@ func (s *S3WrapperSuite) TestListObjects(c *check.C) {
 	c.Assert(err.Error(), check.Equals, "something went wrong listing objects: NotFound: Not Found\n"+
 		"\tstatus code: 404, request id: , host id: ")
 
-	files, err = wrapper.ListObjects("sync", "bin/3.5-xenial")
+	bucket = "sync"
+	files, err = wrapper.ListObjects(ctx, &s3.ListObjectsInput{Bucket: &bucket, Prefix: &prefix})
 	c.Assert(err, check.IsNil)
 	c.Check(files, check.DeepEquals, []string{"ABCDEFG.json", "HIJKLMN.tar.gz", "OPQRSTU.zip", "nothing"})
 }
 
 func (s *S3WrapperSuite) TestGetS3Options(c *check.C) {
 	// Test minimum configuration
-	s3 := &rsstorage.ConfigS3{}
-	o := getS3Options(s3)
-	c.Check(o, check.DeepEquals, session.Options{
-		Config: aws.Config{
-			DisableSSL:       aws.Bool(false),
-			S3ForcePathStyle: aws.Bool(false),
+	ops, err := getS3Options(rsstorage.ConfigS3{Region: "us-east-1"})
+	c.Assert(err, check.IsNil)
+	c.Check(
+		ops,
+		check.DeepEquals,
+		s3.Options{
+			UsePathStyle:    false,
+			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: false},
+			Region:          "us-east-1",
 		},
-		SharedConfigState: session.SharedConfigStateFromEnv,
-	})
+	)
+
+	baseEndpoint := "http://localhost:9000"
 
 	// Test maximum configuration
-	s3 = &rsstorage.ConfigS3{
+	cfg := rsstorage.ConfigS3{
 		Profile:            "test-profile",
 		Region:             "us-east-1",
-		Endpoint:           "http://localhost:9000",
+		Endpoint:           baseEndpoint,
 		EnableSharedConfig: true,
 	}
-	o = getS3Options(s3)
-	c.Check(o, check.DeepEquals, session.Options{
-		Config: aws.Config{
-			Region:           aws.String("us-east-1"),
-			Endpoint:         aws.String("http://localhost:9000"),
-			DisableSSL:       aws.Bool(false),
-			S3ForcePathStyle: aws.Bool(false),
+	ops, err = getS3Options(cfg)
+	c.Check(
+		ops,
+		check.DeepEquals,
+		s3.Options{
+			Region:          "us-east-1",
+			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: false},
+			BaseEndpoint:    &baseEndpoint,
+			UsePathStyle:    false,
 		},
-		Profile:           "test-profile",
-		SharedConfigState: session.SharedConfigEnable,
-	})
+	)
 }
 
 func (s *S3WrapperSuite) TestSetStorageS3Validate(c *check.C) {
-	s3 := &rsstorage.ConfigS3{
+	cfg := rsstorage.ConfigS3{
 		Region:     "testregion",
 		DisableSSL: false,
 	}
-	svc, err := NewS3Wrapper(s3, "")
+	svc, err := NewS3Wrapper(cfg, nil)
 	c.Assert(err, check.IsNil)
 
 	wn := &servertest.DummyWaiterNotifier{}
@@ -256,6 +257,6 @@ func (s *S3WrapperSuite) TestSetStorageS3Validate(c *check.C) {
 		Notifier:  wn,
 	})
 
-	err = s3srv.(*StorageServer).Validate()
+	err = s3srv.(*StorageServer).Validate(context.Background())
 	c.Assert(err, check.NotNil)
 }
