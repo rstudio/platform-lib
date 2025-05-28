@@ -237,8 +237,19 @@ func (a *DefaultAgent) Run(notify agenttypes.Notify) {
 
 		retry = 0
 
-		slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Grabbed a new job with a maxPriority of '%d', type '%d', address '%s', and permit '%d'", maxPriority, queueWork.WorkType, queueWork.Address, queueWork.Permit))
+		slog.Log(
+			context.Background(),
+			LevelTrace,
+			fmt.Sprintf(
+				"Grabbed a new job with a maxPriority of '%d', type '%d', address '%s', and permit '%d'",
+				maxPriority,
+				queueWork.WorkType,
+				queueWork.Address,
+				queueWork.Permit,
+			),
+		)
 		jsonDst := bytes.Buffer{}
+		// TODO: Handle this error
 		json.Indent(&jsonDst, queueWork.Work, "", "  ")
 		slog.Log(context.Background(), LevelTrace, jsonDst.String())
 
@@ -325,7 +336,13 @@ func (a *DefaultAgent) getRecurseFn(jobDone chan int64) queue.RecurseFunc {
 //   - pt Permit - a Permit to manage the work
 //   - jobDone chan int - The channel to notify of the job count when a job completes
 //   - maxPriorityChan chan uint64 - A channel on which we notify of capacity changes.
-func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, jobDone chan int64, maxPriorityChan chan uint64, notify agenttypes.Notify) {
+func (a *DefaultAgent) runJob(
+	ctx context.Context,
+	queueWork *queue.QueueWork,
+	jobDone chan int64,
+	maxPriorityChan chan uint64,
+	notify agenttypes.Notify,
+) {
 	defer a.running.Done()
 
 	var err error
@@ -333,7 +350,7 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 		var data interface{}
 		ctx, data, err = a.wrapper.Start(ctx, queueWork)
 		if err != nil {
-			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("agent.runJob tracing wrapper start error: %s", err))
+			slog.Log(ctx, LevelTrace, fmt.Sprintf("agent.runJob tracing wrapper start error: %s", err))
 		}
 		defer a.wrapper.Finish(data)
 	}
@@ -351,7 +368,15 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 				select {
 				case <-ticker.C:
 					// Extend the job visibility
-					slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Job of type %d visibility timeout needs to be extended: %d\n", queueWork.WorkType, queueWork.Permit))
+					slog.Log(
+						ctx,
+						LevelTrace,
+						fmt.Sprintf(
+							"Job of type %d visibility timeout needs to be extended: %d\n",
+							queueWork.WorkType,
+							queueWork.Permit,
+						),
+					)
 					err := a.queue.Extend(queueWork.Permit)
 					if err != nil {
 						slog.Debug(fmt.Sprintf("Error extending job for work type %d: %s", queueWork.WorkType, err))
@@ -363,14 +388,34 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 		}()
 
 		// Actually run the job
-		slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Running job with type %d, address '%s', and permit '%d'", queueWork.WorkType, queueWork.Address, queueWork.Permit))
-		err := a.runner.Run(queue.RecursableWork{
-			Work:     queueWork.Work,
-			WorkType: queueWork.WorkType,
-			Context:  ctx,
-		})
+		slog.Log(
+			ctx,
+			LevelTrace,
+			fmt.Sprintf(
+				"Running job with type %d, address '%s', and permit '%d'",
+				queueWork.WorkType,
+				queueWork.Address,
+				queueWork.Permit,
+			),
+		)
+		err := a.runner.Run(
+			ctx,
+			queue.RecursableWork{
+				Work:     queueWork.Work,
+				WorkType: queueWork.WorkType,
+				Context:  ctx,
+			},
+		)
 		if err != nil {
-			slog.Debug(fmt.Sprintf("Job type %d: address: %s work: %#v returned error: %s\n", queueWork.WorkType, queueWork.Address, string(queueWork.Work), err))
+			slog.Debug(
+				fmt.Sprintf(
+					"Job type %d: address: %s work: %#v returned error: %s\n",
+					queueWork.WorkType,
+					queueWork.Address,
+					string(queueWork.Work),
+					err,
+				),
+			)
 		}
 
 		// If the work was addressed, record the result
@@ -404,7 +449,7 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 	}()
 
 	// Delete the job from the queue
-	slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Deleting job from queue: %d\n", queueWork.Permit))
+	slog.Log(ctx, LevelTrace, fmt.Sprintf("Deleting job from queue: %d\n", queueWork.Permit))
 
 	if err := a.queue.Delete(queueWork.Permit); err != nil {
 		slog.Debug(fmt.Sprintf("queue Delete() returned error: %s", err))
@@ -414,9 +459,9 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 	// queue.
 	if queueWork.Address != "" {
 		n := time.Now()
-		slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Ready to notify of address %s", queueWork.Address))
+		slog.Log(ctx, LevelTrace, fmt.Sprintf("Ready to notify of address %s", queueWork.Address))
 		notify(agenttypes.NewWorkCompleteNotification(queueWork.Address, a.notifyTypeWorkComplete))
-		slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Notified of address %s in %d ms", queueWork.Address, time.Now().Sub(n).Nanoseconds()/1000000))
+		slog.Log(ctx, LevelTrace, fmt.Sprintf("Notified of address %s in %d ms", queueWork.Address, time.Now().Sub(n).Nanoseconds()/1000000))
 	}
 
 	// Calculate the new max priority we have capacity for
@@ -429,12 +474,12 @@ func (a *DefaultAgent) runJob(ctx context.Context, queueWork *queue.QueueWork, j
 	if capacity {
 		// Attempt to notify channel. This notification will succeed if the queue Get is
 		// waiting for work, but it will not block if the queue is busy
-		slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Notifying maxPriorityChan of priority %d\n", maxPriority))
+		slog.Log(ctx, LevelTrace, fmt.Sprintf("Notifying maxPriorityChan of priority %d\n", maxPriority))
 		select {
 		case maxPriorityChan <- maxPriority:
-			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Notified maxPriorityChan of priority %d\n", maxPriority))
+			slog.Log(ctx, LevelTrace, fmt.Sprintf("Notified maxPriorityChan of priority %d\n", maxPriority))
 		default:
-			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Not receiving on maxPriorityChan; skipped notification of priority %d\n", maxPriority))
+			slog.Log(ctx, LevelTrace, fmt.Sprintf("Not receiving on maxPriorityChan; skipped notification of priority %d\n", maxPriority))
 		}
 	}
 }

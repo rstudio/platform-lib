@@ -45,9 +45,8 @@ func Int64InSlice(needle int64, haystack []int64) bool {
 	return false
 }
 
-// Returns a map of concurrency limits, where the key
-// is the priority and the value is the concurrency limit
-// for that priority.
+// Concurrencies returns a map of concurrency limits, where the key
+// is the priority and the value is the concurrency limit for that priority.
 func Concurrencies(defaults, priorityMap map[int64]int64, priorities []int64) (*ConcurrencyEnforcer, error) {
 	cEnforcer := &ConcurrencyEnforcer{}
 
@@ -67,13 +66,13 @@ func (c *ConcurrencyEnforcer) SetConcurrencies(defaults, priorityMap map[int64]i
 	// build the initial map with defaults
 	concurrencies := make(map[int64]int64)
 	for _, priority := range ps {
-		if max, ok := defaults[priority]; ok {
-			concurrencies[priority] = max
+		if maxPriority, ok := defaults[priority]; ok {
+			concurrencies[priority] = maxPriority
 		}
 	}
 
-	for priority, max := range priorityMap {
-		concurrencies[priority] = max
+	for priority, maxPriority := range priorityMap {
+		concurrencies[priority] = maxPriority
 	}
 
 	c.mutex.Lock()
