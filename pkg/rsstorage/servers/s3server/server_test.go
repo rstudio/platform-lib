@@ -11,16 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/fortytw2/leaktest"
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
 	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal/servertest"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
+	rtypes "github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
 )
 
 func TestPackage(t *testing.T) { check.TestingT(t) }
@@ -59,7 +58,7 @@ type fakeS3 struct {
 	delete       *s3.DeleteObjectOutput
 	deleteErr    error
 	deleted      string
-	upload       *s3manager.UploadOutput
+	upload       *s3.UploadPartOutput
 	uploadErr    error
 	uploaded     string
 	bucket       string
@@ -82,26 +81,27 @@ func (s *fakeS3) KmsEncrypted() bool {
 	return false
 }
 
-func (s *fakeS3) CreateBucket(input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {
+func (s *fakeS3) CreateBucket(ctx context.Context, input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {
 	if s.bucketErr == nil {
 		s.bucketIn = input
 	}
 	return s.bucketOut, s.bucketErr
 }
 
-func (s *fakeS3) DeleteBucket(input *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error) {
+func (s *fakeS3) DeleteBucket(ctx context.Context, input *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error) {
 	if s.delBucketErr == nil {
 		s.delBucketIn = input
 	}
 	return s.delBucketOut, s.delBucketErr
 }
 
-func (s *fakeS3) HeadObject(input *s3.HeadObjectInput) (*s3.HeadObjectOutput, error) {
+func (s *fakeS3) HeadObject(ctx context.Context, input *s3.HeadObjectInput) (*s3.HeadObjectOutput, error) {
 	if s.headMap != nil {
 		if r, ok := s.headMap[*input.Key]; ok {
 			return r.head, r.err
 		}
-		return nil, awserr.New(s3.ErrCodeNoSuchKey, "not found", errors.New("na"))
+		message := "not found"
+		return nil, &types.NoSuchKey{Message: &message}
 	}
 	if s.headErr == nil {
 		s.headRes = *input.Key
@@ -109,12 +109,13 @@ func (s *fakeS3) HeadObject(input *s3.HeadObjectInput) (*s3.HeadObjectOutput, er
 	return s.head, s.headErr
 }
 
-func (s *fakeS3) GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, error) {
+func (s *fakeS3) GetObject(ctx context.Context, input *s3.GetObjectInput) (*s3.GetObjectOutput, error) {
 	if s.getMap != nil {
 		if r, ok := s.getMap[*input.Key]; ok {
 			return r.get, r.err
 		}
-		return nil, awserr.New(s3.ErrCodeNoSuchKey, "not found", errors.New("na"))
+		message := "not found"
+		return nil, &types.NoSuchKey{Message: &message}
 	}
 	if s.getErr == nil {
 		s.got = *input.Key
@@ -122,7 +123,7 @@ func (s *fakeS3) GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, error
 	return s.get, s.getErr
 }
 
-func (s *fakeS3) DeleteObject(input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error) {
+func (s *fakeS3) DeleteObject(ctx context.Context, input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error) {
 	if s.deleteErr == nil {
 		if s.deleted != "" {
 			s.deleted += "\n"
@@ -132,25 +133,33 @@ func (s *fakeS3) DeleteObject(input *s3.DeleteObjectInput) (*s3.DeleteObjectOutp
 	return s.delete, s.deleteErr
 }
 
-func (s *fakeS3) MoveObject(bucket, key, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
+func (s *fakeS3) MoveObject(context context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
 	if s.moveError == nil {
 		s.moveTo = newKey
 	}
 	return nil, s.moveError
 }
 
-func (s *fakeS3) CopyObject(bucket, key, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
+func (s *fakeS3) CopyObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
 	if s.copyError == nil {
 		s.copyTo = newKey
 	}
 	return nil, s.copyError
 }
 
-func (s *fakeS3) ListObjects(bucket, prefix string) ([]string, error) {
-	return s.list, s.listError
+func (s *fakeS3) ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) (*s3.ListObjectsV2Output, error) {
+	var contents []types.Object
+
+	for _, key := range s.list {
+		contents = append(contents, types.Object{Key: &key})
+	}
+
+	return &s3.ListObjectsV2Output{
+		Contents: nil,
+	}, s.listError
 }
 
-func (s *fakeS3) Upload(input *s3manager.UploadInput, ctx context.Context, options ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error) {
+func (s *fakeS3) Upload(ctx context.Context, input *s3.UploadPartInput, opFns ...func(options *s3.Options)) (*s3.UploadPartOutput, error) {
 	if s.uploadErr == nil {
 		buf := &bytes.Buffer{}
 		_, err := io.Copy(buf, input.Body)
@@ -207,8 +216,10 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 		prefix: "prefix",
 	}
 
+	ctx := context.Background()
+
 	// Ok
-	ok, chunked, sz, mod, err := server.Check("dir", "address")
+	ok, chunked, sz, mod, err := server.Check(ctx, "dir", "address")
 	c.Assert(err, check.IsNil)
 	c.Assert(chunked, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(45))
@@ -218,15 +229,15 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 
 	// Error
 	svc.headErr = errors.New("head error")
-	ok, chunked, sz, mod, err = server.Check("dir", "address")
+	ok, chunked, sz, mod, err = server.Check(ctx, "dir", "address")
 	c.Assert(err, check.ErrorMatches, "head error")
 	c.Assert(chunked, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
 	c.Assert(ok, check.Equals, false)
 
 	// Missing
-	svc.headErr = awserr.New(s3.ErrCodeNoSuchKey, "", errors.New("some"))
-	ok, chunked, sz, mod, err = server.Check("dir", "address")
+	svc.headErr = &types.NoSuchKey{}
+	ok, chunked, sz, mod, err = server.Check(ctx, "dir", "address")
 	c.Assert(err, check.IsNil)
 	c.Assert(chunked, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
@@ -240,7 +251,7 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 			head: &s3.HeadObjectOutput{},
 		},
 	}
-	ok, chunked, sz, mod, err = server.Check("dir", "address")
+	ok, chunked, sz, mod, err = server.Check(ctx, "dir", "address")
 	c.Assert(err, check.ErrorMatches, "info.json head error")
 	c.Assert(chunked, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
@@ -258,7 +269,7 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 			get: &s3.GetObjectOutput{},
 		},
 	}
-	ok, chunked, sz, mod, err = server.Check("dir", "address")
+	ok, chunked, sz, mod, err = server.Check(ctx, "dir", "address")
 	c.Assert(err, check.ErrorMatches, "info.json get error")
 	c.Assert(chunked, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
@@ -273,7 +284,7 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 			},
 		},
 	}
-	ok, chunked, sz, mod, err = server.Check("dir", "address")
+	ok, chunked, sz, mod, err = server.Check(ctx, "dir", "address")
 	c.Assert(err, check.ErrorMatches, "invalid character 'b' looking for beginning of value")
 	c.Assert(chunked, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
@@ -290,7 +301,7 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 			},
 		},
 	}
-	ok, chunked, sz, mod, err = server.Check("dir", "address")
+	ok, chunked, sz, mod, err = server.Check(ctx, "dir", "address")
 	c.Assert(err, check.IsNil)
 	c.Assert(chunked, check.NotNil)
 	c.Assert(sz, check.DeepEquals, int64(3232))
@@ -311,9 +322,10 @@ func (s *S3StorageServerSuite) TestGet(c *check.C) {
 		svc:    svc,
 		prefix: "prefix",
 	}
+	ctx := context.Background()
 
 	// Ok
-	rs, ch, sz, mod, ok, err := server.Get("dir", "address")
+	rs, ch, sz, mod, ok, err := server.Get(ctx, "dir", "address")
 	c.Assert(err, check.IsNil)
 	c.Assert(rs, check.FitsTypeOf, &testReadCloser{})
 	c.Assert(ch, check.IsNil)
@@ -324,16 +336,16 @@ func (s *S3StorageServerSuite) TestGet(c *check.C) {
 
 	// Error
 	svc.getErr = errors.New("get error")
-	rs, _, sz, mod, ok, err = server.Get("dir", "address")
+	rs, _, sz, mod, ok, err = server.Get(ctx, "dir", "address")
 	c.Assert(err, check.ErrorMatches, "get error")
 	c.Assert(rs, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
 	c.Assert(ok, check.Equals, false)
 
 	// Missing
-	svc.getErr = awserr.New(s3.ErrCodeNoSuchKey, "", errors.New("some"))
-	svc.headErr = awserr.New(s3.ErrCodeNoSuchKey, "", errors.New("some"))
-	rs, _, sz, mod, ok, err = server.Get("dir", "address")
+	svc.getErr = &types.NoSuchKey{}
+	svc.headErr = &types.NoSuchKey{}
+	rs, _, sz, mod, ok, err = server.Get(ctx, "dir", "address")
 	c.Assert(err, check.IsNil)
 	c.Assert(rs, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
@@ -347,7 +359,7 @@ func (s *S3StorageServerSuite) TestGet(c *check.C) {
 			head: &s3.HeadObjectOutput{},
 		},
 	}
-	rs, _, sz, mod, ok, err = server.Get("dir", "address")
+	rs, _, sz, mod, ok, err = server.Get(ctx, "dir", "address")
 	c.Assert(err, check.ErrorMatches, "info.json head error")
 	c.Assert(rs, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
@@ -361,7 +373,7 @@ func (s *S3StorageServerSuite) TestGet(c *check.C) {
 	}
 	chunker := &servertest.DummyChunkUtils{
 		Read: output,
-		ReadCh: &types.ChunksInfo{
+		ReadCh: &rtypes.ChunksInfo{
 			Complete: true,
 		},
 		ReadSz:  5454,
@@ -369,7 +381,7 @@ func (s *S3StorageServerSuite) TestGet(c *check.C) {
 		ReadErr: errors.New("chunk read error"),
 	}
 	server.chunker = chunker
-	rs, _, sz, mod, ok, err = server.Get("dir", "address")
+	rs, _, sz, mod, ok, err = server.Get(ctx, "dir", "address")
 	c.Assert(err, check.ErrorMatches, "error reading chunked directory files for address: chunk read error")
 	c.Assert(rs, check.IsNil)
 	c.Assert(sz, check.Equals, int64(0))
@@ -377,10 +389,10 @@ func (s *S3StorageServerSuite) TestGet(c *check.C) {
 
 	// Chunked - ok
 	chunker.ReadErr = nil
-	rs, ch, sz, mod, ok, err = server.Get("dir", "address")
+	rs, ch, sz, mod, ok, err = server.Get(ctx, "dir", "address")
 	c.Assert(err, check.IsNil)
 	c.Assert(rs, check.DeepEquals, output)
-	c.Assert(ch, check.DeepEquals, &types.ChunksInfo{
+	c.Assert(ch, check.DeepEquals, &rtypes.ChunksInfo{
 		Complete: true,
 	})
 	c.Assert(sz, check.DeepEquals, int64(5454))
@@ -396,18 +408,18 @@ func (s *S3StorageServerSuite) TestPut(c *check.C) {
 		_, err := io.Copy(w, input)
 		return "", "", err
 	}
-	output := &s3manager.UploadOutput{}
 	svc := &fakeS3{
-		upload: output,
+		upload: &s3.UploadPartOutput{},
 	}
 	server := &StorageServer{
 		svc:    svc,
 		bucket: "test-bucket",
 		prefix: "prefix",
 	}
+	ctx := context.Background()
 
 	// Ok
-	d, a, err := server.Put(resolver, "dir", "address")
+	d, a, err := server.Put(ctx, resolver, "dir", "address")
 	c.Assert(err, check.IsNil)
 	c.Assert(svc.address, check.Matches, "prefix/temp/.*")
 	c.Assert(svc.bucket, check.Equals, "test-bucket")
@@ -417,7 +429,7 @@ func (s *S3StorageServerSuite) TestPut(c *check.C) {
 
 	// Error
 	svc.uploadErr = errors.New("upload error")
-	_, _, err = server.Put(resolver, "dir", "address")
+	_, _, err = server.Put(ctx, resolver, "dir", "address")
 	c.Assert(err, check.ErrorMatches, "upload error")
 
 	// Resolve error
@@ -425,7 +437,7 @@ func (s *S3StorageServerSuite) TestPut(c *check.C) {
 	resolver = func(w io.Writer) (string, string, error) {
 		return "", "", errors.New("resolver error")
 	}
-	_, _, err = server.Put(resolver, "dir", "address")
+	_, _, err = server.Put(ctx, resolver, "dir", "address")
 	c.Assert(err, check.ErrorMatches, "resolver error")
 }
 
@@ -437,20 +449,20 @@ func (s *S3StorageServerSuite) TestPutDeferredAddress(c *check.C) {
 		_, err := io.Copy(w, input)
 		return "mydir", "deferred_address", err
 	}
-	output := &s3manager.UploadOutput{}
 	svc := &fakeS3{
-		upload: output,
+		upload: &s3.UploadPartOutput{},
 	}
 	server := &StorageServer{
 		svc:    svc,
 		bucket: "test-bucket",
 		prefix: "prefix",
 	}
+	ctx := context.Background()
 
 	// Ok
 	// the dir and address are obtained from the resolver
 	//    and stored on the svc object
-	d, a, err := server.Put(resolver, "", "")
+	d, a, err := server.Put(ctx, resolver, "", "")
 	c.Assert(err, check.IsNil)
 	c.Assert(svc.address, check.Not(check.Equals), "prefix/mydir/deferred_address")
 	c.Assert(svc.bucket, check.Equals, "test-bucket")
@@ -461,7 +473,7 @@ func (s *S3StorageServerSuite) TestPutDeferredAddress(c *check.C) {
 
 	// Error
 	svc.moveError = errors.New("move error")
-	_, _, err = server.Put(resolver, "", "")
+	_, _, err = server.Put(ctx, resolver, "", "")
 	c.Assert(err, check.ErrorMatches, "move error")
 }
 
@@ -476,9 +488,10 @@ func (s *S3StorageServerSuite) TestRemove(c *check.C) {
 	server := &StorageServer{
 		svc: svc,
 	}
+	ctx := context.Background()
 
 	// Check error
-	err := server.Remove("dir", "address")
+	err := server.Remove(ctx, "dir", "address")
 	c.Assert(err, check.ErrorMatches, "check error")
 	c.Assert(svc.deleted, check.Equals, "")
 
@@ -497,25 +510,25 @@ func (s *S3StorageServerSuite) TestRemove(c *check.C) {
 			},
 		},
 	}
-	err = server.Remove("dir", "address_missing")
+	err = server.Remove(ctx, "dir", "address_missing")
 	c.Assert(err, check.IsNil)
 	c.Assert(svc.deleted, check.Equals, "")
 
 	// No prefix, ok
-	err = server.Remove("dir", "address")
+	err = server.Remove(ctx, "dir", "address")
 	c.Assert(err, check.IsNil)
 	c.Assert(svc.deleted, check.Equals, "dir/address")
 
 	// Ok
 	server.prefix = "prefix"
 	svc.deleted = ""
-	err = server.Remove("dir", "address")
+	err = server.Remove(ctx, "dir", "address")
 	c.Assert(err, check.IsNil)
 	c.Assert(svc.deleted, check.Equals, "prefix/dir/address")
 
 	// Delete Error
 	svc.deleteErr = errors.New("delete error")
-	err = server.Remove("dir", "address")
+	err = server.Remove(ctx, "dir", "address")
 	c.Assert(err, check.ErrorMatches, "delete error")
 
 	// Delete Error (chunked)
@@ -538,7 +551,7 @@ func (s *S3StorageServerSuite) TestRemove(c *check.C) {
 			},
 		},
 	}
-	err = server.Remove("dir", "address")
+	err = server.Remove(ctx, "dir", "address")
 	c.Assert(err, check.ErrorMatches, "delete error")
 
 	// Ok (chunked)
@@ -551,7 +564,7 @@ func (s *S3StorageServerSuite) TestRemove(c *check.C) {
 			},
 		},
 	}
-	err = server.Remove("dir", "address")
+	err = server.Remove(ctx, "dir", "address")
 	c.Assert(err, check.IsNil)
 	c.Assert(svc.deleted, check.Equals, ""+
 		"prefix/dir/address\n"+
@@ -580,7 +593,7 @@ func (s *S3StorageServerSuite) TestEnumerateError(c *check.C) {
 	server := &StorageServer{
 		svc: svc,
 	}
-	_, err := server.Enumerate()
+	_, err := server.Enumerate(context.Background())
 	c.Assert(err, check.ErrorMatches, "list error")
 }
 
@@ -605,9 +618,9 @@ func (s *S3StorageServerSuite) TestEnumerateOk(c *check.C) {
 	server := &StorageServer{
 		svc: svc,
 	}
-	en, err := server.Enumerate()
+	en, err := server.Enumerate(context.Background())
 	c.Assert(err, check.IsNil)
-	c.Check(en, check.DeepEquals, []types.StoredItem{
+	c.Check(en, check.DeepEquals, []rtypes.StoredItem{
 		{
 			Dir:     "dir",
 			Address: "address3",
@@ -642,7 +655,7 @@ type fakeMoveOrCopy struct {
 	ops    []string
 }
 
-func (f *fakeMoveOrCopy) Operation(bucket, path, newBucket, newPath string) (*s3.CopyObjectOutput, error) {
+func (f *fakeMoveOrCopy) Operation(ctx context.Context, bucket, path, newBucket, newPath string) (*s3.CopyObjectOutput, error) {
 	if f.ops != nil {
 		f.ops = append(f.ops, fmt.Sprintf("%s-%s-%s-%s", bucket, path, newBucket, newPath))
 	}
@@ -668,14 +681,16 @@ func (s *S3StorageServerSuite) TestInternalMoveOrCopy(c *check.C) {
 		result: errors.New("copy error"),
 		ops:    make([]string, 0),
 	}
-	err := sourceServer.moveOrCopy("dir", "address", destServer, op.Operation)
+	ctx := context.Background()
+
+	err := sourceServer.moveOrCopy(ctx, "dir", "address", destServer, op.Operation)
 	c.Assert(err, check.ErrorMatches, "copy error")
 	c.Assert(op.ops, check.DeepEquals, []string{"bucketA-prefixA/dir/address-bucketB-prefixB/dir/address"})
 
 	op.ops = make([]string, 0)
 	op.result = nil
 	destServer.prefix = ""
-	err = sourceServer.moveOrCopy("", "address", destServer, op.Operation)
+	err = sourceServer.moveOrCopy(ctx, "", "address", destServer, op.Operation)
 	c.Assert(err, check.IsNil)
 	c.Assert(op.ops, check.DeepEquals, []string{"bucketA-prefixA/address-bucketB-address"})
 }
@@ -701,9 +716,13 @@ func (s *S3StorageServerSuite) TestCopyViaS3(c *check.C) {
 		bucket: "b-test-bucket",
 		prefix: "another-place",
 	}
-	err := sourceServer.Copy("dir", "address", destServer)
+	err := sourceServer.Copy(context.Background(), "dir", "address", destServer)
 	c.Assert(err, check.IsNil)
-	c.Assert(opCopy.ops, check.DeepEquals, []string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"})
+	c.Assert(
+		opCopy.ops,
+		check.DeepEquals,
+		[]string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"},
+	)
 }
 
 // Test scenario where we copy from S3 -> S3. The S3-specific copy
@@ -740,15 +759,20 @@ func (s *S3StorageServerSuite) TestCopyViaS3Fallback(c *check.C) {
 		prefix: "another-place",
 		svc:    svc,
 	}
-	err := sourceServer.Copy("dir", "address", destServer)
+	err := sourceServer.Copy(context.Background(), "dir", "address", destServer)
 	c.Assert(err, check.IsNil)
-	c.Assert(opCopy.ops, check.DeepEquals, []string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"})
+	c.Assert(
+		opCopy.ops,
+		check.DeepEquals,
+		[]string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"},
+	)
 	c.Assert(svc.uploaded, check.Equals, "test output")
 }
 
-// Test scenario where we copy from S3 to a non-S3 storage system. The
+// Test scenario where we copy from S3 to a non-S3 storage system.
 // This scenario always uses a `Get` + `Put` operation.
 func (s *S3StorageServerSuite) TestCopyNoS3(c *check.C) {
+	ctx := context.Background()
 	output := &testReadCloser{bytes.NewBufferString("test output")}
 	now := time.Now()
 	svc := &fakeS3{
@@ -771,23 +795,23 @@ func (s *S3StorageServerSuite) TestCopyNoS3(c *check.C) {
 	}
 
 	// Asset does not exist
-	svc.getErr = awserr.New(s3.ErrCodeNoSuchKey, "", nil)
-	svc.headErr = awserr.New(s3.ErrCodeNoSuchKey, "", nil)
-	err := sourceServer.Copy("dir", "address", destServer)
+	svc.getErr = &types.NoSuchKey{}
+	svc.headErr = &types.NoSuchKey{}
+	err := sourceServer.Copy(ctx, "dir", "address", destServer)
 	c.Assert(err, check.ErrorMatches, "the S3 object .* does not exist")
 
 	// Error getting asset
 	svc.getErr = errors.New("some other error")
-	err = sourceServer.Copy("dir", "address", destServer)
+	err = sourceServer.Copy(ctx, "dir", "address", destServer)
 	c.Assert(err, check.ErrorMatches, "some other error")
 
 	// Put error
 	svc.getErr = nil
-	err = sourceServer.Copy("dir", "address", destServer)
+	err = sourceServer.Copy(ctx, "dir", "address", destServer)
 	c.Assert(err, check.ErrorMatches, "put error")
 
 	destServer.PutErr = nil
-	err = sourceServer.Copy("dir", "address", destServer)
+	err = sourceServer.Copy(ctx, "dir", "address", destServer)
 	c.Assert(err, check.IsNil)
 }
 
@@ -814,9 +838,13 @@ func (s *S3StorageServerSuite) TestMoveViaS3(c *check.C) {
 	}
 
 	// Catch an error deleting the item a
-	err := sourceServer.Move("dir", "address", destServer)
+	err := sourceServer.Move(context.Background(), "dir", "address", destServer)
 	c.Assert(err, check.IsNil)
-	c.Assert(opMove.ops, check.DeepEquals, []string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"})
+	c.Assert(
+		opMove.ops,
+		check.DeepEquals,
+		[]string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"},
+	)
 }
 
 // Test scenario where we move from S3 -> S3. The S3-specific move
@@ -857,9 +885,13 @@ func (s *S3StorageServerSuite) TestMoveViaS3Fallback(c *check.C) {
 		prefix: "another-place",
 		svc:    svc,
 	}
-	err := sourceServer.Move("dir", "address", destServer)
+	err := sourceServer.Move(context.Background(), "dir", "address", destServer)
 	c.Assert(err, check.IsNil)
-	c.Assert(opMove.ops, check.DeepEquals, []string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"})
+	c.Assert(
+		opMove.ops,
+		check.DeepEquals,
+		[]string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"},
+	)
 	c.Assert(svc.uploaded, check.Equals, "")
 }
 
@@ -904,16 +936,21 @@ func (s *S3StorageServerSuite) TestMoveViaS3FallbackCopyFallback(c *check.C) {
 		prefix: "another-place",
 		svc:    svc,
 	}
-	err := sourceServer.Move("dir", "address", destServer)
+	err := sourceServer.Move(context.Background(), "dir", "address", destServer)
 	c.Assert(err, check.IsNil)
-	c.Assert(opMove.ops, check.DeepEquals, []string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"})
+	c.Assert(
+		opMove.ops,
+		check.DeepEquals,
+		[]string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"},
+	)
 	c.Assert(svc.uploaded, check.Equals, "test output")
 }
 
-// Test scenario where we move from S3 to a non-S3 storage system. The
+// Test scenario where we move from S3 to a non-S3 storage system.
 // This scenario always uses a `Get` + `Put` operation followed by a
 // `Remove`.
 func (s *S3StorageServerSuite) TestMoveNoS3(c *check.C) {
+	ctx := context.Background()
 	output := &testReadCloser{bytes.NewBufferString("test output")}
 	now := time.Now()
 	svc := &fakeS3{
@@ -938,15 +975,15 @@ func (s *S3StorageServerSuite) TestMoveNoS3(c *check.C) {
 	destServer := &rsstorage.DummyStorageServer{
 		PutErr: errors.New("put error"),
 	}
-	err := sourceServer.Move("dir", "address", destServer)
+	err := sourceServer.Move(ctx, "dir", "address", destServer)
 	c.Assert(err, check.ErrorMatches, "put error")
 
 	destServer.PutErr = nil
-	err = sourceServer.Move("dir", "address", destServer)
+	err = sourceServer.Move(ctx, "dir", "address", destServer)
 	c.Assert(err, check.ErrorMatches, "delete error")
 
 	svc.deleteErr = nil
-	err = sourceServer.Move("dir", "address", destServer)
+	err = sourceServer.Move(ctx, "dir", "address", destServer)
 	c.Assert(err, check.IsNil)
 }
 
@@ -978,11 +1015,12 @@ func (s *S3StorageServerSuite) TestUsage(c *check.C) {
 	})
 
 	usage, err := server.CalculateUsage()
-	c.Assert(usage, check.DeepEquals, types.Usage{})
+	c.Assert(usage, check.DeepEquals, rtypes.Usage{})
 	c.Assert(err, check.NotNil)
 }
 
 func (s *S3StorageServerSuite) TestValidate(c *check.C) {
+	ctx := context.Background()
 	uploadErr := errors.New("s3 upload op failed")
 	headErr := errors.New("s3 head op failed")
 	deleteErr := errors.New("s3 delete op failed")
@@ -998,10 +1036,10 @@ func (s *S3StorageServerSuite) TestValidate(c *check.C) {
 		Notifier:  wn,
 	})
 
-	s3, ok := server.(*StorageServer)
+	s3Store, ok := server.(*StorageServer)
 	c.Assert(ok, check.Equals, true)
 
-	err := s3.Validate()
+	err := s3Store.Validate(ctx)
 	c.Assert(err, check.IsNil)
 
 	svc = &fakeS3{
@@ -1015,9 +1053,9 @@ func (s *S3StorageServerSuite) TestValidate(c *check.C) {
 		Waiter:    wn,
 		Notifier:  wn,
 	})
-	s3, ok = server.(*StorageServer)
+	s3Store, ok = server.(*StorageServer)
 	c.Assert(ok, check.Equals, true)
-	err = s3.Validate()
+	err = s3Store.Validate(ctx)
 	c.Check(err, check.Equals, uploadErr)
 
 	svc = &fakeS3{
@@ -1031,9 +1069,9 @@ func (s *S3StorageServerSuite) TestValidate(c *check.C) {
 		Waiter:    wn,
 		Notifier:  wn,
 	})
-	s3, ok = server.(*StorageServer)
+	s3Store, ok = server.(*StorageServer)
 	c.Assert(ok, check.Equals, true)
-	err = s3.Validate()
+	err = s3Store.Validate(ctx)
 	c.Check(err, check.Equals, headErr)
 
 	svc = &fakeS3{
@@ -1047,8 +1085,8 @@ func (s *S3StorageServerSuite) TestValidate(c *check.C) {
 		Waiter:    wn,
 		Notifier:  wn,
 	})
-	s3, ok = server.(*StorageServer)
+	s3Store, ok = server.(*StorageServer)
 	c.Assert(ok, check.Equals, true)
-	err = s3.Validate()
+	err = s3Store.Validate(ctx)
 	c.Check(err, check.Equals, deleteErr)
 }

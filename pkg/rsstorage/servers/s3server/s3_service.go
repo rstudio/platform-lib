@@ -26,7 +26,7 @@ type S3Wrapper interface {
 	Upload(ctx context.Context, input *s3.UploadPartInput, optFns ...func(options *s3.Options)) (*s3.UploadPartOutput, error)
 	CopyObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error)
 	MoveObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error)
-	ListObjects(ctx context.Context, input *s3.ListObjectsInput) (*s3.ListObjectsOutput, error)
+	ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) (*s3.ListObjectsV2Output, error)
 	KmsEncrypted() bool
 }
 
@@ -187,8 +187,8 @@ func (s *defaultS3Wrapper) MoveObject(ctx context.Context, oldBucket, oldKey, ne
 	return out, nil
 }
 
-func (s *defaultS3Wrapper) ListObjects(ctx context.Context, input *s3.ListObjectsInput) (*s3.ListObjectsOutput, error) {
-	return s.client.ListObjects(ctx, input)
+func (s *defaultS3Wrapper) ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) (*s3.ListObjectsV2Output, error) {
+	return s.client.ListObjectsV2(ctx, input)
 }
 
 func getS3Options(configInput rsstorage.ConfigS3) (*s3.Client, error) {

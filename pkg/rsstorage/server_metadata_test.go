@@ -4,6 +4,7 @@ package rsstorage
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -94,7 +95,7 @@ func (s *MetadataServerSuite) TestGetServerErr(c *check.C) {
 		store:         cstore,
 		name:          "test",
 	}
-	_, _, _, _, ok, err := server.Get("testdir", "storageaddress")
+	_, _, _, _, ok, err := server.Get(context.Background(), "testdir", "storageaddress")
 	c.Check(ok, check.Equals, false)
 	c.Check(err, check.ErrorMatches, "get error")
 }
@@ -111,7 +112,7 @@ func (s *MetadataServerSuite) TestGetStoreErr(c *check.C) {
 		store:         cstore,
 		name:          "test",
 	}
-	_, _, _, _, ok, err := server.Get("testdir", "storageaddress")
+	_, _, _, _, ok, err := server.Get(context.Background(), "testdir", "storageaddress")
 	c.Check(ok, check.Equals, false)
 	c.Check(err, check.ErrorMatches, "store get error")
 }
@@ -128,7 +129,7 @@ func (s *MetadataServerSuite) TestGetOk(c *check.C) {
 		store:         cstore,
 		name:          "test",
 	}
-	r, _, _, _, ok, err := server.Get("somedir", "storageaddress")
+	r, _, _, _, ok, err := server.Get(context.Background(), "somedir", "storageaddress")
 	c.Check(r, check.DeepEquals, f)
 	c.Check(ok, check.Equals, true)
 	c.Check(err, check.IsNil)
@@ -148,7 +149,7 @@ func (s *MetadataServerSuite) TestPutServerErr(c *check.C) {
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
 	}
-	_, _, err := server.Put(resolve, "adir", "storageaddress")
+	_, _, err := server.Put(context.Background(), resolve, "adir", "storageaddress")
 	c.Check(err, check.ErrorMatches, "put error")
 }
 
@@ -165,7 +166,7 @@ func (s *MetadataServerSuite) TestPutStoreErr(c *check.C) {
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
 	}
-	_, _, err := server.Put(resolve, "adir", "storageaddress")
+	_, _, err := server.Put(context.Background(), resolve, "adir", "storageaddress")
 	c.Check(err, check.ErrorMatches, "use error")
 }
 
@@ -180,7 +181,7 @@ func (s *MetadataServerSuite) TestPutOk(c *check.C) {
 	resolve := func(w io.Writer) (string, string, error) {
 		return "adir", "storageaddress", nil
 	}
-	_, _, err := server.Put(resolve, "", "")
+	_, _, err := server.Put(context.Background(), resolve, "", "")
 	c.Check(err, check.IsNil)
 	c.Check(cstore.got, check.Equals, "adir/storageaddress")
 }

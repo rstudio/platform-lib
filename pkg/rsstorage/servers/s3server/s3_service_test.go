@@ -192,13 +192,13 @@ func (s *S3WrapperSuite) TestListObjects(c *check.C) {
 	ctx := context.Background()
 	bucket := "no-sync"
 	prefix := "bin/3.5-xenial"
-	files, err := wrapper.ListObjects(ctx, &s3.ListObjectsInput{Bucket: &bucket, Prefix: &prefix})
+	files, err := wrapper.ListObjects(ctx, &s3.ListObjectsV2Input{Bucket: &bucket, Prefix: &prefix})
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Equals, "something went wrong listing objects: NotFound: Not Found\n"+
 		"\tstatus code: 404, request id: , host id: ")
 
 	bucket = "sync"
-	files, err = wrapper.ListObjects(ctx, &s3.ListObjectsInput{Bucket: &bucket, Prefix: &prefix})
+	files, err = wrapper.ListObjects(ctx, &s3.ListObjectsV2Input{Bucket: &bucket, Prefix: &prefix})
 	c.Assert(err, check.IsNil)
 	c.Check(files, check.DeepEquals, []string{"ABCDEFG.json", "HIJKLMN.tar.gz", "OPQRSTU.zip", "nothing"})
 }

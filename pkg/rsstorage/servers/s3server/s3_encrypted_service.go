@@ -129,8 +129,8 @@ func (s *encryptedS3Service) MoveObject(ctx context.Context, oldBucket, oldKey, 
 	return out, nil
 }
 
-func (s *encryptedS3Service) ListObjects(ctx context.Context, input *s3.ListObjectsInput) (*s3.ListObjectsOutput, error) {
-	return s.client.ListObjects(ctx, input)
+func (s *encryptedS3Service) ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) (*s3.ListObjectsV2Output, error) {
+	return s.client.ListObjectsV2(ctx, input)
 }
 
 // Upload takes the same input as the defaultS3Service *s3.UploadInput,

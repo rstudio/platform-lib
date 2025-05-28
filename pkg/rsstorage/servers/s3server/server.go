@@ -353,7 +353,7 @@ func (s *StorageServer) Remove(ctx context.Context, dir, address string) error {
 
 func (s *StorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, error) {
 	items := make([]types.StoredItem, 0)
-	s3Objects, err := s.svc.ListObjects(ctx, &s3.ListObjectsInput{Bucket: &s.bucket, Prefix: &s.prefix})
+	s3Objects, err := s.svc.ListObjects(ctx, &s3.ListObjectsV2Input{Bucket: &s.bucket, Prefix: &s.prefix})
 	if err != nil {
 		return nil, err
 	}

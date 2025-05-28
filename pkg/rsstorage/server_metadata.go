@@ -3,6 +3,7 @@ package rsstorage
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"io"
 	"time"
 
@@ -31,8 +32,8 @@ func NewMetadataStorageServer(args MetadataStorageServerArgs) StorageServer {
 	}
 }
 
-func (s *MetadataStorageServer) Get(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
-	r, c, sz, ts, ok, err := s.StorageServer.Get(dir, address)
+func (s *MetadataStorageServer) Get(ctx context.Context, dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
+	r, c, sz, ts, ok, err := s.StorageServer.Get(ctx, dir, address)
 	if ok && err == nil {
 		// Record access of cached object
 		err = s.store.CacheObjectMarkUse(s.name, dir+"/"+address, time.Now())
@@ -43,8 +44,8 @@ func (s *MetadataStorageServer) Get(dir, address string) (io.ReadCloser, *types.
 	return r, c, sz, ts, ok, err
 }
 
-func (s *MetadataStorageServer) PutChunked(resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
-	dirOut, addrOut, err := s.StorageServer.PutChunked(resolve, dir, address, sz)
+func (s *MetadataStorageServer) PutChunked(ctx context.Context, resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
+	dirOut, addrOut, err := s.StorageServer.PutChunked(ctx, resolve, dir, address, sz)
 	if err == nil {
 		// Record cached object
 		err = s.store.CacheObjectEnsureExists(s.name, dirOut+"/"+addrOut)
@@ -55,8 +56,8 @@ func (s *MetadataStorageServer) PutChunked(resolve types.Resolver, dir, address 
 	return dirOut, addrOut, err
 }
 
-func (s *MetadataStorageServer) Put(resolve types.Resolver, dir, address string) (string, string, error) {
-	dirOut, addrOut, err := s.StorageServer.Put(resolve, dir, address)
+func (s *MetadataStorageServer) Put(ctx context.Context, resolve types.Resolver, dir, address string) (string, string, error) {
+	dirOut, addrOut, err := s.StorageServer.Put(ctx, resolve, dir, address)
 	if err == nil {
 		// Record cached object
 		err = s.store.CacheObjectEnsureExists(s.name, dirOut+"/"+addrOut)

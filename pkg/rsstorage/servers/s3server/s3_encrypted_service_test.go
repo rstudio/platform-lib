@@ -10,10 +10,10 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-
 	"github.com/jarcoal/httpmock"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
 	"gopkg.in/check.v1"
+
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
 )
 
 type S3EncryptedServiceSuite struct{}
@@ -66,6 +66,7 @@ func (s *S3EncryptedServiceSuite) TestGetObject(c *check.C) {
 		"7ddec34f-7c3e-4875-a348-de761fc28b4f",
 		&client,
 	)
+	c.Assert(err, check.IsNil)
 
 	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
