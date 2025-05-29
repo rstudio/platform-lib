@@ -1,6 +1,6 @@
 package s3server
 
-// Copyright (C) 2022 by RStudio, PBC
+// Copyright (C) 2025 by Posit, PBC
 
 import (
 	"context"
@@ -218,7 +218,7 @@ func (s *StorageServer) Get(ctx context.Context, dir, address string) (io.ReadCl
 
 	if chunked {
 		// For chunked assets, use the chunk utils to read the chunks sequentially
-		r, c, sz, mod, err := s.chunker.ReadChunked(dir, address)
+		r, c, sz, mod, err := s.chunker.ReadChunked(ctx, dir, address)
 		if err != nil {
 			return nil, nil, 0, time.Time{}, false, fmt.Errorf("error reading chunked directory files for %s: %w", address, err)
 		}
@@ -313,7 +313,7 @@ func (s *StorageServer) PutChunked(ctx context.Context, resolve types.Resolver, 
 	if sz == 0 {
 		return "", "", fmt.Errorf("cache only supports pre-sized chunked put commands")
 	}
-	err := s.chunker.WriteChunked(dir, address, sz, resolve)
+	err := s.chunker.WriteChunked(ctx, dir, address, sz, resolve)
 	if err != nil {
 		return "", "", err
 	}

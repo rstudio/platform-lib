@@ -70,6 +70,7 @@ func (s *PgCacheServerSuite) TestNew(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestCheckOk(c *check.C) {
+	ctx := context.Background()
 	server := &StorageServer{
 		pool: s.pool,
 	}
@@ -79,11 +80,11 @@ func (s *PgCacheServerSuite) TestCheckOk(c *check.C) {
 	}
 
 	// First, cache something
-	_, _, err := server.Put(resolve, "dir", "cacheaddress")
+	_, _, err := server.Put(ctx, resolve, "dir", "cacheaddress")
 	c.Check(err, check.IsNil)
 
 	// Next, get it
-	ok, chunked, sz, _, err := server.Check("dir", "cacheaddress")
+	ok, chunked, sz, _, err := server.Check(ctx, "dir", "cacheaddress")
 	c.Check(err, check.IsNil)
 	c.Assert(chunked, check.IsNil)
 	c.Check(ok, check.Equals, true)
@@ -91,6 +92,7 @@ func (s *PgCacheServerSuite) TestCheckOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestCheckChunkedOk(c *check.C) {
+	ctx := context.Background()
 	server := &StorageServer{
 		pool: s.pool,
 	}
@@ -109,11 +111,11 @@ func (s *PgCacheServerSuite) TestCheckChunkedOk(c *check.C) {
 	}
 
 	// First, cache something
-	_, _, err := server.PutChunked(resolve, "dir", "cacheaddress", uint64(len(servertest.TestDESC)))
+	_, _, err := server.PutChunked(ctx, resolve, "dir", "cacheaddress", uint64(len(servertest.TestDESC)))
 	c.Assert(err, check.IsNil)
 
 	// Next, get it
-	ok, chunked, sz, mod, err := server.Check("dir", "cacheaddress")
+	ok, chunked, sz, mod, err := server.Check(ctx, "dir", "cacheaddress")
 	c.Assert(err, check.IsNil)
 	c.Assert(chunked, check.NotNil)
 	c.Assert(ok, check.Equals, true)
@@ -122,6 +124,7 @@ func (s *PgCacheServerSuite) TestCheckChunkedOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestGetOk(c *check.C) {
+	ctx := context.Background()
 	server := &StorageServer{
 		pool: s.pool,
 	}
@@ -131,11 +134,11 @@ func (s *PgCacheServerSuite) TestGetOk(c *check.C) {
 	}
 
 	// First, cache something
-	_, _, err := server.Put(resolve, "dir", "cacheaddress")
+	_, _, err := server.Put(ctx, resolve, "dir", "cacheaddress")
 	c.Check(err, check.IsNil)
 
 	// Next, get it
-	r, ch, sz, _, ok, err := server.Get("dir", "cacheaddress")
+	r, ch, sz, _, ok, err := server.Get(ctx, "dir", "cacheaddress")
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, true)
 	c.Assert(ch, check.IsNil)
@@ -152,6 +155,7 @@ func (s *PgCacheServerSuite) TestGetOk(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestGetChunkedOk(c *check.C) {
+	ctx := context.Background()
 	server := &StorageServer{
 		pool: s.pool,
 	}
@@ -170,11 +174,11 @@ func (s *PgCacheServerSuite) TestGetChunkedOk(c *check.C) {
 	}
 
 	// First, cache something
-	_, _, err := server.PutChunked(resolve, "dir", "cacheaddress", uint64(len(servertest.TestDESC)))
+	_, _, err := server.PutChunked(ctx, resolve, "dir", "cacheaddress", uint64(len(servertest.TestDESC)))
 	c.Assert(err, check.IsNil)
 
 	// Next, get it
-	r, ch, sz, mod, ok, err := server.Get("dir", "cacheaddress")
+	r, ch, sz, mod, ok, err := server.Get(ctx, "dir", "cacheaddress")
 	c.Assert(err, check.IsNil)
 	c.Assert(r, check.NotNil)
 	c.Assert(ok, check.Equals, true)
@@ -206,7 +210,7 @@ func (s *PgCacheServerSuite) TestPutResolveErr(c *check.C) {
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", errors.New("resolver error")
 	}
-	_, _, err := server.Put(resolve, "", "cacheaddress")
+	_, _, err := server.Put(context.Background(), resolve, "", "cacheaddress")
 	c.Check(err, check.ErrorMatches, "resolver error")
 }
 
@@ -217,7 +221,7 @@ func (s *PgCacheServerSuite) TestPutResolveErrPreserved(c *check.C) {
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", errors.New("resolver error")
 	}
-	_, _, err := server.Put(resolve, "", "cacheaddress")
+	_, _, err := server.Put(context.Background(), resolve, "", "cacheaddress")
 	c.Check(err, check.ErrorMatches, "resolver error")
 }
 
@@ -231,7 +235,7 @@ func (s *PgCacheServerSuite) TestPutOk(c *check.C) {
 	}
 
 	// First, cache something
-	d, a, err := server.Put(resolve, "adir", "cacheaddress")
+	d, a, err := server.Put(context.Background(), resolve, "adir", "cacheaddress")
 	c.Check(err, check.IsNil)
 	c.Check(d, check.Equals, "adir")
 	c.Check(a, check.Equals, "cacheaddress")
@@ -247,7 +251,7 @@ func (s *PgCacheServerSuite) TestPutDeferredAddressOk(c *check.C) {
 	}
 
 	// First, cache something
-	d, a, err := server.Put(resolve, "", "")
+	d, a, err := server.Put(context.Background(), resolve, "", "")
 	c.Check(err, check.IsNil)
 	c.Check(d, check.Equals, "dir")
 	c.Check(a, check.Equals, "address")
@@ -257,7 +261,7 @@ func (s *PgCacheServerSuite) TestRemoveNonExisting(c *check.C) {
 	server := &StorageServer{
 		pool: s.pool,
 	}
-	err := server.Remove("", "cacheaddress")
+	err := server.Remove(context.Background(), "", "cacheaddress")
 	c.Check(err, check.IsNil)
 }
 
@@ -272,14 +276,15 @@ func (s *PgCacheServerSuite) TestRemoveOk(c *check.C) {
 	}
 
 	// First, cache something
-	_, _, err := server.Put(resolve, "", "cacheaddress")
+	_, _, err := server.Put(context.Background(), resolve, "", "cacheaddress")
 	c.Check(err, check.IsNil)
 
-	err = server.Remove("", "cacheaddress")
+	err = server.Remove(context.Background(), "", "cacheaddress")
 	c.Check(err, check.IsNil)
 }
 
 func (s *PgCacheServerSuite) TestRemoveChunkedOk(c *check.C) {
+	ctx := context.Background()
 	server := &StorageServer{
 		pool: s.pool,
 	}
@@ -298,22 +303,22 @@ func (s *PgCacheServerSuite) TestRemoveChunkedOk(c *check.C) {
 	}
 
 	// First, cache something
-	_, _, err := server.PutChunked(resolve, "some", "cacheaddress", uint64(len(servertest.TestDESC)))
+	_, _, err := server.PutChunked(ctx, resolve, "some", "cacheaddress", uint64(len(servertest.TestDESC)))
 	c.Assert(err, check.IsNil)
 
 	// Item should be here
-	ok, chunked, sz, mod, err := server.Check("some", "cacheaddress")
+	ok, chunked, sz, mod, err := server.Check(ctx, "some", "cacheaddress")
 	c.Assert(err, check.IsNil)
 	c.Assert(ok, check.Equals, true)
 	c.Assert(chunked, check.NotNil)
 	c.Assert(sz, check.Equals, int64(1953))
 	c.Assert(mod.IsZero(), check.Equals, false)
 
-	err = server.Remove("some", "cacheaddress")
+	err = server.Remove(ctx, "some", "cacheaddress")
 	c.Assert(err, check.IsNil)
 
 	// Item should be gone
-	ok, _, _, _, err = server.Check("some", "cacheaddress")
+	ok, _, _, _, err = server.Check(ctx, "some", "cacheaddress")
 	c.Assert(err, check.IsNil)
 	c.Assert(ok, check.Equals, false)
 }
@@ -325,11 +330,12 @@ func put(server *StorageServer, dir, address string, c *check.C) {
 	}
 
 	// Cache the item
-	_, _, err := server.Put(resolve, dir, address)
+	_, _, err := server.Put(context.Background(), resolve, dir, address)
 	c.Check(err, check.IsNil)
 }
 
 func (s *PgCacheServerSuite) TestEnumerate(c *check.C) {
+	ctx := context.Background()
 	server := &StorageServer{
 		pool:  s.pool,
 		class: "cache",
@@ -360,13 +366,13 @@ func (s *PgCacheServerSuite) TestEnumerate(c *check.C) {
 	}
 
 	sz := uint64(len(servertest.TestDESC))
-	_, _, err := server.PutChunked(resolve, "dir", "DESCRIPTION", sz)
+	_, _, err := server.PutChunked(ctx, resolve, "dir", "DESCRIPTION", sz)
 	c.Check(err, check.IsNil)
 
-	_, _, err = server.PutChunked(resolve, "", "DESCRIPTION2", sz)
+	_, _, err = server.PutChunked(ctx, resolve, "", "DESCRIPTION2", sz)
 	c.Check(err, check.IsNil)
 
-	en, err := server.Enumerate()
+	en, err := server.Enumerate(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(en, check.DeepEquals, []types.StoredItem{
 		{
@@ -407,6 +413,7 @@ func (s *PgCacheServerSuite) TestEnumerate(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestCopy(c *check.C) {
+	ctx := context.Background()
 	sourceServer := &StorageServer{
 		pool:  s.pool,
 		class: "packages",
@@ -438,30 +445,30 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 		return "", "", err
 	}
 	szPut := uint64(len(servertest.TestDESC))
-	_, _, err := sourceServer.PutChunked(resolve, "dir", "CHUNKED", szPut)
+	_, _, err := sourceServer.PutChunked(ctx, resolve, "dir", "CHUNKED", szPut)
 	c.Check(err, check.IsNil)
-	_, _, err = sourceServer.PutChunked(resolve, "", "CHUNKED2", szPut)
+	_, _, err = sourceServer.PutChunked(ctx, resolve, "", "CHUNKED2", szPut)
 	c.Check(err, check.IsNil)
 
 	put(sourceServer, "ad2", "cacheaddress4", c)
 	put(sourceServer, "ad2/3", "cacheaddress5", c)
 
 	// Attempt to copy an item that does not exist
-	err = sourceServer.Copy("", "no-exist", destServer)
+	err = sourceServer.Copy(ctx, "", "no-exist", destServer)
 	c.Assert(err, check.ErrorMatches, "the PostgreSQL large object .* does not exist")
 
 	// Copy
-	err = sourceServer.Copy("ad2", "cacheaddress4", destServer)
+	err = sourceServer.Copy(ctx, "ad2", "cacheaddress4", destServer)
 	c.Assert(err, check.IsNil)
-	err = sourceServer.Copy("ad2/3", "cacheaddress5", destServer)
+	err = sourceServer.Copy(ctx, "ad2/3", "cacheaddress5", destServer)
 	c.Assert(err, check.IsNil)
-	err = sourceServer.Copy("dir", "CHUNKED", destServer)
+	err = sourceServer.Copy(ctx, "dir", "CHUNKED", destServer)
 	c.Assert(err, check.IsNil)
-	err = sourceServer.Copy("", "CHUNKED2", destServer)
+	err = sourceServer.Copy(ctx, "", "CHUNKED2", destServer)
 	c.Assert(err, check.IsNil)
 
 	// Original items still exist
-	en, err := sourceServer.Enumerate()
+	en, err := sourceServer.Enumerate(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(en, check.DeepEquals, []types.StoredItem{
 		{
@@ -485,7 +492,7 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 	})
 
 	// New (copied) items exist
-	en, err = destServer.Enumerate()
+	en, err = destServer.Enumerate(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(en, check.DeepEquals, []types.StoredItem{
 		{
@@ -509,7 +516,7 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 	})
 
 	// Make sure we can get old item
-	r, _, sz, _, ok, err := sourceServer.Get("ad2", "cacheaddress4")
+	r, _, sz, _, ok, err := sourceServer.Get(ctx, "ad2", "cacheaddress4")
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, true)
 	c.Check(sz, check.Equals, int64(14))
@@ -524,7 +531,7 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 	c.Assert(r.Close(), check.IsNil)
 
 	// Make sure we can get new item
-	r, _, sz, _, ok, err = destServer.Get("ad2", "cacheaddress4")
+	r, _, sz, _, ok, err = destServer.Get(ctx, "ad2", "cacheaddress4")
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, true)
 	c.Check(sz, check.Equals, int64(14))
@@ -539,7 +546,7 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 	c.Assert(r.Close(), check.IsNil)
 
 	// Make sure we can get new chunked item
-	r, _, sz, _, ok, err = destServer.Get("dir", "CHUNKED")
+	r, _, sz, _, ok, err = destServer.Get(ctx, "dir", "CHUNKED")
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, true)
 	c.Check(sz, check.Equals, int64(1953))
@@ -555,6 +562,7 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 }
 
 func (s *PgCacheServerSuite) TestMove(c *check.C) {
+	ctx := context.Background()
 	sourceServer := &StorageServer{
 		pool:  s.pool,
 		class: "packages",
@@ -586,31 +594,31 @@ func (s *PgCacheServerSuite) TestMove(c *check.C) {
 		return "", "", err
 	}
 	szPut := uint64(len(servertest.TestDESC))
-	_, _, err := sourceServer.PutChunked(resolve, "dir", "CHUNKED", szPut)
+	_, _, err := sourceServer.PutChunked(ctx, resolve, "dir", "CHUNKED", szPut)
 	c.Check(err, check.IsNil)
-	_, _, err = sourceServer.PutChunked(resolve, "", "CHUNKED2", szPut)
+	_, _, err = sourceServer.PutChunked(ctx, resolve, "", "CHUNKED2", szPut)
 	c.Check(err, check.IsNil)
 
 	put(sourceServer, "ad2", "cacheaddress4", c)
 	put(sourceServer, "ad2/3", "cacheaddress5", c)
 
 	// Copy
-	err = sourceServer.Move("ad2", "cacheaddress4", destServer)
+	err = sourceServer.Move(ctx, "ad2", "cacheaddress4", destServer)
 	c.Assert(err, check.IsNil)
-	err = sourceServer.Move("ad2/3", "cacheaddress5", destServer)
+	err = sourceServer.Move(ctx, "ad2/3", "cacheaddress5", destServer)
 	c.Assert(err, check.IsNil)
-	err = sourceServer.Move("dir", "CHUNKED", destServer)
+	err = sourceServer.Move(ctx, "dir", "CHUNKED", destServer)
 	c.Assert(err, check.IsNil)
-	err = sourceServer.Move("", "CHUNKED2", destServer)
+	err = sourceServer.Move(ctx, "", "CHUNKED2", destServer)
 	c.Assert(err, check.IsNil)
 
 	// Original items no longer exist
-	en, err := sourceServer.Enumerate()
+	en, err := sourceServer.Enumerate(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(en, check.DeepEquals, []types.StoredItem{})
 
 	// New (copied) items exist
-	en, err = destServer.Enumerate()
+	en, err = destServer.Enumerate(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(en, check.DeepEquals, []types.StoredItem{
 		{
@@ -634,19 +642,19 @@ func (s *PgCacheServerSuite) TestMove(c *check.C) {
 	})
 
 	// Make sure we cannot get old item
-	r, _, sz, _, ok, err := sourceServer.Get("ad2", "cacheaddress4")
+	r, _, sz, _, ok, err := sourceServer.Get(ctx, "ad2", "cacheaddress4")
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, false)
 	c.Check(r, check.IsNil)
 
 	// Make sure we cannot get old item
-	r, _, sz, _, ok, err = sourceServer.Get("dir", "CHUNKED")
+	r, _, sz, _, ok, err = sourceServer.Get(ctx, "dir", "CHUNKED")
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, false)
 	c.Check(r, check.IsNil)
 
 	// Make sure we can get new item
-	r, _, sz, _, ok, err = destServer.Get("ad2", "cacheaddress4")
+	r, _, sz, _, ok, err = destServer.Get(ctx, "ad2", "cacheaddress4")
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, true)
 	c.Check(sz, check.Equals, int64(14))
@@ -661,7 +669,7 @@ func (s *PgCacheServerSuite) TestMove(c *check.C) {
 	c.Assert(r.Close(), check.IsNil)
 
 	// Make sure we can get new chunked item
-	r, _, sz, _, ok, err = destServer.Get("dir", "CHUNKED")
+	r, _, sz, _, ok, err = destServer.Get(ctx, "dir", "CHUNKED")
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, true)
 	c.Check(sz, check.Equals, int64(1953))

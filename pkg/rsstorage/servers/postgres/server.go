@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -89,12 +90,12 @@ func (f *largeObjectCloser) Close() error {
 	var err error
 	pgxCommit(f.tx, fmt.Sprintf("%s %s", f.op, f.location), &err)
 
-	f.LargeObject.Close()
+	err = f.LargeObject.Close()
 
 	// Release the connection
 	f.conn.Release()
 
-	return nil
+	return err
 }
 
 func newLargeObjectCloser(lo *pgx.LargeObject, pool *pgxpool.Pool, conn *pgxpool.Conn, tx pgx.Tx, op, location string) *largeObjectCloser {
@@ -108,13 +109,13 @@ func newLargeObjectCloser(lo *pgx.LargeObject, pool *pgxpool.Pool, conn *pgxpool
 	}
 }
 
-func (s *StorageServer) Check(dir, address string) (found bool, chunked *types.ChunksInfo, sz int64, ts time.Time, err error) {
+func (s *StorageServer) Check(ctx context.Context, dir, address string) (found bool, chunked *types.ChunksInfo, sz int64, ts time.Time, err error) {
 	// Look up the large object (see if it exists) in our mapping table
 	var dbOid uint32
 	location := path.Join(s.class, dir, address)
 	query := `SELECT oid FROM large_objects WHERE address = $1`
 	var rows pgx.Rows
-	if rows, err = s.pool.Query(context.Background(), query, location); err != nil {
+	if rows, err = s.pool.Query(ctx, query, location); err != nil {
 		return
 	}
 
@@ -123,8 +124,8 @@ func (s *StorageServer) Check(dir, address string) (found bool, chunked *types.C
 		// If the item was not found, check to see if it was chunked. If so, the original address
 		// will be a directory containing an `info.json` file.
 		infoLocation := path.Join(location, "info.json")
-		if rows, err = s.pool.Query(context.Background(), query, infoLocation); err != nil {
-			if err == sql.ErrNoRows {
+		if rows, err = s.pool.Query(ctx, query, infoLocation); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
 				err = nil
 			}
 			return
@@ -143,7 +144,7 @@ func (s *StorageServer) Check(dir, address string) (found bool, chunked *types.C
 		return
 	}
 
-	native, err := s.pool.Acquire(context.Background())
+	native, err := s.pool.Acquire(ctx)
 	if err != nil {
 		return
 	}
@@ -151,7 +152,7 @@ func (s *StorageServer) Check(dir, address string) (found bool, chunked *types.C
 	defer native.Release()
 
 	var tx pgx.Tx
-	if tx, err = native.Begin(context.Background()); err != nil {
+	if tx, err = native.Begin(ctx); err != nil {
 		return
 	}
 	defer pgxCommit(tx, fmt.Sprintf("Check %s", location), &err)
@@ -163,7 +164,7 @@ func (s *StorageServer) Check(dir, address string) (found bool, chunked *types.C
 	// Open the large object
 	slog.Debug(fmt.Sprintf("Opening (for check) large object %s with oid %d.", location, dbOid))
 	var lo *pgx.LargeObject
-	if lo, err = los.Open(context.Background(), dbOid, pgx.LargeObjectModeRead); err != nil {
+	if lo, err = los.Open(ctx, dbOid, pgx.LargeObjectModeRead); err != nil {
 		return
 	}
 	defer func(err *error) {
@@ -200,14 +201,18 @@ func (s *StorageServer) Check(dir, address string) (found bool, chunked *types.C
 	return
 }
 
-func (s *StorageServer) Get(dir, address string) (f io.ReadCloser, chunks *types.ChunksInfo, sz int64, lastMod time.Time, found bool, err error) {
+func (s *StorageServer) Get(
+	ctx context.Context,
+	dir string,
+	address string,
+) (f io.ReadCloser, chunks *types.ChunksInfo, sz int64, lastMod time.Time, found bool, err error) {
 	var chunked bool
 	// Look up the large object (see if it exists) in our mapping table
 	location := path.Join(s.class, dir, address)
 	var dbOid uint32
 	var rows pgx.Rows
 	query := `SELECT oid FROM large_objects WHERE address = $1`
-	if rows, err = s.pool.Query(context.Background(), query, location); err != nil {
+	if rows, err = s.pool.Query(ctx, query, location); err != nil {
 		return
 	} else {
 		defer rows.Close()
@@ -239,19 +244,19 @@ func (s *StorageServer) Get(dir, address string) (f io.ReadCloser, chunks *types
 
 	if chunked {
 		// Read the info.json file
-		f, chunks, sz, lastMod, err = s.chunker.ReadChunked(dir, address)
+		f, chunks, sz, lastMod, err = s.chunker.ReadChunked(ctx, dir, address)
 		if err != nil {
 			return
 		}
 	} else {
 		var native *pgxpool.Conn
-		native, err = s.pool.Acquire(context.Background())
+		native, err = s.pool.Acquire(ctx)
 		if err != nil {
 			return
 		}
 
 		var tx pgx.Tx
-		if tx, err = native.Begin(context.Background()); err != nil {
+		if tx, err = native.Begin(ctx); err != nil {
 			return
 		}
 
@@ -262,7 +267,7 @@ func (s *StorageServer) Get(dir, address string) (f io.ReadCloser, chunks *types
 		// Open the large object
 		slog.Debug(fmt.Sprintf("Opening (for read) large object %s with oid %d.", location, dbOid))
 		var lo *pgx.LargeObject
-		if lo, err = los.Open(context.Background(), dbOid, pgx.LargeObjectModeRead); err != nil {
+		if lo, err = los.Open(ctx, dbOid, pgx.LargeObjectModeRead); err != nil {
 			return
 		}
 
@@ -287,18 +292,18 @@ func (s *StorageServer) Get(dir, address string) (f io.ReadCloser, chunks *types
 	return
 }
 
-func (s *StorageServer) Flush(dir, address string) {
+func (s *StorageServer) Flush(ctx context.Context, dir, address string) {
 	// No-op
 }
 
-func (s *StorageServer) PutChunked(resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
+func (s *StorageServer) PutChunked(ctx context.Context, resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
 	if address == "" {
 		return "", "", fmt.Errorf("cache only supports pre-addressed chunked put commands")
 	}
 	if sz == 0 {
 		return "", "", fmt.Errorf("cache only supports pre-sized chunked put commands")
 	}
-	err := s.chunker.WriteChunked(dir, address, sz, resolve)
+	err := s.chunker.WriteChunked(ctx, dir, address, sz, resolve)
 	if err != nil {
 		return "", "", err
 	}
@@ -319,18 +324,18 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 	return types.Usage{}, fmt.Errorf("server postgres.StorageServer does not implement CalculateUsage")
 }
 
-func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (dirOut, addrOut string, err error) {
+func (s *StorageServer) Put(ctx context.Context, resolve types.Resolver, dir, address string) (dirOut, addrOut string, err error) {
 
 	var permanentLocation string
 
-	native, err := s.pool.Acquire(context.Background())
+	native, err := s.pool.Acquire(ctx)
 	if err != nil {
 		return
 	}
 	defer native.Release()
 
 	var tx pgx.Tx
-	if tx, err = native.Begin(context.Background()); err != nil {
+	if tx, err = native.Begin(ctx); err != nil {
 		return
 	}
 	defer pgxCommit(tx, fmt.Sprintf("Cache %s", permanentLocation), &err)
@@ -341,14 +346,14 @@ func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (dirOut
 
 	// Create a new large object
 	var oid uint32
-	if oid, err = los.Create(context.Background(), 0); err != nil {
+	if oid, err = los.Create(ctx, 0); err != nil {
 		slog.Debug(fmt.Sprintf("Error creating large object: %s", err))
 		return
 	}
 
 	// Open the new large object
 	var lo *pgx.LargeObject
-	if lo, err = los.Open(context.Background(), oid, pgx.LargeObjectModeWrite); err != nil {
+	if lo, err = los.Open(ctx, oid, pgx.LargeObjectModeWrite); err != nil {
 		slog.Debug(fmt.Sprintf("Error opening large object: %s", err))
 		return
 	}
@@ -358,7 +363,7 @@ func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (dirOut
 
 	// Insert the large object's OID in the mapping table
 	insert := `INSERT INTO large_objects (oid, address) VALUES ($1, $2)`
-	if _, err = tx.Exec(context.Background(), insert, oid, tempLocation); err != nil {
+	if _, err = tx.Exec(ctx, insert, oid, tempLocation); err != nil {
 		slog.Debug(fmt.Sprintf("Error inserting large object into mapping table: %s", err))
 		return
 	}
@@ -383,14 +388,14 @@ func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (dirOut
 
 	// Remove any conflicting mappings
 	delete := `DELETE FROM large_objects WHERE address = $1`
-	if _, err = tx.Exec(context.Background(), delete, permanentLocation); err != nil {
+	if _, err = tx.Exec(ctx, delete, permanentLocation); err != nil {
 		slog.Debug(fmt.Sprintf("Error deleting existing large object records from mapping table: %s", err))
 		return
 	}
 
 	// Rename the location
 	rename := `UPDATE large_objects SET address = $1 WHERE address = $2`
-	if _, err = tx.Exec(context.Background(), rename, permanentLocation, tempLocation); err != nil {
+	if _, err = tx.Exec(ctx, rename, permanentLocation, tempLocation); err != nil {
 		slog.Debug(fmt.Sprintf("Error setting large object record permanent address in mapping table: %s", err))
 		return
 	}
@@ -405,9 +410,9 @@ func (s *StorageServer) Put(resolve types.Resolver, dir, address string) (dirOut
 	return
 }
 
-func (s *StorageServer) Remove(dir, address string) (err error) {
+func (s *StorageServer) Remove(ctx context.Context, dir, address string) (err error) {
 
-	ok, chunked, _, _, err := s.Check(dir, address)
+	ok, chunked, _, _, err := s.Check(ctx, dir, address)
 	if err != nil {
 		return err
 	}
@@ -420,32 +425,32 @@ func (s *StorageServer) Remove(dir, address string) (err error) {
 		for i := uint64(1); i <= chunked.NumChunks; i++ {
 			chunk := fmt.Sprintf("%08d", i)
 			addr := internal.NotEmptyJoin([]string{s.class, dir, address, chunk}, "/")
-			err = s.rem(addr)
+			err = s.rem(ctx, addr)
 			if err != nil {
 				return err
 			}
 		}
 		// Delete "info.json"
 		addr := internal.NotEmptyJoin([]string{s.class, dir, address, "info.json"}, "/")
-		err = s.rem(addr)
+		err = s.rem(ctx, addr)
 	} else {
 		location := path.Join(s.class, dir, address)
-		return s.rem(location)
+		return s.rem(ctx, location)
 	}
 
 	return
 }
 
-func (s *StorageServer) rem(location string) (err error) {
+func (s *StorageServer) rem(ctx context.Context, location string) (err error) {
 
-	native, err := s.pool.Acquire(context.Background())
+	native, err := s.pool.Acquire(ctx)
 	if err != nil {
 		return
 	}
 	defer native.Release()
 
 	var tx pgx.Tx
-	if tx, err = native.Begin(context.Background()); err != nil {
+	if tx, err = native.Begin(ctx); err != nil {
 		return
 	}
 	defer pgxCommit(tx, "remove", &err)
@@ -457,8 +462,8 @@ func (s *StorageServer) rem(location string) (err error) {
 	// Look up the large object (see if it exists) in our mapping table
 	var oid uint32
 	query := `SELECT oid FROM large_objects WHERE address = $1`
-	row := tx.QueryRow(context.Background(), query, location)
-	if err = row.Scan(&oid); err == pgx.ErrNoRows {
+	row := tx.QueryRow(ctx, query, location)
+	if err = row.Scan(&oid); errors.Is(err, pgx.ErrNoRows) {
 		err = nil
 		return
 	} else if err != nil {
@@ -467,21 +472,21 @@ func (s *StorageServer) rem(location string) (err error) {
 
 	// Remove the mapping
 	delete := `DELETE FROM large_objects WHERE address = $1`
-	if _, err = tx.Exec(context.Background(), delete, location); err != nil {
+	if _, err = tx.Exec(ctx, delete, location); err != nil {
 		slog.Debug(fmt.Sprintf("Error deleting large object record from mapping table: %s", err))
 		return
 	}
 
 	// Remove the large object
-	err = los.Unlink(context.Background(), oid)
+	err = los.Unlink(ctx, oid)
 	return
 }
 
-func (s *StorageServer) Enumerate() (items []types.StoredItem, err error) {
+func (s *StorageServer) Enumerate(ctx context.Context) (items []types.StoredItem, err error) {
 	query := `SELECT address FROM large_objects ORDER BY address`
 	items = make([]types.StoredItem, 0)
 	var rows pgx.Rows
-	if rows, err = s.pool.Query(context.Background(), query); err == sql.ErrNoRows {
+	if rows, err = s.pool.Query(ctx, query); errors.Is(err, sql.ErrNoRows) {
 		err = nil
 		return
 	} else if err != nil {
@@ -518,20 +523,20 @@ func (s *StorageServer) Enumerate() (items []types.StoredItem, err error) {
 	return
 }
 
-func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer) (err error) {
-	parts, err := s.parts(dir, address)
+func (s *StorageServer) move(ctx context.Context, dir, address string, server rsstorage.StorageServer) (err error) {
+	parts, err := s.parts(ctx, dir, address)
 	if err != nil {
 		return
 	}
 
-	native, err := s.pool.Acquire(context.Background())
+	native, err := s.pool.Acquire(ctx)
 	if err != nil {
 		return
 	}
 	defer native.Release()
 
 	var tx pgx.Tx
-	if tx, err = native.Begin(context.Background()); err != nil {
+	if tx, err = native.Begin(ctx); err != nil {
 		return
 	}
 	defer pgxCommit(tx, "move", &err)
@@ -541,7 +546,7 @@ func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer
 		source := path.Join(s.class, part.Dir, part.Address)
 		destination := server.Locate(part.Dir, part.Address)
 		delete := `UPDATE large_objects SET address = $1 WHERE address = $2`
-		if _, err = tx.Exec(context.Background(), delete, destination, source); err != nil {
+		if _, err = tx.Exec(ctx, delete, destination, source); err != nil {
 			slog.Debug(fmt.Sprintf("Error updating (move) large object record in mapping table: %s", err))
 			return
 		}
@@ -550,8 +555,8 @@ func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer
 	return
 }
 
-func (s *StorageServer) parts(dir, address string) ([]rsstorage.CopyPart, error) {
-	ok, chunked, _, _, err := s.Check(dir, address)
+func (s *StorageServer) parts(ctx context.Context, dir, address string) ([]rsstorage.CopyPart, error) {
+	ok, chunked, _, _, err := s.Check(ctx, dir, address)
 	if err != nil {
 		return nil, err
 	} else if !ok {
@@ -574,29 +579,29 @@ func (s *StorageServer) parts(dir, address string) ([]rsstorage.CopyPart, error)
 	}
 }
 
-func (s *StorageServer) Move(dir, address string, server rsstorage.StorageServer) error {
-	copy := true
+func (s *StorageServer) Move(ctx context.Context, dir, address string, server rsstorage.StorageServer) error {
+	copyOp := true
 	switch server.(type) {
 	case *StorageServer:
 		// Attempt move
-		err := s.move(dir, address, server)
+		err := s.move(ctx, dir, address, server)
 		if err == nil {
-			copy = false
+			copyOp = false
 		}
 	default:
 		// Don't do anything. Just copy
 	}
 
 	// Copy the file
-	if copy {
+	if copyOp {
 		// Copy the file
-		err := s.Copy(dir, address, server)
+		err := s.Copy(ctx, dir, address, server)
 		if err != nil {
 			return err
 		}
 
 		// Then, remove the file
-		err = s.Remove(dir, address)
+		err = s.Remove(ctx, dir, address)
 		if err != nil {
 			return err
 		}
@@ -605,8 +610,8 @@ func (s *StorageServer) Move(dir, address string, server rsstorage.StorageServer
 	return nil
 }
 
-func (s *StorageServer) Copy(dir, address string, server rsstorage.StorageServer) error {
-	f, chunked, sz, _, ok, err := s.Get(dir, address)
+func (s *StorageServer) Copy(ctx context.Context, dir, address string, server rsstorage.StorageServer) error {
+	f, chunked, sz, _, ok, err := s.Get(ctx, dir, address)
 	if err == nil && !ok {
 		return fmt.Errorf("the PostgreSQL large object with dir=%s and address=%s to copy does not exist", dir, address)
 	} else if err != nil {
@@ -622,9 +627,9 @@ func (s *StorageServer) Copy(dir, address string, server rsstorage.StorageServer
 
 	// Use the server Base() in case the server is wrapped, e.g., `MetadataStorageServer`
 	if chunked != nil {
-		_, _, err = server.Base().PutChunked(install(f), dir, address, uint64(sz))
+		_, _, err = server.Base().PutChunked(ctx, install(f), dir, address, uint64(sz))
 	} else {
-		_, _, err = server.Base().Put(install(f), dir, address)
+		_, _, err = server.Base().Put(ctx, install(f), dir, address)
 	}
 	return err
 }

@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/fortytw2/leaktest"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -126,20 +126,18 @@ func (s *StorageIntegrationSuite) TearDownTest(c *check.C) {
 // In the tests, we'll typically create two server sets, one set as a source
 // set and another set as a destination set.
 func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]rsstorage.StorageServer {
-	s3Svc, err := s3server.NewS3Wrapper(&rsstorage.ConfigS3{
+	s3Svc, err := s3server.NewS3Wrapper(rsstorage.ConfigS3{
 		Bucket:             class,
 		Endpoint:           "http://minio:9000",
 		Prefix:             prefix,
 		EnableSharedConfig: true,
 		DisableSSL:         true,
 		S3ForcePathStyle:   true,
-	}, "")
+	}, nil)
 	c.Assert(err, check.IsNil)
 
 	// Create S3 bucket
-	_, err = s3Svc.CreateBucket(&s3.CreateBucketInput{
-		Bucket: aws.String(class),
-	})
+	_, err = s3Svc.CreateBucket(context.Background(), &s3.CreateBucketInput{Bucket: aws.String(class)})
 	c.Assert(err, check.IsNil)
 
 	c.Assert(s.pool, check.NotNil)

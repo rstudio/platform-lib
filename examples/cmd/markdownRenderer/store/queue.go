@@ -198,7 +198,7 @@ func QueueUpdateGroup(conn *gorm.DB, group *QueueGroup) (dbqueuetypes.QueueGroup
 
 func (conn *store) QueueGroupComplete(id int64) (done bool, cancelled bool, err error) {
 	var count int64
-	conn.db.Transaction(func(tx *gorm.DB) error {
+	err = conn.db.Transaction(func(tx *gorm.DB) error {
 		err = tx.Model(&Queue{}).Where("group_id = ?", id).Count(&count).Error
 		if err != nil {
 			return err
@@ -218,6 +218,9 @@ func (conn *store) QueueGroupComplete(id int64) (done bool, cancelled bool, err 
 		}
 		return err
 	})
+	if err != nil {
+		return false, false, err
+	}
 
 	return count == 0, cancelled, err
 }
@@ -232,7 +235,7 @@ func (conn *store) IsQueueAddressComplete(address string) (done bool, err error)
 	// testing with a special locking connection.
 	var count int64
 	var workErr error
-	conn.db.Transaction(func(tx *gorm.DB) error {
+	err = conn.db.Transaction(func(tx *gorm.DB) error {
 		err = tx.Model(&Queue{}).Where("address = ?", address).Count(&count).Error
 		if err != nil {
 			return err
@@ -244,6 +247,9 @@ func (conn *store) IsQueueAddressComplete(address string) (done bool, err error)
 		workErr = c2.QueueAddressedCheck(address)
 		return nil
 	})
+	if err != nil {
+		return false, err
+	}
 
 	if workErr != nil {
 		err = workErr
@@ -507,7 +513,7 @@ func (conn *store) QueuePop(name string, maxPriority uint64, types []uint64) (*q
 		types = append(types, queuetypes.TYPE_NONE)
 	}
 
-	// Important: we do this SELECT outside of the transaction to help avoid "database is locked" errors.
+	// Important: we do this SELECT outside the transaction to help avoid "database is locked" errors.
 	// Since SQLite WAL allows us to read during writes, we can do quick read-only check to see if any
 	// work is available in the queue before even starting a transaction or requesting a queue permit.
 	//
@@ -539,7 +545,7 @@ func (conn *store) QueuePop(name string, maxPriority uint64, types []uint64) (*q
 		// Get work item
 		result.Work, result.Address, result.WorkType, result.Carrier, err = getWork(tx, pt.ID)
 		result.Permit = pt.PermitId()
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(gorm.ErrRecordNotFound, err) {
 			return err
 		} else if err != nil {
 			return fmt.Errorf("Error getting claimed queue work: %s", err)

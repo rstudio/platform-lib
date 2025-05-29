@@ -3,6 +3,7 @@ package integrationtest
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -30,6 +31,7 @@ func GetStorageServer(cfg *rsstorage.Config, class string, destination string, w
 
 // getStorageServerAttempt creates storage services generically
 func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination string, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, pool *pgxpool.Pool) (rsstorage.StorageServer, error) {
+	ctx := context.Background()
 	var server rsstorage.StorageServer
 	switch destination {
 	case "file":
@@ -50,7 +52,7 @@ func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination st
 		if cfg.S3 == nil {
 			return nil, fmt.Errorf("Missing [S3Storage \"%s\"] configuration section", class)
 		}
-		s3Service, err := s3server.NewS3Wrapper(cfg.S3, "")
+		s3Service, err := s3server.NewS3Wrapper(*cfg.S3, nil)
 		if err != nil {
 			return nil, fmt.Errorf("Error starting S3 session for '%s': %s", class, err)
 		}
@@ -69,7 +71,7 @@ func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination st
 		}
 
 		s3, _ := server.(*s3server.StorageServer)
-		err = s3.Validate()
+		err = s3.Validate(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("Error validating S3 session for '%s': %s", class, err)
 		}
