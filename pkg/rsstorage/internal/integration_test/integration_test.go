@@ -17,7 +17,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go/aws/awserr"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/fortytw2/leaktest"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -202,6 +202,7 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 const testAssetData = "this is a test for the server of class %s"
 
 func (s *StorageIntegrationSuite) PopulateServerSet(c *check.C, set map[string]rsstorage.StorageServer) {
+	ctx := context.Background()
 	resolver := func(class string) types.Resolver {
 		return func(w io.Writer) (string, string, error) {
 			_, err := w.Write([]byte(fmt.Sprintf(testAssetData, class)))
@@ -224,22 +225,32 @@ func (s *StorageIntegrationSuite) PopulateServerSet(c *check.C, set map[string]r
 	// assets to all the other server types.
 	for class, server := range set {
 		for assetClass := range set {
-			_, _, err := server.Put(resolver(class), "", fmt.Sprintf("%s->%s", class, assetClass))
+			_, _, err := server.Put(ctx, resolver(class), "", fmt.Sprintf("%s->%s", class, assetClass))
 			c.Assert(err, check.IsNil)
-			_, _, err = server.Put(resolver(class), "dir", fmt.Sprintf("%s->%s", class, assetClass))
+			_, _, err = server.Put(ctx, resolver(class), "dir", fmt.Sprintf("%s->%s", class, assetClass))
 			c.Assert(err, check.IsNil)
-			_, _, err = server.PutChunked(resolverChunked(class), "chunked", fmt.Sprintf("%s->%s", class, assetClass), szPut)
+			_, _, err = server.PutChunked(ctx, resolverChunked(class), "chunked", fmt.Sprintf("%s->%s", class, assetClass), szPut)
 			c.Check(err, check.IsNil)
 		}
 	}
 }
 
 // Verifies that a given asset exists
-func (s *StorageIntegrationSuite) CheckFile(c *check.C, server rsstorage.StorageServer, test, dir, address, classSource, class string, sz int64, chunked bool) {
+func (s *StorageIntegrationSuite) CheckFile(
+	c *check.C,
+	server rsstorage.StorageServer,
+	test string,
+	dir string,
+	address string,
+	classSource string,
+	class string,
+	sz int64,
+	chunked bool,
+) {
 	log.Printf("(%s) Verifying existence of %s on server=%s (with dir=%s)", test, address, class, dir)
 
 	// Next, get it
-	r, ch, sz, _, ok, err := server.Get(dir, address)
+	r, ch, sz, _, ok, err := server.Get(context.Background(), dir, address)
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, true)
 	c.Check(sz, check.Equals, sz)
@@ -267,12 +278,13 @@ func (s *StorageIntegrationSuite) CheckFile(c *check.C, server rsstorage.Storage
 func (s *StorageIntegrationSuite) CheckFileGone(c *check.C, server rsstorage.StorageServer, test, dir, address, classSource string) {
 	log.Printf("(%s) Verifying removal of %s on server=%s (with dir=%s)", test, address, classSource, dir)
 
-	ok, _, _, _, err := server.Check("", address)
+	ok, _, _, _, err := server.Check(context.Background(), "", address)
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, false)
 }
 
 func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
+	ctx := context.Background()
 	sources := s.NewServerSet(c, "source-move", "")
 	dests := s.NewServerSet(c, "dest-move", "destination")
 
@@ -281,11 +293,11 @@ func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
 	// Move files
 	for classSource, source := range sources {
 		for classDest, dest := range dests {
-			err := source.Move("", fmt.Sprintf("%s->%s", classSource, classDest), dest)
+			err := source.Move(ctx, "", fmt.Sprintf("%s->%s", classSource, classDest), dest)
 			c.Assert(err, check.IsNil)
-			err = source.Move("dir", fmt.Sprintf("%s->%s", classSource, classDest), dest)
+			err = source.Move(ctx, "dir", fmt.Sprintf("%s->%s", classSource, classDest), dest)
 			c.Assert(err, check.IsNil)
-			err = source.Move("chunked", fmt.Sprintf("%s->%s", classSource, classDest), dest)
+			err = source.Move(ctx, "chunked", fmt.Sprintf("%s->%s", classSource, classDest), dest)
 			c.Assert(err, check.IsNil)
 		}
 	}
@@ -295,9 +307,39 @@ func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
 		log.Printf("\nVerify that files were successfully moved from %s to each destination server:", classSource)
 		for classDest, dest := range dests {
 			// Files exist on destination
-			s.CheckFile(c, dest, "Move-Dst", "", fmt.Sprintf("%s->%s", classSource, classDest), classSource, classDest, int64(len(testAssetData)+len(classSource)-2), false)
-			s.CheckFile(c, dest, "Move-Dst", "dir", fmt.Sprintf("%s->%s", classSource, classDest), classSource, classDest, int64(len(testAssetData)+len(classSource)-2), false)
-			s.CheckFile(c, dest, "Move-Dst", "chunked", fmt.Sprintf("%s->%s", classSource, classDest), classSource, classDest, 1953, true)
+			s.CheckFile(
+				c,
+				dest,
+				"Move-Dst",
+				"",
+				fmt.Sprintf("%s->%s", classSource, classDest),
+				classSource,
+				classDest,
+				int64(len(testAssetData)+len(classSource)-2),
+				false,
+			)
+			s.CheckFile(
+				c,
+				dest,
+				"Move-Dst",
+				"dir",
+				fmt.Sprintf("%s->%s", classSource, classDest),
+				classSource,
+				classDest,
+				int64(len(testAssetData)+len(classSource)-2),
+				false,
+			)
+			s.CheckFile(
+				c,
+				dest,
+				"Move-Dst",
+				"chunked",
+				fmt.Sprintf("%s->%s", classSource, classDest),
+				classSource,
+				classDest,
+				1953,
+				true,
+			)
 		}
 	}
 
@@ -313,6 +355,7 @@ func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
 }
 
 func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
+	ctx := context.Background()
 	sources := s.NewServerSet(c, "source-copy", "")
 	dests := s.NewServerSet(c, "dest-copy", "destination")
 
@@ -321,11 +364,11 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 	// Copy files
 	for classSource, source := range sources {
 		for classDest, dest := range dests {
-			err := source.Copy("", fmt.Sprintf("%s->%s", classSource, classDest), dest)
+			err := source.Copy(ctx, "", fmt.Sprintf("%s->%s", classSource, classDest), dest)
 			c.Assert(err, check.IsNil)
-			err = source.Copy("dir", fmt.Sprintf("%s->%s", classSource, classDest), dest)
+			err = source.Copy(ctx, "dir", fmt.Sprintf("%s->%s", classSource, classDest), dest)
 			c.Assert(err, check.IsNil)
-			err = source.Copy("chunked", fmt.Sprintf("%s->%s", classSource, classDest), dest)
+			err = source.Copy(ctx, "chunked", fmt.Sprintf("%s->%s", classSource, classDest), dest)
 			c.Assert(err, check.IsNil)
 		}
 	}
@@ -335,9 +378,39 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 		log.Printf("\nVerify that files were successfully copied from %s to each destination server:", classSource)
 		for classDest, dest := range dests {
 			// Files exist on destination
-			s.CheckFile(c, dest, "Copy-Dst", "", fmt.Sprintf("%s->%s", classSource, classDest), classSource, classDest, int64(len(testAssetData)+len(classSource)-2), false)
-			s.CheckFile(c, dest, "Copy-Dst", "dir", fmt.Sprintf("%s->%s", classSource, classDest), classSource, classDest, int64(len(testAssetData)+len(classSource)-2), false)
-			s.CheckFile(c, dest, "Copy-Dst", "chunked", fmt.Sprintf("%s->%s", classSource, classDest), classSource, classDest, 1953, true)
+			s.CheckFile(
+				c,
+				dest,
+				"Copy-Dst",
+				"",
+				fmt.Sprintf("%s->%s", classSource, classDest),
+				classSource,
+				classDest,
+				int64(len(testAssetData)+len(classSource)-2),
+				false,
+			)
+			s.CheckFile(
+				c,
+				dest,
+				"Copy-Dst",
+				"dir",
+				fmt.Sprintf("%s->%s", classSource, classDest),
+				classSource,
+				classDest,
+				int64(len(testAssetData)+len(classSource)-2),
+				false,
+			)
+			s.CheckFile(
+				c,
+				dest,
+				"Copy-Dst",
+				"chunked",
+				fmt.Sprintf("%s->%s", classSource, classDest),
+				classSource,
+				classDest,
+				1953,
+				true,
+			)
 		}
 	}
 
@@ -346,23 +419,53 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 		log.Printf("\nVerify that original files still remain on the %s server:", classSource)
 		for classDest := range dests {
 			// Files still exist on source
-			s.CheckFile(c, source, "Copy-Src", "", fmt.Sprintf("%s->%s", classSource, classDest), classSource, classSource, int64(len(testAssetData)+len(classSource)-2), false)
-			s.CheckFile(c, source, "Copy-Src", "dir", fmt.Sprintf("%s->%s", classSource, classDest), classSource, classSource, int64(len(testAssetData)+len(classSource)-2), false)
-			s.CheckFile(c, source, "Copy-Src", "chunked", fmt.Sprintf("%s->%s", classSource, classDest), classSource, classSource, 1953, true)
+			s.CheckFile(
+				c,
+				source,
+				"Copy-Src",
+				"",
+				fmt.Sprintf("%s->%s", classSource, classDest),
+				classSource,
+				classSource,
+				int64(len(testAssetData)+len(classSource)-2),
+				false,
+			)
+			s.CheckFile(
+				c,
+				source,
+				"Copy-Src",
+				"dir",
+				fmt.Sprintf("%s->%s", classSource, classDest),
+				classSource,
+				classSource,
+				int64(len(testAssetData)+len(classSource)-2),
+				false,
+			)
+			s.CheckFile(
+				c,
+				source,
+				"Copy-Src",
+				"chunked",
+				fmt.Sprintf("%s->%s", classSource, classDest),
+				classSource,
+				classSource,
+				1953,
+				true,
+			)
 		}
 	}
 
 	// Test Enumeration
 	for classSource, source := range sources {
 		log.Printf("\nVerify enumeration on the %s source server:", classSource)
-		items, err := source.Enumerate()
+		items, err := source.Enumerate(ctx)
 		c.Assert(err, check.IsNil)
 		// Each source should have three files for each destination
 		c.Assert(items, check.HasLen, len(dests)*3)
 	}
 	for classDest, dest := range dests {
 		log.Printf("\nVerify enumeration on the %s destination server:", classDest)
-		items, err := dest.Enumerate()
+		items, err := dest.Enumerate(ctx)
 		c.Assert(err, check.IsNil)
 		// Each destination should have three files from each source
 		c.Assert(items, check.HasLen, len(sources)*3)
@@ -372,21 +475,21 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 	for classSource, source := range sources {
 		log.Printf("\nVerify forced removal of assets on the %s source server:", classSource)
 		for classDest := range dests {
-			err := source.Remove("", fmt.Sprintf("%s->%s", classSource, classDest))
+			err := source.Remove(ctx, "", fmt.Sprintf("%s->%s", classSource, classDest))
 			c.Assert(err, check.IsNil)
-			err = source.Remove("dir", fmt.Sprintf("%s->%s", classSource, classDest))
+			err = source.Remove(ctx, "dir", fmt.Sprintf("%s->%s", classSource, classDest))
 			c.Assert(err, check.IsNil)
-			err = source.Remove("chunked", fmt.Sprintf("%s->%s", classSource, classDest))
+			err = source.Remove(ctx, "chunked", fmt.Sprintf("%s->%s", classSource, classDest))
 			c.Assert(err, check.IsNil)
 		}
-		items, err := source.Enumerate()
+		items, err := source.Enumerate(ctx)
 		c.Assert(err, check.IsNil)
 		// Each source now have zero assets
 		c.Assert(items, check.HasLen, 0)
 	}
 }
 
-// Ensures that files are cleaned up and we don't end up with zero-length files after
+// Ensures that files are cleaned up, and we don't end up with zero-length files after
 // resolver failures.
 //
 // Run with (against local MinIO instance):
@@ -411,6 +514,7 @@ var minioEndpoint = "http://minio:9000"
 var awsEndpoint = ""
 
 func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
+	ctx := context.Background()
 	defer leaktest.Check(c)
 
 	// Customize these as needed for your environment
@@ -428,39 +532,38 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 		forcePathStyle = true
 	}
 
-	s3Svc, err := s3server.NewS3Wrapper(&rsstorage.ConfigS3{
-		// Common settings
-		Bucket:             bucket,
-		Prefix:             "integration-test",
-		EnableSharedConfig: true,
-		Profile:            profile,
-		Region:             region,
-		//
-		// MinIO-specific settings
-		Endpoint:         endpoint,
-		DisableSSL:       disableSSL,
-		S3ForcePathStyle: forcePathStyle,
-	}, "")
+	s3Svc, err := s3server.NewS3Wrapper(
+		rsstorage.ConfigS3{
+			// Common settings
+			Bucket:             bucket,
+			Prefix:             "integration-test",
+			EnableSharedConfig: true,
+			Profile:            profile,
+			Region:             region,
+			//
+			// MinIO-specific settings
+			Endpoint:         endpoint,
+			DisableSSL:       disableSSL,
+			S3ForcePathStyle: forcePathStyle,
+		},
+		nil,
+	)
 	c.Assert(err, check.IsNil)
 
 	// Create S3 bucket if using local MinIO Server
 	if endpoint == minioEndpoint {
-		_, err = s3Svc.CreateBucket(&s3.CreateBucketInput{
-			Bucket: aws.String(bucket),
-		})
+		_, err = s3Svc.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)})
 		// Ignore errors if the bucket already exists.
 		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
-				if aerr.Code() == s3.ErrCodeBucketAlreadyExists || aerr.Code() == "BucketAlreadyOwnedByYou" {
-					err = nil
-				}
+			var bae *s3Types.BucketAlreadyExists
+			var bao *s3Types.BucketAlreadyOwnedByYou
+			if errors.As(err, &bae) || errors.As(err, &bao) {
+				err = nil
 			}
 		}
 		c.Assert(err, check.IsNil)
 		defer func() {
-			s3Svc.DeleteBucket(&s3.DeleteBucketInput{
-				Bucket: aws.String(bucket),
-			})
+			s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
 		}()
 	}
 
@@ -515,18 +618,18 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 		defer close(failed)
 		log.Printf("put: adding an item to S3 in a separate goroutine")
 		// Put an item into S3. This will fail
-		_, _, err = s3Server.Put(resolver("test-failure"), "", itemAddress)
+		_, _, err = s3Server.Put(ctx, resolver("test-failure"), "", itemAddress)
 		c.Assert(err, check.NotNil)
 		c.Assert(strings.HasSuffix(err.Error(), "failure resolving data"), check.Equals, true)
 	}()
 
-	// Don't attempt anything until we've started attempting the write to S3
+	// Don't attempt anything until we've started attempting to write to S3
 	log.Printf("get: waiting for write to start")
 	<-writing
 
 	// Check to see if we can find the item that we're writing
 	log.Printf("get: attempting to get item that is being written")
-	_, _, _, _, ok, err := s3Server.Get("", itemAddress)
+	_, _, _, _, ok, err := s3Server.Get(ctx, "", itemAddress)
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, false)
 
@@ -537,12 +640,13 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	<-failed
 
 	// Check again to see if we can find the failed item.
-	_, _, _, _, ok, err = s3Server.Get("", itemAddress)
+	_, _, _, _, ok, err = s3Server.Get(ctx, "", itemAddress)
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, false)
 }
 
 func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
+	ctx := context.Background()
 	defer leaktest.Check(c)
 
 	// Customize these as needed for your environment
@@ -560,7 +664,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		forcePathStyle = true
 	}
 
-	s3Svc, err := s3server.NewS3Wrapper(&rsstorage.ConfigS3{
+	s3Svc, err := s3server.NewS3Wrapper(rsstorage.ConfigS3{
 		// Common settings
 		Bucket:             bucket,
 		Prefix:             "integration-test",
@@ -572,27 +676,24 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		Endpoint:         endpoint,
 		DisableSSL:       disableSSL,
 		S3ForcePathStyle: forcePathStyle,
-	}, "")
+	}, nil)
 	c.Assert(err, check.IsNil)
 
 	// Create S3 bucket if using local MinIO Server
 	if endpoint == minioEndpoint {
-		_, err = s3Svc.CreateBucket(&s3.CreateBucketInput{
-			Bucket: aws.String(bucket),
-		})
+		_, err = s3Svc.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)})
 		// Ignore errors if the bucket already exists.
 		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
-				if aerr.Code() == s3.ErrCodeBucketAlreadyExists || aerr.Code() == "BucketAlreadyOwnedByYou" {
-					err = nil
-				}
+			var bae *s3Types.BucketAlreadyExists
+			var bao *s3Types.BucketAlreadyOwnedByYou
+
+			if errors.As(err, &bae) || errors.As(err, &bao) {
+				err = nil
 			}
 		}
 		c.Assert(err, check.IsNil)
 		defer func() {
-			s3Svc.DeleteBucket(&s3.DeleteBucketInput{
-				Bucket: aws.String(bucket),
-			})
+			s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
 		}()
 	}
 
@@ -647,18 +748,18 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		defer close(failed)
 		log.Printf("put: adding a chunked item to S3 in a separate goroutine")
 		// Put an item into S3. This will fail
-		_, _, err = s3Server.PutChunked(resolver("test-failure"), "", itemAddress, 100*1024)
+		_, _, err = s3Server.PutChunked(ctx, resolver("test-failure"), "", itemAddress, 100*1024)
 		c.Assert(err, check.ErrorMatches, "failure resolving data")
 	}()
 
-	// Don't attempt anything until we've started attempting the write to S3
+	// Don't attempt anything until we've started attempting to write to S3
 	log.Printf("get: waiting for write to start")
 	<-writing
 
 	// Check to see if we can find the item that we're writing. Since this
 	// is chunked data, it should appear now, even though it is incomplete.
 	log.Printf("get: attempting to get item that is being written")
-	_, _, _, _, ok, err := s3Server.Get("", itemAddress)
+	_, _, _, _, ok, err := s3Server.Get(ctx, "", itemAddress)
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, true)
 
@@ -670,7 +771,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 
 	// Check again to see if we can find the failed item. It should have been
 	// cleaned up when the Put failed.
-	_, _, _, _, ok, err = s3Server.Get("", itemAddress)
+	_, _, _, _, ok, err = s3Server.Get(ctx, "", itemAddress)
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, false)
 }
