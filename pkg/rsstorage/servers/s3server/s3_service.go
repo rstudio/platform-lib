@@ -39,10 +39,15 @@ func NewS3Wrapper(configInput rsstorage.ConfigS3, httpClient s3.HTTPClient) (S3W
 		return nil, fmt.Errorf("'region' field of ConfigS3 is required")
 	}
 	options := s3.Options{
-		BaseEndpoint:    &configInput.Endpoint,
-		EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: configInput.DisableSSL},
-		UsePathStyle:    configInput.S3ForcePathStyle,
-		Region:          configInput.Region,
+		UsePathStyle: configInput.S3ForcePathStyle,
+		Region:       configInput.Region,
+	}
+
+	if configInput.Endpoint != "" {
+		options.BaseEndpoint = &configInput.Endpoint
+	}
+	if configInput.DisableSSL {
+		options.EndpointOptions = s3.EndpointResolverOptions{DisableHTTPS: configInput.DisableSSL}
 	}
 
 	if httpClient != nil {
@@ -70,7 +75,7 @@ func (s *defaultS3Wrapper) DeleteBucket(ctx context.Context, input *s3.DeleteBuc
 	out, err := s.client.DeleteBucket(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"error encountered while deleting an S3 bucket; try checking your configuration, error: %w",
+			"error encountered while deleting an S3 bucket; try checking your configuration:: %w",
 			err,
 		)
 	}
@@ -85,7 +90,7 @@ func (s *defaultS3Wrapper) HeadObject(ctx context.Context, input *s3.HeadObjectI
 			return nil, err
 		}
 		return nil, fmt.Errorf(
-			"error encountered while getting the HEAD for an S3 object; try checking your configuration, error: %w",
+			"error encountered while getting the HEAD for an S3 object; try checking your configuration: %w",
 			err,
 		)
 	}
@@ -100,7 +105,7 @@ func (s *defaultS3Wrapper) GetObject(ctx context.Context, input *s3.GetObjectInp
 			return nil, err
 		}
 		return nil, fmt.Errorf(
-			"error encountered while getting an S3 object; try checking your configuration, error: %w",
+			"error encountered while getting an S3 object; try checking your configuration: %w",
 			err,
 		)
 	}
@@ -111,7 +116,7 @@ func (s *defaultS3Wrapper) DeleteObject(ctx context.Context, input *s3.DeleteObj
 	out, err := s.client.DeleteObject(ctx, input)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"error encountered while deleting an S3 object, try checking your configuration, error: %w",
+			"error encountered while deleting an S3 object, try checking your configuration: %w",
 			err,
 		)
 	}
@@ -127,7 +132,7 @@ func (s *defaultS3Wrapper) Upload(
 	out, err := s.client.UploadPart(ctx, input, optFns...)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"error encountered while uploading to S3; try checking your configuration, error: %w",
+			"error encountered while uploading to S3; try checking your configuration: %w",
 			err,
 		)
 	}

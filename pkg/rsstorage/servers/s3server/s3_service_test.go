@@ -50,11 +50,17 @@ func (s *S3WrapperSuite) TestHeadObject(c *check.C) {
 
 	httpmock.RegisterResponder(
 		"HEAD",
-		`https://foo.s3.amazonaws.com/foo`,
+		`https://foo.s3.us-east-1.amazonaws.com/foo`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``),
 	)
 
-	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	wrapper, err := NewS3Wrapper(
+		rsstorage.ConfigS3{
+			Region:         "us-east-1",
+			SkipValidation: true,
+		},
+		&client,
+	)
 	c.Assert(err, check.IsNil)
 
 	input := &s3.HeadObjectInput{
@@ -63,8 +69,7 @@ func (s *S3WrapperSuite) TestHeadObject(c *check.C) {
 	}
 	_, err = wrapper.HeadObject(context.Background(), input)
 	c.Assert(err, check.NotNil)
-	expected := "NotFound: Not Found\tstatus code: 404, request id: , host id: "
-	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
+	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 }
 
 func (s *S3WrapperSuite) TestGetObject(c *check.C) {
