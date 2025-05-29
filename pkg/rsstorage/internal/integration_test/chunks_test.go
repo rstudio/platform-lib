@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -58,14 +57,18 @@ func (s *ChunksIntegrationSuite) TearDownTest(c *check.C) {
 // set and another set as a destination set.
 func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]rsstorage.StorageServer {
 	ctx := context.Background()
-	s3Svc, err := s3server.NewS3Wrapper(rsstorage.ConfigS3{
-		Bucket:             class,
-		Endpoint:           "http://minio:9000",
-		Prefix:             prefix,
-		EnableSharedConfig: true,
-		DisableSSL:         true,
-		S3ForcePathStyle:   true,
-	}, nil)
+	s3Svc, err := s3server.NewS3Wrapper(
+		rsstorage.ConfigS3{
+			Bucket:             class,
+			Endpoint:           "http://minio:9000",
+			Prefix:             prefix,
+			EnableSharedConfig: true,
+			DisableSSL:         true,
+			S3ForcePathStyle:   true,
+			Region:             "us-east-1",
+		},
+		nil,
+	)
 	c.Assert(err, check.IsNil)
 
 	// Create S3 bucket

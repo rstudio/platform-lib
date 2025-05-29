@@ -6,7 +6,6 @@ toolchain go1.24.1
 
 require (
 	github.com/aws/amazon-s3-encryption-client-go/v3 v3.1.0
-	github.com/aws/aws-sdk-go v1.55.7
 	github.com/aws/aws-sdk-go-v2 v1.36.3
 	github.com/aws/aws-sdk-go-v2/config v1.29.14
 	github.com/aws/aws-sdk-go-v2/service/kms v1.38.3
@@ -26,8 +25,8 @@ require (
 	github.com/rstudio/platform-lib/pkg/rslog v1.6.3
 	github.com/spf13/cobra v1.9.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
-	gorm.io/driver/sqlite v1.5.7
-	gorm.io/gorm v1.30.0
+	gorm.io/driver/sqlite v1.3.1
+	gorm.io/gorm v1.23.2
 )
 
 require (
@@ -54,7 +53,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
