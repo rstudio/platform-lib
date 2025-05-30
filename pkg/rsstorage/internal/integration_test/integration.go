@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
@@ -30,7 +31,14 @@ func GetStorageServer(cfg *rsstorage.Config, class string, destination string, w
 }
 
 // getStorageServerAttempt creates storage services generically
-func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination string, waiter rsstorage.ChunkWaiter, notifier rsstorage.ChunkNotifier, pool *pgxpool.Pool) (rsstorage.StorageServer, error) {
+func getStorageServerAttempt(
+	cfg *rsstorage.Config,
+	class string,
+	destination string,
+	waiter rsstorage.ChunkWaiter,
+	notifier rsstorage.ChunkNotifier,
+	pool *pgxpool.Pool,
+) (rsstorage.StorageServer, error) {
 	ctx := context.Background()
 	var server rsstorage.StorageServer
 	switch destination {
@@ -39,20 +47,33 @@ func getStorageServerAttempt(cfg *rsstorage.Config, class string, destination st
 			return nil, fmt.Errorf("Missing [FileStorage \"%s\"] configuration section", class)
 		}
 		//todo bioc: configurable size here
-		server = file.NewStorageServer(file.StorageServerArgs{
-			Dir:          cfg.File.Location,
-			ChunkSize:    cfg.ChunkSizeBytes,
-			Waiter:       waiter,
-			Notifier:     notifier,
-			Class:        class,
-			CacheTimeout: cfg.CacheTimeout,
-			WalkTimeout:  30 * time.Second,
-		})
+		server = file.NewStorageServer(
+			file.StorageServerArgs{
+				Dir:          cfg.File.Location,
+				ChunkSize:    cfg.ChunkSizeBytes,
+				Waiter:       waiter,
+				Notifier:     notifier,
+				Class:        class,
+				CacheTimeout: cfg.CacheTimeout,
+				WalkTimeout:  30 * time.Second,
+			},
+		)
 	case "s3":
 		if cfg.S3 == nil {
 			return nil, fmt.Errorf("Missing [S3Storage \"%s\"] configuration section", class)
 		}
-		s3Service, err := s3server.NewS3Wrapper(*cfg.S3, nil)
+		s3Opts := s3.Options{
+			Region:       cfg.S3.Region,
+			UsePathStyle: cfg.S3.S3ForcePathStyle,
+		}
+		if cfg.S3.Endpoint != "" {
+			s3Opts.BaseEndpoint = &cfg.S3.Endpoint
+		}
+		if cfg.S3.DisableSSL {
+			s3Opts.EndpointOptions = s3.EndpointResolverOptions{DisableHTTPS: cfg.S3.DisableSSL}
+		}
+
+		s3Service, err := s3server.NewS3Wrapper(s3Opts)
 		if err != nil {
 			return nil, fmt.Errorf("Error starting S3 session for '%s': %s", class, err)
 		}

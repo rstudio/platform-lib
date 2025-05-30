@@ -34,28 +34,13 @@ type defaultS3Wrapper struct {
 	client *s3.Client
 }
 
-func NewS3Wrapper(configInput rsstorage.ConfigS3, httpClient s3.HTTPClient) (S3Wrapper, error) {
-	if configInput.Region == "" {
+func NewS3Wrapper(s3Opts s3.Options) (S3Wrapper, error) {
+	if s3Opts.Region == "" {
 		return nil, fmt.Errorf("'region' field of ConfigS3 is required")
-	}
-	options := s3.Options{
-		UsePathStyle: configInput.S3ForcePathStyle,
-		Region:       configInput.Region,
-	}
-
-	if configInput.Endpoint != "" {
-		options.BaseEndpoint = &configInput.Endpoint
-	}
-	if configInput.DisableSSL {
-		options.EndpointOptions = s3.EndpointResolverOptions{DisableHTTPS: configInput.DisableSSL}
-	}
-
-	if httpClient != nil {
-		options.HTTPClient = httpClient
 	}
 
 	return &defaultS3Wrapper{
-		client: s3.New(options),
+		client: s3.New(s3Opts),
 	}, nil
 }
 

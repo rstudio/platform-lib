@@ -12,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
 	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal"
 )
 
@@ -20,28 +19,13 @@ type encryptedS3Service struct {
 	client *encryptClient.S3EncryptionClientV3
 }
 
-func NewEncryptedS3Wrapper(ctx context.Context, configInput rsstorage.ConfigS3, keyID string, httpClient s3.HTTPClient) (S3Wrapper, error) {
-	if configInput.Region == "" {
-		return nil, fmt.Errorf("'region' field of ConfigS3 is required")
+func NewEncryptedS3Wrapper(s3Opts s3.Options, kmsOpts kms.Options, keyID string) (S3Wrapper, error) {
+	if s3Opts.Region == "" || kmsOpts.Region == "" {
+		return nil, fmt.Errorf("AWS configuration option 'region' is required")
 	}
 
-	cfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load default config: %s", err.Error())
-	}
-
-	s3Options := s3.Options{
-		BaseEndpoint:    &configInput.Endpoint,
-		EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: configInput.DisableSSL},
-		UsePathStyle:    configInput.S3ForcePathStyle,
-		Region:          configInput.Region,
-	}
-
-	if httpClient != nil {
-		s3Options.HTTPClient = httpClient
-	}
-	s3Client := s3.New(s3Options)
-	kmsClient := kms.NewFromConfig(cfg)
+	s3Client := s3.New(s3Opts)
+	kmsClient := kms.New(kmsOpts)
 
 	cmm, err := materials.NewCryptographicMaterialsManager(materials.NewKmsKeyring(kmsClient, keyID))
 	if err != nil {

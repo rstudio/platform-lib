@@ -31,7 +31,13 @@ func (s *S3WrapperSuite) TestCreateBucket(c *check.C) {
 		httpmock.NewStringResponder(http.StatusNotFound, ``),
 	)
 
-	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	wrapper, err := NewS3Wrapper(
+		s3.Options{
+			Region:      "us-east-1",
+			HTTPClient:  &client,
+			Credentials: aws.AnonymousCredentials{},
+		},
+	)
 	c.Assert(err, check.IsNil)
 
 	input := &s3.CreateBucketInput{
@@ -55,11 +61,11 @@ func (s *S3WrapperSuite) TestHeadObject(c *check.C) {
 	)
 
 	wrapper, err := NewS3Wrapper(
-		rsstorage.ConfigS3{
-			Region:         "us-east-1",
-			SkipValidation: true,
+		s3.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
 		},
-		&client,
 	)
 	c.Assert(err, check.IsNil)
 
@@ -84,7 +90,13 @@ func (s *S3WrapperSuite) TestGetObject(c *check.C) {
 		httpmock.NewStringResponder(http.StatusNotFound, ``),
 	)
 
-	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	wrapper, err := NewS3Wrapper(
+		s3.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
+		},
+	)
 	c.Assert(err, check.IsNil)
 
 	input := &s3.GetObjectInput{
@@ -109,7 +121,13 @@ func (s *S3WrapperSuite) TestDeleteObject(c *check.C) {
 		httpmock.NewStringResponder(http.StatusNotFound, ``),
 	)
 
-	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	wrapper, err := NewS3Wrapper(
+		s3.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
+		},
+	)
 	c.Assert(err, check.IsNil)
 
 	input := &s3.DeleteObjectInput{
@@ -134,7 +152,13 @@ func (s *S3WrapperSuite) TestMoveObject(c *check.C) {
 		httpmock.NewStringResponder(http.StatusNotFound, ``),
 	)
 
-	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	wrapper, err := NewS3Wrapper(
+		s3.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
+		},
+	)
 	c.Assert(err, check.IsNil)
 
 	_, err = wrapper.MoveObject(context.Background(), "foo", "foo", "foo2", "newFoo")
@@ -155,7 +179,13 @@ func (s *S3WrapperSuite) TestCopyObject(c *check.C) {
 		httpmock.NewStringResponder(http.StatusNotFound, ``),
 	)
 
-	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	wrapper, err := NewS3Wrapper(
+		s3.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
+		},
+	)
 	c.Assert(err, check.IsNil)
 
 	_, err = wrapper.CopyObject(context.Background(), "foo", "foo", "foo2", "newFoo")
@@ -191,7 +221,13 @@ func (s *S3WrapperSuite) TestListObjects(c *check.C) {
 	httpmock.RegisterResponder("GET", `https://no-sync.s3.amazonaws.com/?prefix=bin%2F3.5-xenial%2F`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``))
 
-	wrapper, err := NewS3Wrapper(rsstorage.ConfigS3{Region: "us-east-1"}, &client)
+	wrapper, err := NewS3Wrapper(
+		s3.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
+		},
+	)
 	c.Assert(err, check.IsNil)
 
 	ctx := context.Background()
@@ -245,11 +281,13 @@ func (s *S3WrapperSuite) TestGetS3Options(c *check.C) {
 }
 
 func (s *S3WrapperSuite) TestSetStorageS3Validate(c *check.C) {
-	cfg := rsstorage.ConfigS3{
-		Region:     "testregion",
-		DisableSSL: false,
-	}
-	svc, err := NewS3Wrapper(cfg, nil)
+
+	svc, err := NewS3Wrapper(
+		s3.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+		},
+	)
 	c.Assert(err, check.IsNil)
 
 	wn := &servertest.DummyWaiterNotifier{}

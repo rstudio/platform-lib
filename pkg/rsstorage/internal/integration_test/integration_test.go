@@ -126,14 +126,15 @@ func (s *StorageIntegrationSuite) TearDownTest(c *check.C) {
 // In the tests, we'll typically create two server sets, one set as a source
 // set and another set as a destination set.
 func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]rsstorage.StorageServer {
-	s3Svc, err := s3server.NewS3Wrapper(rsstorage.ConfigS3{
-		Bucket:             class,
-		Endpoint:           "http://minio:9000",
-		Prefix:             prefix,
-		EnableSharedConfig: true,
-		DisableSSL:         true,
-		S3ForcePathStyle:   true,
-	}, nil)
+
+	s3Svc, err := s3server.NewS3Wrapper(
+		s3.Options{
+			Region:          "us-east-1",
+			BaseEndpoint:    aws.String("http://minio:9000"),
+			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: true},
+			UsePathStyle:    true,
+		},
+	)
 	c.Assert(err, check.IsNil)
 
 	// Create S3 bucket
@@ -521,8 +522,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	//endpoint := awsEndpoint // AWS
 	endpoint := minioEndpoint // MinIO
 	bucket := "rsstorage-minio-test"
-	profile := ""
-	region := ""
+	region := "us-east-1"
 
 	// Try to use correct settings
 	disableSSL := false
@@ -533,20 +533,12 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	}
 
 	s3Svc, err := s3server.NewS3Wrapper(
-		rsstorage.ConfigS3{
-			// Common settings
-			Bucket:             bucket,
-			Prefix:             "integration-test",
-			EnableSharedConfig: true,
-			Profile:            profile,
-			Region:             region,
-			//
-			// MinIO-specific settings
-			Endpoint:         endpoint,
-			DisableSSL:       disableSSL,
-			S3ForcePathStyle: forcePathStyle,
+		s3.Options{
+			Region:          region,
+			BaseEndpoint:    &endpoint,
+			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: disableSSL},
+			UsePathStyle:    forcePathStyle,
 		},
-		nil,
 	)
 	c.Assert(err, check.IsNil)
 
@@ -653,8 +645,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 	//endpoint := awsEndpoint // AWS
 	endpoint := minioEndpoint // MinIO
 	bucket := "rsstorage-minio-test"
-	profile := ""
-	region := ""
+	region := "us-east-1"
 
 	// Try to use correct settings
 	disableSSL := false
@@ -664,19 +655,14 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		forcePathStyle = true
 	}
 
-	s3Svc, err := s3server.NewS3Wrapper(rsstorage.ConfigS3{
-		// Common settings
-		Bucket:             bucket,
-		Prefix:             "integration-test",
-		EnableSharedConfig: true,
-		Profile:            profile,
-		Region:             region,
-		//
-		// MinIO-specific settings
-		Endpoint:         endpoint,
-		DisableSSL:       disableSSL,
-		S3ForcePathStyle: forcePathStyle,
-	}, nil)
+	s3Svc, err := s3server.NewS3Wrapper(
+		s3.Options{
+			Region:          region,
+			BaseEndpoint:    &endpoint,
+			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: disableSSL},
+			UsePathStyle:    forcePathStyle,
+		},
+	)
 	c.Assert(err, check.IsNil)
 
 	// Create S3 bucket if using local MinIO Server

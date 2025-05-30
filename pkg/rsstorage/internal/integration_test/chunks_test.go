@@ -56,18 +56,15 @@ func (s *ChunksIntegrationSuite) TearDownTest(c *check.C) {
 // In the tests, we'll typically create two server sets, one set as a source
 // set and another set as a destination set.
 func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]rsstorage.StorageServer {
+	baseEndpoint := "http://minio:9000"
 	ctx := context.Background()
 	s3Svc, err := s3server.NewS3Wrapper(
-		rsstorage.ConfigS3{
-			Bucket:             class,
-			Endpoint:           "http://minio:9000",
-			Prefix:             prefix,
-			EnableSharedConfig: true,
-			DisableSSL:         true,
-			S3ForcePathStyle:   true,
-			Region:             "us-east-1",
+		s3.Options{
+			Region:          "us-east-1",
+			BaseEndpoint:    &baseEndpoint,
+			UsePathStyle:    true,
+			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: true},
 		},
-		nil,
 	)
 	c.Assert(err, check.IsNil)
 
