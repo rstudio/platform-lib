@@ -32,10 +32,12 @@ func (s *S3EncryptedServiceSuite) TestUpload(c *check.C) {
 		s3.Options{
 			Region:      "us-east-1",
 			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
 		},
 		kms.Options{
 			Region:      "us-east-1",
 			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
 		},
 		"7ddec34f-7c3e-4875-a348-de761fc28b4f",
 	)
@@ -46,16 +48,18 @@ func (s *S3EncryptedServiceSuite) TestUpload(c *check.C) {
 	httpmock.RegisterResponder(http.MethodPost, `https://kms.us-east-1.amazonaws.com/`,
 		httpmock.NewStringResponder(http.StatusOK, kmsResponse))
 
-	httpmock.RegisterResponder(http.MethodPut, `https://tyler-s3-test.s3.amazonaws.com/test.txt`,
+	httpmock.RegisterResponder(http.MethodPut, `https://tyler-s3-test.s3.us-east-1.amazonaws.com/test.text?partNumber=1&uploadId=1&x-id=UploadPart`,
 		httpmock.NewStringResponder(http.StatusOK, ""))
 
 	bucket := "tyler-s3-test"
 	key := "test.text"
 
 	input := &s3.UploadPartInput{
-		Bucket: &bucket,
-		Key:    &key,
-		Body:   strings.NewReader("test"),
+		Bucket:     &bucket,
+		Key:        &key,
+		Body:       strings.NewReader("test"),
+		UploadId:   aws.String("1"),
+		PartNumber: aws.Int32(1),
 	}
 
 	_, err = s3Service.Upload(ctx, input)
