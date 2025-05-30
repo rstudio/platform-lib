@@ -214,6 +214,8 @@ func (s *StorageServer) Get(ctx context.Context, dir, address string) (io.ReadCl
 		if err != nil {
 			return nil, nil, 0, time.Time{}, false, err
 		}
+	} else if err != nil {
+		return nil, nil, 0, time.Time{}, false, err
 	}
 
 	if chunked {
