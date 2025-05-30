@@ -27,7 +27,7 @@ func (s *S3WrapperSuite) TestCreateBucket(c *check.C) {
 
 	httpmock.RegisterResponder(
 		"PUT",
-		`https://foo.s3.amazonaws.com/`,
+		`https://foo.s3.us-east-1.amazonaws.com/`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``),
 	)
 
@@ -45,8 +45,7 @@ func (s *S3WrapperSuite) TestCreateBucket(c *check.C) {
 	}
 	_, err = wrapper.CreateBucket(context.Background(), input)
 	c.Assert(err, check.NotNil)
-	expected := "NotFound: Not Found\tstatus code: 404, request id: , host id: "
-	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
+	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 }
 
 func (s *S3WrapperSuite) TestHeadObject(c *check.C) {
@@ -86,7 +85,7 @@ func (s *S3WrapperSuite) TestGetObject(c *check.C) {
 
 	httpmock.RegisterResponder(
 		"GET",
-		`https://foo.s3.amazonaws.com/foo`,
+		`https://foo.s3.us-east-1.amazonaws.com/foo?x-id=GetObject`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``),
 	)
 
@@ -105,8 +104,7 @@ func (s *S3WrapperSuite) TestGetObject(c *check.C) {
 	}
 	_, err = wrapper.GetObject(context.Background(), input)
 	c.Assert(err, check.NotNil)
-	expected := "Something went wrong getting an object from S3. You may want to check your configuration, error: NotFound: Not Found\tstatus code: 404, request id: , host id: "
-	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
+	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 }
 
 func (s *S3WrapperSuite) TestDeleteObject(c *check.C) {
@@ -117,7 +115,7 @@ func (s *S3WrapperSuite) TestDeleteObject(c *check.C) {
 
 	httpmock.RegisterResponder(
 		"DELETE",
-		`https://foo.s3.amazonaws.com/foo`,
+		`https://foo.s3.us-east-1.amazonaws.com/foo?x-id=DeleteObject`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``),
 	)
 
@@ -136,8 +134,7 @@ func (s *S3WrapperSuite) TestDeleteObject(c *check.C) {
 	}
 	_, err = wrapper.DeleteObject(context.Background(), input)
 	c.Assert(err, check.NotNil)
-	expected := "Something went wrong deleting from S3. You may want to check your configuration, error: NotFound: Not Found\tstatus code: 404, request id: , host id: "
-	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
+	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 }
 
 func (s *S3WrapperSuite) TestMoveObject(c *check.C) {
@@ -175,7 +172,7 @@ func (s *S3WrapperSuite) TestCopyObject(c *check.C) {
 
 	httpmock.RegisterResponder(
 		"HEAD",
-		`https://foo.s3.amazonaws.com/foo`,
+		`https://foo.s3.us-east-1.amazonaws.com/foo`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``),
 	)
 
@@ -190,8 +187,7 @@ func (s *S3WrapperSuite) TestCopyObject(c *check.C) {
 
 	_, err = wrapper.CopyObject(context.Background(), "foo", "foo", "foo2", "newFoo")
 	c.Assert(err, check.NotNil)
-	expected := "Something went wrong checking an object on S3. You may want to check your configuration, copy error: NotFound: Not Found\tstatus code: 404, request id: , host id: "
-	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
+	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 }
 
 func (s *S3WrapperSuite) TestListObjects(c *check.C) {

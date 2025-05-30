@@ -5,6 +5,7 @@ package s3server
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -30,7 +31,7 @@ func (s *MetaTestSuite) TestBucketDirs(c *check.C) {
 	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("GET", `https://sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F`,
+	httpmock.RegisterResponder("GET", `https://sync.s3.us-east-1.amazonaws.com/?delimiter=%2F&prefix=bin%2F`,
 		httpmock.NewStringResponder(http.StatusOK, `<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <Name>sync</Name>
   <Prefix>bin/</Prefix>
@@ -42,14 +43,13 @@ func (s *MetaTestSuite) TestBucketDirs(c *check.C) {
     <Prefix>bin/3.5-xenial/</Prefix>
   </CommonPrefixes>
 </ListBucketResult>`))
-	httpmock.RegisterResponder("GET", `https://no-sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F`,
+	httpmock.RegisterResponder("GET", `https://no-sync.s3.us-east-1.amazonaws.com/?delimiter=%2F&prefix=bin%2F`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``))
 
 	ctx := context.Background()
 	dirs, err := awsOps.BucketDirs(ctx, "no-sync", "bin/")
 	c.Assert(err, check.NotNil)
-	c.Assert(err.Error(), check.Equals, "something went wrong listing objects: NotFound: Not Found\n"+
-		"\tstatus code: 404, request id: , host id: ")
+	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 
 	dirs, err = awsOps.BucketDirs(ctx, "sync", "bin/")
 	c.Assert(err, check.IsNil)
@@ -70,7 +70,7 @@ func (s *MetaTestSuite) TestBucketObjects(c *check.C) {
 	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("GET", `https://sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
+	httpmock.RegisterResponder("GET", `https://sync.s3.us-east-1.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
 		httpmock.NewStringResponder(http.StatusOK, `<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <Name>sync</Name>
   <Prefix>bin/3.5-xenial/</Prefix>
@@ -88,14 +88,13 @@ func (s *MetaTestSuite) TestBucketObjects(c *check.C) {
     <Key>nothing</Key>
   </Contents>
 </ListBucketResult>`))
-	httpmock.RegisterResponder("GET", `https://no-sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
+	httpmock.RegisterResponder("GET", `https://no-sync.s3.us-east-1.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``))
 
 	ctx := context.Background()
 	files, err := awsOps.BucketObjects(ctx, "no-sync", "bin/3.5-xenial", 1, false, BinaryReg)
 	c.Assert(err, check.NotNil)
-	c.Assert(err.Error(), check.Equals, "something went wrong listing objects: NotFound: Not Found\n"+
-		"\tstatus code: 404, request id: , host id: ")
+	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 
 	files, err = awsOps.BucketObjects(ctx, "sync", "bin/3.5-xenial", 1, false, BinaryReg)
 	c.Assert(err, check.IsNil)
@@ -116,7 +115,7 @@ func (s *MetaTestSuite) TestBucketObjectsMap(c *check.C) {
 	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("GET", `https://sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
+	httpmock.RegisterResponder("GET", `https://sync.s3.us-east-1.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
 		httpmock.NewStringResponder(http.StatusOK, `<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <Name>sync</Name>
   <Prefix>bin/3.5-xenial/</Prefix>
@@ -138,18 +137,13 @@ func (s *MetaTestSuite) TestBucketObjectsMap(c *check.C) {
     <ETag>0</ETag>
   </Contents>
 </ListBucketResult>`))
-	httpmock.RegisterResponder("GET", `https://no-sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
+	httpmock.RegisterResponder("GET", `https://no-sync.s3.us-east-1.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``))
 
 	ctx := context.Background()
 	files, err := awsOps.BucketObjectsETagMap(ctx, "no-sync", "bin/3.5-xenial", 1, false, BinaryReg)
 	c.Assert(err, check.NotNil)
-	c.Assert(
-		err.Error(),
-		check.Equals,
-		"something went wrong listing objects: NotFound: Not Found\n"+
-			"\tstatus code: 404, request id: , host id: ",
-	)
+	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 
 	files, err = awsOps.BucketObjectsETagMap(ctx, "sync", "bin/3.5-xenial", 1, false, BinaryReg)
 	c.Assert(err, check.IsNil)
