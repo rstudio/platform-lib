@@ -12,7 +12,6 @@ import (
 	"github.com/jarcoal/httpmock"
 	"gopkg.in/check.v1"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
 	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal/servertest"
 )
 
@@ -145,7 +144,7 @@ func (s *S3WrapperSuite) TestMoveObject(c *check.C) {
 
 	httpmock.RegisterResponder(
 		"HEAD",
-		`https://foo.s3.amazonaws.com/foo`,
+		`https://foo.s3.us-east-1.amazonaws.com/foo`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``),
 	)
 
@@ -160,8 +159,7 @@ func (s *S3WrapperSuite) TestMoveObject(c *check.C) {
 
 	_, err = wrapper.MoveObject(context.Background(), "foo", "foo", "foo2", "newFoo")
 	c.Assert(err, check.NotNil)
-	expected := "Something went wrong checking an object on S3. You may want to check your configuration, copy error: NotFound: Not Found\tstatus code: 404, request id: , host id: "
-	c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Equals, expected)
+	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 }
 
 func (s *S3WrapperSuite) TestCopyObject(c *check.C) {
@@ -196,7 +194,7 @@ func (s *S3WrapperSuite) TestListObjects(c *check.C) {
 	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("GET", `https://sync.s3.amazonaws.com/?prefix=bin%2F3.5-xenial%2F`,
+	httpmock.RegisterResponder("GET", `https://sync.s3.us-east-1.amazonaws.com/?list-type=2&prefix=bin%2F3.5-xenial`,
 		httpmock.NewStringResponder(http.StatusOK, `<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <Name>sync</Name>
   <Prefix>bin/3.5-xenial/</Prefix>
@@ -214,7 +212,7 @@ func (s *S3WrapperSuite) TestListObjects(c *check.C) {
     <Key>nothing</Key>
   </Contents>
 </ListBucketResult>`))
-	httpmock.RegisterResponder("GET", `https://no-sync.s3.amazonaws.com/?prefix=bin%2F3.5-xenial%2F`,
+	httpmock.RegisterResponder("GET", `https://no-sync.s3.us-east-1.amazonaws.com/?list-type=2&prefix=bin%2F3.5-xenial`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``))
 
 	wrapper, err := NewS3Wrapper(
@@ -231,49 +229,17 @@ func (s *S3WrapperSuite) TestListObjects(c *check.C) {
 	prefix := "bin/3.5-xenial"
 	files, err := wrapper.ListObjects(ctx, &s3.ListObjectsV2Input{Bucket: &bucket, Prefix: &prefix})
 	c.Assert(err, check.NotNil)
-	c.Assert(err.Error(), check.Equals, "something went wrong listing objects: NotFound: Not Found\n"+
-		"\tstatus code: 404, request id: , host id: ")
+	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 
 	bucket = "sync"
 	files, err = wrapper.ListObjects(ctx, &s3.ListObjectsV2Input{Bucket: &bucket, Prefix: &prefix})
 	c.Assert(err, check.IsNil)
-	c.Check(files, check.DeepEquals, []string{"ABCDEFG.json", "HIJKLMN.tar.gz", "OPQRSTU.zip", "nothing"})
-}
 
-func (s *S3WrapperSuite) TestGetS3Options(c *check.C) {
-	// Test minimum configuration
-	ops, err := getS3Options(rsstorage.ConfigS3{Region: "us-east-1"})
-	c.Assert(err, check.IsNil)
-	c.Check(
-		ops,
-		check.DeepEquals,
-		s3.Options{
-			UsePathStyle:    false,
-			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: false},
-			Region:          "us-east-1",
-		},
-	)
-
-	baseEndpoint := "http://localhost:9000"
-
-	// Test maximum configuration
-	cfg := rsstorage.ConfigS3{
-		Profile:            "test-profile",
-		Region:             "us-east-1",
-		Endpoint:           baseEndpoint,
-		EnableSharedConfig: true,
+	var contents []string
+	for _, content := range files.Contents {
+		contents = append(contents, *content.Key)
 	}
-	ops, err = getS3Options(cfg)
-	c.Check(
-		ops,
-		check.DeepEquals,
-		s3.Options{
-			Region:          "us-east-1",
-			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: false},
-			BaseEndpoint:    &baseEndpoint,
-			UsePathStyle:    false,
-		},
-	)
+	c.Check(contents, check.DeepEquals, []string{"ABCDEFG.json", "HIJKLMN.tar.gz", "OPQRSTU.zip", "nothing"})
 }
 
 func (s *S3WrapperSuite) TestSetStorageS3Validate(c *check.C) {

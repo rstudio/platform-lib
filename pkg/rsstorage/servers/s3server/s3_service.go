@@ -10,7 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
 	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal"
 )
 
@@ -179,19 +178,4 @@ func (s *defaultS3Wrapper) MoveObject(ctx context.Context, oldBucket, oldKey, ne
 
 func (s *defaultS3Wrapper) ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) (*s3.ListObjectsV2Output, error) {
 	return s.client.ListObjectsV2(ctx, input)
-}
-
-func getS3Options(configInput rsstorage.ConfigS3) (*s3.Client, error) {
-	if configInput.Region == "" {
-		return nil, fmt.Errorf("'region' field of ConfigS3 is required")
-	}
-
-	options := s3.Options{
-		BaseEndpoint:    &configInput.Endpoint,
-		EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: configInput.DisableSSL},
-		UsePathStyle:    configInput.S3ForcePathStyle,
-		Region:          configInput.Region,
-	}
-
-	return s3.New(options), nil
 }
