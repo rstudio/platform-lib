@@ -1,13 +1,13 @@
 package listener
 
-// Copyright (C) 2025 By Posit Software, PBC.
+// Copyright (C) 2025 by Posit Software, PBC.
 
 import (
 	"errors"
 	"fmt"
 )
 
-// Copyright (C) 2025 By Posit Software, PBC.
+// Copyright (C) 2025 by Posit Software, PBC.
 
 var MissingTypeError = errors.New("MissingType error")
 

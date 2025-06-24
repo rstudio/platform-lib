@@ -1,6 +1,6 @@
 package dbqueuetypes
 
-// Copyright (C) 2025 By Posit Software, PBC
+// Copyright (C) 2025 by Posit Software, PBC
 
 import (
 	"database/sql"

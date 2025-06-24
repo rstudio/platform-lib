@@ -1,6 +1,6 @@
 package servertest
 
-// Copyright (C) 2022 by Posit Software, PBC
+// Copyright (C) 2025 by Posit Software, PBC
 
 import (
 	"testing"
