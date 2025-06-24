@@ -1,13 +1,13 @@
 package listener
 
-// Copyright (C) 2022 by RStudio, PBC.
+// Copyright (C) 2022 by Posit, PBC.
 
 import (
 	"errors"
 	"fmt"
 )
 
-// Copyright (C) 2022 by RStudio, PBC.
+// Copyright (C) 2022 by Posit, PBC.
 
 var MissingTypeError = errors.New("MissingType error")
 

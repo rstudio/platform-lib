@@ -1,6 +1,6 @@
 package listener
 
-// Copyright (C) 2022 by RStudio, PBC.
+// Copyright (C) 2022 by Posit, PBC.
 
 const (
 	// MaxChannelSize sizes the channel to prevent blocking when distributing
