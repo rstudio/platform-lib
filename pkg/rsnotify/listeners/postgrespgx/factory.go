@@ -1,6 +1,6 @@
 package postgrespgx
 
-// Copyright (C) 2022 by RStudio, PBC.
+// Copyright (C) 2022 by Posit Software, PBC.
 
 import (
 	"github.com/jackc/pgx/v5/pgxpool"

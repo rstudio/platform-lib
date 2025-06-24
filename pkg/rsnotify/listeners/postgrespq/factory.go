@@ -1,6 +1,6 @@
 package postgrespq
 
-// Copyright (C) 2022 by Posit, PBC.
+// Copyright (C) 2025 By Posit Software, PBC.
 
 import (
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
