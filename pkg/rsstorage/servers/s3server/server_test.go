@@ -155,7 +155,7 @@ func (s *fakeS3) ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) 
 	}
 
 	return &s3.ListObjectsV2Output{
-		Contents: nil,
+		Contents: contents,
 	}, s.listError
 }
 
