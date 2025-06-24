@@ -1,6 +1,6 @@
 package s3server
 
-// Copyright (C) 2025 by Posit, PBC
+// Copyright (C) 2025 by Posit Software, PBC
 
 import (
 	"bytes"
