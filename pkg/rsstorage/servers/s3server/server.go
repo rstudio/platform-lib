@@ -78,9 +78,9 @@ func (s *StorageServer) Validate(ctx context.Context) error {
 
 	file := "validate." + internal.RandomString(10) + ".txt"
 	uploadAddr := internal.NotEmptyJoin([]string{s.prefix, "temp", file}, "/")
-	_, err := s.svc.Upload(
+	_, err := s.svc.PutObject(
 		ctx,
-		&s3.UploadPartInput{
+		&s3.PutObjectInput{
 			Bucket: &s.bucket,
 			Key:    &uploadAddr,
 			Body:   strings.NewReader("test"),
@@ -270,9 +270,9 @@ func (s *StorageServer) Put(ctx context.Context, resolve types.Resolver, dir, ad
 
 	// Upload to a temporary S3 address using the piped reader
 	uploadAddr := internal.NotEmptyJoin([]string{s.prefix, "temp", uuid.New().String()}, "/")
-	_, err := s.svc.Upload(
+	_, err := s.svc.PutObject(
 		newCtx,
-		&s3.UploadPartInput{
+		&s3.PutObjectInput{
 			Bucket: &s.bucket,
 			Key:    &uploadAddr,
 			Body:   r,

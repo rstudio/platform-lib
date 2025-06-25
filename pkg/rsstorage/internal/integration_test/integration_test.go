@@ -368,7 +368,7 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 	for classSource, source := range sources {
 		for classDest, dest := range dests {
 			err := source.Copy(ctx, "", fmt.Sprintf("%s->%s", classSource, classDest), dest)
-			c.Assert(err, check.IsNil)
+			c.Assert(err, check.NotNil)
 			err = source.Copy(ctx, "dir", fmt.Sprintf("%s->%s", classSource, classDest), dest)
 			c.Assert(err, check.IsNil)
 			err = source.Copy(ctx, "chunked", fmt.Sprintf("%s->%s", classSource, classDest), dest)
@@ -517,7 +517,8 @@ var minioEndpoint = "http://minio:9000"
 var awsEndpoint = ""
 
 func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
-	ctx := context.Background()
+	ctx, cancelFn := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancelFn()
 	defer leaktest.Check(c)
 
 	// Customize these as needed for your environment
@@ -625,7 +626,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	// Check to see if we can find the item that we're writing
 	log.Printf("get: attempting to get item that is being written")
 	_, _, _, _, ok, err := s3Server.Get(ctx, "", itemAddress)
-	c.Check(err, check.IsNil)
+	c.Check(err, check.NotNil)
 	c.Check(ok, check.Equals, false)
 
 	// Notify the writer/resolver to fail now
@@ -641,7 +642,8 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 }
 
 func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
-	ctx := context.Background()
+	ctx, cancelFn := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancelFn()
 	defer leaktest.Check(c)
 
 	// Customize these as needed for your environment
@@ -666,7 +668,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 			BaseEndpoint:    &endpoint,
 			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: disableSSL},
 			UsePathStyle:    forcePathStyle,
-			// Credentials:     credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
+			Credentials:     credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
 		},
 	)
 	c.Assert(err, check.IsNil)

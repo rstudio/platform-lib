@@ -9,6 +9,7 @@ import (
 	encryptClient "github.com/aws/amazon-s3-encryption-client-go/v3/client"
 	"github.com/aws/amazon-s3-encryption-client-go/v3/materials"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -118,8 +119,14 @@ func (s *encryptedS3Service) ListObjects(ctx context.Context, input *s3.ListObje
 }
 
 // Upload takes the same input as the defaultS3Service *s3.UploadInput,
-func (s *encryptedS3Service) Upload(ctx context.Context, input *s3.UploadPartInput, options ...func(*s3.Options)) (*s3.UploadPartOutput, error) {
-	return s.client.UploadPart(ctx, input, options...)
+func (s *encryptedS3Service) PutObject(ctx context.Context, input *s3.PutObjectInput, options ...func(*s3.Options)) (*manager.UploadOutput, error) {
+	transferManager := manager.NewUploader(s.client)
+	return transferManager.Upload(ctx, &s3.PutObjectInput{
+		Bucket: input.Bucket,
+		Key:    input.Key,
+		Body:   input.Body,
+	})
+
 }
 
 // GetObject downloads an encrypted file from S3 and returns the plaintext value using client-side KMS decryption

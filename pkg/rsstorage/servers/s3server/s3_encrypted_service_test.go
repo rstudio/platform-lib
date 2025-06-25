@@ -48,21 +48,21 @@ func (s *S3EncryptedServiceSuite) TestUpload(c *check.C) {
 	httpmock.RegisterResponder(http.MethodPost, `https://kms.us-east-1.amazonaws.com/`,
 		httpmock.NewStringResponder(http.StatusOK, kmsResponse))
 
-	httpmock.RegisterResponder(http.MethodPut, `https://tyler-s3-test.s3.us-east-1.amazonaws.com/test.text?partNumber=1&uploadId=1&x-id=UploadPart`,
+	httpmock.RegisterResponder(http.MethodPut, `https://tyler-s3-test.s3.us-east-1.amazonaws.com/test.text?x-id=PutObject`,
 		httpmock.NewStringResponder(http.StatusOK, ""))
 
 	bucket := "tyler-s3-test"
 	key := "test.text"
 
-	input := &s3.UploadPartInput{
-		Bucket:     &bucket,
-		Key:        &key,
-		Body:       strings.NewReader("test"),
-		UploadId:   aws.String("1"),
-		PartNumber: aws.Int32(1),
+	input := &s3.PutObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+		Body:   strings.NewReader("test"),
+		//UploadId:   aws.String("1"),
+		//PartNumber: aws.Int32(1),
 	}
 
-	_, err = s3Service.Upload(ctx, input)
+	_, err = s3Service.PutObject(ctx, input)
 	c.Assert(err, check.IsNil)
 }
 
