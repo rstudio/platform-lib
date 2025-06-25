@@ -1,6 +1,6 @@
 package agent
 
-// Copyright (C) 2022 by RStudio, PBC
+// Copyright (C) 2025 by Posit Software, PBC
 
 import (
 	"context"
@@ -90,7 +90,7 @@ type FakeRunner struct {
 	mutex  *sync.Mutex
 }
 
-func (r *FakeRunner) Run(work queue.RecursableWork) error {
+func (r *FakeRunner) Run(ctx context.Context, work queue.RecursableWork) error {
 	w := FakeWork{}
 	err := json.Unmarshal(work.Work, &w)
 	if err != nil {

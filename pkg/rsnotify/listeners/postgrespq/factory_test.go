@@ -1,6 +1,6 @@
 package postgrespq
 
-// Copyright (C) 2022 by RStudio, PBC.
+// Copyright (C) 2025 by Posit Software, PBC.
 
 import (
 	"gopkg.in/check.v1"

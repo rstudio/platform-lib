@@ -1,12 +1,13 @@
 package rscache
 
-// Copyright (C) 2022 by RStudio, PBC
+// Copyright (C) 2025 by Posit Software, PBC
 
 import (
 	"bufio"
 	"compress/gzip"
 	"context"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,8 +15,6 @@ import (
 )
 
 func decompressAndDecodeGob(reader io.ReadCloser, compressed bool, typeExample interface{}) (result interface{}, err error) {
-	defer reader.Close()
-
 	// The data may be gzipped on disk. If so, we need to stream the
 	// data through a gzip decoder.
 	var uncompressedReader io.ReadCloser
@@ -24,7 +23,6 @@ func decompressAndDecodeGob(reader io.ReadCloser, compressed bool, typeExample i
 		if err != nil {
 			return
 		}
-		defer uncompressedReader.Close()
 	} else {
 		// we don't defer close this because we have already deferred its closure above.
 		uncompressedReader = reader
@@ -34,10 +32,19 @@ func decompressAndDecodeGob(reader io.ReadCloser, compressed bool, typeExample i
 	// to the in-memory cache before decoding it. This will save time since we
 	// won't need to re-gob-encode it in the memory cache.
 	//
-	// At this point, the stream represented by `uncompressedReader` may be gob-
-	// encoded. Create a reader to represent this gob-encoded data.
+	// At this point, the stream represented by `uncompressedReader` may be
+	// gob-encoded. Create a reader to represent this gob-encoded data.
 	var gobReader io.Reader
 	gobReader = uncompressedReader
+
+	// use a closure to perform error handling rather than calling the function
+	// directly with the defer statement
+	defer func() {
+		// Only call Close() on uncompressedReader and not both it and reader,
+		// they share state and doing so will call Close() twice, resulting in a
+		// 'file already closed' error.
+		err = errors.Join(err, uncompressedReader.Close())
+	}()
 
 	// Decode and return result into our passed-in example struct
 	r := bufio.NewReader(gobReader)
@@ -123,7 +130,7 @@ func (mbfc *MemoryBackedFileCache) GetObject(ctx context.Context, resolver Resol
 	ptr.Value = obj
 	value = *ptr
 
-	if err == nil && resolver.CacheInMemory && mbfc.mc != nil && mbfc.mc.Enabled() && ptr.GetSize() < mbfc.maxMemoryPerObject {
+	if resolver.CacheInMemory && mbfc.mc != nil && mbfc.mc.Enabled() && ptr.GetSize() < mbfc.maxMemoryPerObject {
 		err = mbfc.mc.Put(address, ptr)
 		if err != nil {
 			slog.Debug(fmt.Sprintf("error caching to memory: %s", err.Error()))
@@ -133,22 +140,22 @@ func (mbfc *MemoryBackedFileCache) GetObject(ctx context.Context, resolver Resol
 	return
 }
 
-func (mbfc *MemoryBackedFileCache) Uncache(resolver ResolverSpec) (err error) {
+func (mbfc *MemoryBackedFileCache) Uncache(ctx context.Context, resolver ResolverSpec) (err error) {
 	if mbfc.mc != nil && mbfc.mc.Enabled() {
 		mbfc.mc.Uncache(resolver.Address())
 	}
-	err = mbfc.fc.Uncache(resolver)
+	err = mbfc.fc.Uncache(ctx, resolver)
 	return
 }
 
-func (mbfc *MemoryBackedFileCache) Check(resolver ResolverSpec) (bool, error) {
+func (mbfc *MemoryBackedFileCache) Check(ctx context.Context, resolver ResolverSpec) (bool, error) {
 	if mbfc.mc != nil && mbfc.mc.Enabled() {
 		obj := mbfc.mc.Get(resolver.Address())
 		if !obj.IsNull() && obj.Error() == nil {
 			return true, nil
 		}
 	}
-	return mbfc.fc.Check(resolver)
+	return mbfc.fc.Check(ctx, resolver)
 }
 
 func (mbfc *MemoryBackedFileCache) Head(ctx context.Context, resolver ResolverSpec) (size int64, modTime time.Time, err error) {
