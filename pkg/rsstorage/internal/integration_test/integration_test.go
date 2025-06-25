@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/fortytw2/leaktest"
@@ -133,6 +134,7 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 			BaseEndpoint:    aws.String("http://minio:9000"),
 			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: true},
 			UsePathStyle:    true,
+			Credentials:     credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
 		},
 	)
 	c.Assert(err, check.IsNil)
@@ -538,6 +540,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 			BaseEndpoint:    &endpoint,
 			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: disableSSL},
 			UsePathStyle:    forcePathStyle,
+			Credentials:     credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
 		},
 	)
 	c.Assert(err, check.IsNil)
@@ -655,12 +658,15 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		forcePathStyle = true
 	}
 
+	// commenting out the credentials for now so the test fails quickly
+	// instead of hanging up
 	s3Svc, err := s3server.NewS3Wrapper(
 		s3.Options{
 			Region:          region,
 			BaseEndpoint:    &endpoint,
 			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: disableSSL},
 			UsePathStyle:    forcePathStyle,
+			// Credentials:     credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
 		},
 	)
 	c.Assert(err, check.IsNil)
