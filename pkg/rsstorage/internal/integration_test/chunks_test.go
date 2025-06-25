@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/fortytw2/leaktest"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -64,6 +65,7 @@ func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) 
 			BaseEndpoint:    &baseEndpoint,
 			UsePathStyle:    true,
 			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: true},
+			Credentials:     credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
 		},
 	)
 	c.Assert(err, check.IsNil)
