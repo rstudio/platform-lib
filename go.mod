@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.24.1
 
 require (
-	github.com/aws/aws-sdk-go v1.55.7
+	github.com/aws/aws-sdk-go v1.55.8
 	github.com/c2h5oh/datasize v0.0.0-20231215233829-aa82cc1e6500
 	github.com/dgraph-io/ristretto v0.2.0
 	github.com/fortytw2/leaktest v1.3.0
@@ -16,7 +16,7 @@ require (
 	github.com/jarcoal/httpmock v1.4.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/lib/pq v1.10.9
-	github.com/mattn/go-sqlite3 v1.14.28
+	github.com/mattn/go-sqlite3 v1.14.30
 	github.com/pkg/errors v0.9.1
 	github.com/rstudio/platform-lib/pkg/rslog v1.6.3
 	github.com/spf13/cobra v1.9.1
