@@ -19,7 +19,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/pkg/errors v0.9.1
 	github.com/rstudio/platform-lib/pkg/rslog v1.6.3
-	github.com/spf13/cobra v1.9.1
+	github.com/spf13/cobra v1.10.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gorm.io/driver/sqlite v1.3.1
 	gorm.io/gorm v1.23.2
@@ -39,7 +39,7 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/sync v0.13.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
