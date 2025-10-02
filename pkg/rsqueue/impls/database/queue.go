@@ -339,16 +339,20 @@ func (q *DatabaseQueue) Push(priority uint64, groupId int64, work queue.Work) er
 func (q *DatabaseQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
 
 	start := time.Now()
-	slog.Debug(fmt.Sprintf("Queue Get() started"))
+	slog.Debug("Queue Get() started")
 
 	// First, try to get a job to avoid waiting for a tick
 	// if jobs are waiting
 	queueWork, err := q.store.QueuePop(q.name, maxPriority, types.Enabled())
 	defer func(queueWork *queue.QueueWork) {
+		t := time.Since(start).Nanoseconds() / 1000000
 		if queueWork != nil {
-			slog.Debug(fmt.Sprintf("Queue Get() for work type %d at address %s returned in %d ms", queueWork.WorkType, queueWork.Address, time.Now().Sub(start).Nanoseconds()/1000000))
+			slog.Debug(fmt.Sprintf("Queue Get() for work type %d at address %s returned in %d ms", queueWork.WorkType, queueWork.Address, t))
 		} else {
-			slog.Debug(fmt.Sprintf("Queue Get() returned in %d ms", time.Now().Sub(start).Nanoseconds()/1000000))
+			slog.Debug(fmt.Sprintf("Queue Get() returned in %d ms", t))
+		}
+		if t/1000 >= 60 {
+			slog.Warn("Queue Get() process slow", "time", fmt.Sprintf("%vs", t/1000))
 		}
 	}(queueWork)
 	if err != sql.ErrNoRows {
@@ -374,7 +378,7 @@ func (q *DatabaseQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, typ
 					maxPriority = priority
 				}
 			case n := <-qAvail:
-				slog.Debug(fmt.Sprintf("Notification received: queue ready for processing: %s.", n.Guid()))
+				slog.Debug(fmt.Sprintf("Notification received: queue ready for processing: %s.", n.Guid()), "type", n.Type())
 			}
 			return nil
 		}()
