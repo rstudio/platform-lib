@@ -225,7 +225,7 @@ func (s *StorageServer) Get(
 			// If the item was not found, check to see if it was chunked. If so, the original address
 			// will be a directory containing an `info.json` file.
 			infoLocation := path.Join(location, "info.json")
-			if rows, err = s.pool.Query(context.Background(), query, infoLocation); err != nil {
+			if rows, err = s.pool.Query(ctx, query, infoLocation); err != nil {
 				return
 			} else {
 				defer rows.Close()

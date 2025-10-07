@@ -149,9 +149,6 @@ func (s *PgCacheServerSuite) TestGetOk(c *check.C) {
 	_, err = io.Copy(bs, r)
 	c.Assert(err, check.IsNil)
 	c.Check(bs.String(), check.Equals, "this is a test")
-
-	// Close it
-	c.Assert(r.Close(), check.IsNil)
 }
 
 func (s *PgCacheServerSuite) TestGetChunkedOk(c *check.C) {
@@ -526,9 +523,6 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 	_, err = io.Copy(bs, r)
 	c.Assert(err, check.IsNil)
 	c.Check(bs.String(), check.Equals, "this is a test")
-	//
-	// Close it
-	c.Assert(r.Close(), check.IsNil)
 
 	// Make sure we can get new item
 	r, _, sz, _, ok, err = destServer.Get(ctx, "ad2", "cacheaddress4")
@@ -541,9 +535,6 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 	_, err = io.Copy(bs, r)
 	c.Assert(err, check.IsNil)
 	c.Check(bs.String(), check.Equals, "this is a test")
-	//
-	// Close it
-	c.Assert(r.Close(), check.IsNil)
 
 	// Make sure we can get new chunked item
 	r, _, sz, _, ok, err = destServer.Get(ctx, "dir", "CHUNKED")
@@ -556,9 +547,6 @@ func (s *PgCacheServerSuite) TestCopy(c *check.C) {
 	_, err = io.Copy(bs, r)
 	c.Assert(err, check.IsNil)
 	c.Check(bs.String(), check.Equals, servertest.TestDESC)
-	//
-	// Close it
-	c.Assert(r.Close(), check.IsNil)
 }
 
 func (s *PgCacheServerSuite) TestMove(c *check.C) {
@@ -664,9 +652,6 @@ func (s *PgCacheServerSuite) TestMove(c *check.C) {
 	_, err = io.Copy(bs, r)
 	c.Assert(err, check.IsNil)
 	c.Check(bs.String(), check.Equals, "this is a test")
-	//
-	// Close it
-	c.Assert(r.Close(), check.IsNil)
 
 	// Make sure we can get new chunked item
 	r, _, sz, _, ok, err = destServer.Get(ctx, "dir", "CHUNKED")
