@@ -1,5 +1,5 @@
 package permit
 
-// Copyright (C) 2025 by Posit Software, PBC
+// Copyright (C) 2022 by RStudio, PBC
 
 type Permit uint64

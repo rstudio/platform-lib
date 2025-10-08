@@ -1,6 +1,6 @@
 package database
 
-// Copyright (C) 2025 by Posit Software, PBC
+// Copyright (C) 2022 by RStudio, PBC
 
 import (
 	"encoding/json"

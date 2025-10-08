@@ -1,6 +1,6 @@
 //go:build !windows
 
-// Copyright (C) 2024 by Posit Software, PBC.
+// Copyright (C) 2024 by RStudio, PBC.
 
 package file
 
