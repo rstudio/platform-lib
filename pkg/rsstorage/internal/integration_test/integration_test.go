@@ -51,7 +51,7 @@ func TestPackage(t *testing.T) { check.TestingT(t) }
 
 // This suite will be skipped when running tests with SQLite only. To test, use
 // the `test-integration` target. To run these tests only, use:
-// `MODULE=pkg/rsstorage/internal/integration_test just test-integration -v github.com/rstudio/platform-lib/pkg/rsstorage/internal/integration_test -check.f=StorageIntegrationSuite`
+// `MODULE=pkg/rsstorage/internal/integration_test just test-integration -v github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal/integration_test -check.f=StorageIntegrationSuite`
 type StorageIntegrationSuite struct {
 	pool          *pgxpool.Pool
 	tempdirhelper servertest.TempDirHelper
