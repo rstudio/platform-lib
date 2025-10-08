@@ -21,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	transport "github.com/aws/smithy-go/endpoints"
+	"github.com/aws/smithy-go/logging"
 	"github.com/fortytw2/leaktest"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -149,7 +150,9 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 			EndpointResolverV2: &Resolver{URL: endpointURL},
 			UsePathStyle:       true,
 			Credentials:        credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
+			ClientLogMode:      aws.LogRequestWithBody | aws.LogResponseWithBody,
 			//RetryMaxAttempts:   1,
+			Logger: logging.NewStandardLogger(os.Stdout),
 		},
 	)
 	c.Assert(err, check.IsNil)
@@ -243,11 +246,11 @@ func (s *StorageIntegrationSuite) PopulateServerSet(c *check.C, set map[string]r
 	// assets to all the other server types.
 	for class, server := range set {
 		for assetClass := range set {
-			_, _, err := server.Put(ctx, resolver(class), "", fmt.Sprintf("%s->%s", class, assetClass))
+			_, _, err := server.Put(ctx, resolver(class), "", fmt.Sprintf("%s--%s", class, assetClass))
 			c.Assert(err, check.IsNil)
-			_, _, err = server.Put(ctx, resolver(class), "dir", fmt.Sprintf("%s->%s", class, assetClass))
+			_, _, err = server.Put(ctx, resolver(class), "dir", fmt.Sprintf("%s--%s", class, assetClass))
 			c.Assert(err, check.IsNil)
-			_, _, err = server.PutChunked(ctx, resolverChunked(class), "chunked", fmt.Sprintf("%s->%s", class, assetClass), szPut)
+			_, _, err = server.PutChunked(ctx, resolverChunked(class), "chunked", fmt.Sprintf("%s--%s", class, assetClass), szPut)
 			c.Check(err, check.IsNil)
 		}
 	}
@@ -311,11 +314,12 @@ func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
 	// Move files
 	for classSource, source := range sources {
 		for classDest, dest := range dests {
-			err := source.Move(ctx, "", fmt.Sprintf("%s->%s", classSource, classDest), dest)
+			// replaced '->' with '--' because '>' isn't safe for S3 paths
+			err := source.Move(ctx, "", fmt.Sprintf("%s--%s", classSource, classDest), dest)
 			c.Assert(err, check.IsNil)
-			err = source.Move(ctx, "dir", fmt.Sprintf("%s->%s", classSource, classDest), dest)
+			err = source.Move(ctx, "dir", fmt.Sprintf("%s--%s", classSource, classDest), dest)
 			c.Assert(err, check.IsNil)
-			err = source.Move(ctx, "chunked", fmt.Sprintf("%s->%s", classSource, classDest), dest)
+			err = source.Move(ctx, "chunked", fmt.Sprintf("%s--%s", classSource, classDest), dest)
 			c.Assert(err, check.IsNil)
 		}
 	}
@@ -330,7 +334,7 @@ func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
 				dest,
 				"Move-Dst",
 				"",
-				fmt.Sprintf("%s->%s", classSource, classDest),
+				fmt.Sprintf("%s--%s", classSource, classDest),
 				classSource,
 				classDest,
 				int64(len(testAssetData)+len(classSource)-2),
@@ -341,7 +345,7 @@ func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
 				dest,
 				"Move-Dst",
 				"dir",
-				fmt.Sprintf("%s->%s", classSource, classDest),
+				fmt.Sprintf("%s--%s", classSource, classDest),
 				classSource,
 				classDest,
 				int64(len(testAssetData)+len(classSource)-2),
@@ -352,7 +356,7 @@ func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
 				dest,
 				"Move-Dst",
 				"chunked",
-				fmt.Sprintf("%s->%s", classSource, classDest),
+				fmt.Sprintf("%s--%s", classSource, classDest),
 				classSource,
 				classDest,
 				1953,
@@ -365,9 +369,9 @@ func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
 	for classSource, source := range sources {
 		log.Printf("\nVerify that moved files were deleted from the %s server:", classSource)
 		for classDest := range dests {
-			s.CheckFileGone(c, source, "MoveSrc", "", fmt.Sprintf("%s->%s", classSource, classDest), classSource)
-			s.CheckFileGone(c, source, "MoveSrc", "dir", fmt.Sprintf("%s->%s", classSource, classDest), classSource)
-			s.CheckFileGone(c, source, "MoveSrc", "chunked", fmt.Sprintf("%s->%s", classSource, classDest), classSource)
+			s.CheckFileGone(c, source, "MoveSrc", "", fmt.Sprintf("%s--%s", classSource, classDest), classSource)
+			s.CheckFileGone(c, source, "MoveSrc", "dir", fmt.Sprintf("%s--%s", classSource, classDest), classSource)
+			s.CheckFileGone(c, source, "MoveSrc", "chunked", fmt.Sprintf("%s--%s", classSource, classDest), classSource)
 		}
 	}
 }
@@ -382,11 +386,11 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 	// Copy files
 	for classSource, source := range sources {
 		for classDest, dest := range dests {
-			err := source.Copy(ctx, "", fmt.Sprintf("%s->%s", classSource, classDest), dest)
+			err := source.Copy(ctx, "", fmt.Sprintf("%s--%s", classSource, classDest), dest)
 			c.Assert(err, check.IsNil)
-			err = source.Copy(ctx, "dir", fmt.Sprintf("%s->%s", classSource, classDest), dest)
+			err = source.Copy(ctx, "dir", fmt.Sprintf("%s--%s", classSource, classDest), dest)
 			c.Assert(err, check.IsNil)
-			err = source.Copy(ctx, "chunked", fmt.Sprintf("%s->%s", classSource, classDest), dest)
+			err = source.Copy(ctx, "chunked", fmt.Sprintf("%s--%s", classSource, classDest), dest)
 			c.Assert(err, check.IsNil)
 		}
 	}
@@ -401,7 +405,7 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 				dest,
 				"Copy-Dst",
 				"",
-				fmt.Sprintf("%s->%s", classSource, classDest),
+				fmt.Sprintf("%s--%s", classSource, classDest),
 				classSource,
 				classDest,
 				int64(len(testAssetData)+len(classSource)-2),
@@ -412,7 +416,7 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 				dest,
 				"Copy-Dst",
 				"dir",
-				fmt.Sprintf("%s->%s", classSource, classDest),
+				fmt.Sprintf("%s--%s", classSource, classDest),
 				classSource,
 				classDest,
 				int64(len(testAssetData)+len(classSource)-2),
@@ -423,7 +427,7 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 				dest,
 				"Copy-Dst",
 				"chunked",
-				fmt.Sprintf("%s->%s", classSource, classDest),
+				fmt.Sprintf("%s--%s", classSource, classDest),
 				classSource,
 				classDest,
 				1953,
@@ -442,7 +446,7 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 				source,
 				"Copy-Src",
 				"",
-				fmt.Sprintf("%s->%s", classSource, classDest),
+				fmt.Sprintf("%s--%s", classSource, classDest),
 				classSource,
 				classSource,
 				int64(len(testAssetData)+len(classSource)-2),
@@ -453,7 +457,7 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 				source,
 				"Copy-Src",
 				"dir",
-				fmt.Sprintf("%s->%s", classSource, classDest),
+				fmt.Sprintf("%s--%s", classSource, classDest),
 				classSource,
 				classSource,
 				int64(len(testAssetData)+len(classSource)-2),
@@ -464,7 +468,7 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 				source,
 				"Copy-Src",
 				"chunked",
-				fmt.Sprintf("%s->%s", classSource, classDest),
+				fmt.Sprintf("%s--%s", classSource, classDest),
 				classSource,
 				classSource,
 				1953,
@@ -493,11 +497,11 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 	for classSource, source := range sources {
 		log.Printf("\nVerify forced removal of assets on the %s source server:", classSource)
 		for classDest := range dests {
-			err := source.Remove(ctx, "", fmt.Sprintf("%s->%s", classSource, classDest))
+			err := source.Remove(ctx, "", fmt.Sprintf("%s--%s", classSource, classDest))
 			c.Assert(err, check.IsNil)
-			err = source.Remove(ctx, "dir", fmt.Sprintf("%s->%s", classSource, classDest))
+			err = source.Remove(ctx, "dir", fmt.Sprintf("%s--%s", classSource, classDest))
 			c.Assert(err, check.IsNil)
-			err = source.Remove(ctx, "chunked", fmt.Sprintf("%s->%s", classSource, classDest))
+			err = source.Remove(ctx, "chunked", fmt.Sprintf("%s--%s", classSource, classDest))
 			c.Assert(err, check.IsNil)
 		}
 		items, err := source.Enumerate(ctx)
@@ -556,6 +560,8 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: disableSSL},
 			UsePathStyle:    forcePathStyle,
 			Credentials:     credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
+			ClientLogMode:   aws.LogRequestWithBody | aws.LogResponseWithBody,
+			Logger:          logging.NewStandardLogger(os.Stdout),
 		},
 	)
 	c.Assert(err, check.IsNil)
@@ -684,8 +690,9 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 			EndpointOptions:    s3.EndpointResolverOptions{DisableHTTPS: disableSSL},
 			UsePathStyle:       forcePathStyle,
 			EndpointResolverV2: &Resolver{URL: endpointURL},
-			//Credentials:        credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
-			ClientLogMode: aws.LogRequestWithBody | aws.LogResponseWithBody,
+			Credentials:        credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
+			ClientLogMode:      aws.LogRequestWithBody | aws.LogResponseWithBody,
+			Logger:             logging.NewStandardLogger(os.Stdout),
 		},
 	)
 	c.Assert(err, check.IsNil)
@@ -738,7 +745,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 			close(writing)
 
 			// Wait until the test is ready for us to fail, then fail
-			<-end
+			//<-end
 			log.Printf("resolver: returning error")
 			// Emulates the behavior of returning an error before the deferred
 			// call to close the gzip writer

@@ -51,6 +51,9 @@ func (s *S3EncryptedServiceSuite) TestUpload(c *check.C) {
 	httpmock.RegisterResponder(http.MethodPut, `https://tyler-s3-test.s3.us-east-1.amazonaws.com/test.text?partNumber=1&uploadId=1&x-id=UploadPart`,
 		httpmock.NewStringResponder(http.StatusOK, ""))
 
+	httpmock.RegisterResponder(http.MethodPut, `https://tyler-s3-test.s3.us-east-1.amazonaws.com/test.text?x-id=PutObject`,
+		httpmock.NewStringResponder(http.StatusOK, ""))
+
 	bucket := "tyler-s3-test"
 	key := "test.text"
 

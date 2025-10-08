@@ -14,8 +14,6 @@ import (
 	"strings"
 	"time"
 
-	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awsTypes "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/google/uuid"
@@ -274,13 +272,6 @@ func (s *StorageServer) Put(ctx context.Context, resolve types.Resolver, dir, ad
 	// Upload to a temporary S3 address using the piped reader
 	uploadAddr := internal.NotEmptyJoin([]string{s.prefix, "temp", uuid.New().String()}, "/")
 
-	opt := manager.WithUploaderRequestOptions(
-		s3.WithAPIOptions(
-			v4.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware,
-			//v4.RemoveComputePayloadSHA256Middleware,
-			//v4.AddUnsignedPayloadMiddleware,
-		),
-	)
 	_, err := s.svc.Upload(
 		newCtx,
 		&s3.PutObjectInput{
@@ -288,7 +279,6 @@ func (s *StorageServer) Put(ctx context.Context, resolve types.Resolver, dir, ad
 			Key:    &uploadAddr,
 			Body:   r,
 		},
-		opt,
 	)
 
 	if err != nil {
