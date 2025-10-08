@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
@@ -22,7 +23,7 @@ type S3Wrapper interface {
 	HeadObject(ctx context.Context, input *s3.HeadObjectInput) (*s3.HeadObjectOutput, error)
 	GetObject(ctx context.Context, input *s3.GetObjectInput) (*s3.GetObjectOutput, error)
 	DeleteObject(ctx context.Context, input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error)
-	Upload(ctx context.Context, input *s3.UploadPartInput, optFns ...func(options *s3.Options)) (*s3.UploadPartOutput, error)
+	Upload(ctx context.Context, input *s3.PutObjectInput, optFns ...func(uploader *manager.Uploader)) (*manager.UploadOutput, error)
 	CopyObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error)
 	MoveObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error)
 	ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) (*s3.ListObjectsV2Output, error)
@@ -109,11 +110,13 @@ func (s *defaultS3Wrapper) DeleteObject(ctx context.Context, input *s3.DeleteObj
 
 func (s *defaultS3Wrapper) Upload(
 	ctx context.Context,
-	input *s3.UploadPartInput,
-	optFns ...func(options *s3.Options),
-) (*s3.UploadPartOutput, error) {
+	input *s3.PutObjectInput,
+	optFns ...func(uploader *manager.Uploader),
+) (*manager.UploadOutput, error) {
 
-	out, err := s.client.UploadPart(ctx, input, optFns...)
+	uploader := manager.NewUploader(s.client, func(u *manager.Uploader) {})
+
+	out, err := uploader.Upload(ctx, input, optFns...)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"error encountered while uploading to S3; try checking your configuration: %w",

@@ -9,8 +9,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
+	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	transport "github.com/aws/smithy-go/endpoints"
 	"github.com/fortytw2/leaktest"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -33,6 +35,16 @@ import (
 	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/servers/s3server"
 	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
 )
+
+type Resolver struct {
+	URL *url.URL
+}
+
+func (r *Resolver) ResolveEndpoint(ctx context.Context, params s3.EndpointParameters) (transport.Endpoint, error) {
+	u := *r.URL
+	u.Path += "/" + *params.Bucket
+	return transport.Endpoint{URI: u}, nil
+}
 
 func TestPackage(t *testing.T) { check.TestingT(t) }
 
@@ -128,13 +140,16 @@ func (s *StorageIntegrationSuite) TearDownTest(c *check.C) {
 // set and another set as a destination set.
 func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]rsstorage.StorageServer {
 
+	endpointURL, _ := url.Parse("http://minio:9000")
+
 	s3Svc, err := s3server.NewS3Wrapper(
 		s3.Options{
-			Region:          "us-east-1",
-			BaseEndpoint:    aws.String("http://minio:9000"),
-			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: true},
-			UsePathStyle:    true,
-			Credentials:     credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
+			Region:             "us-east-1",
+			EndpointOptions:    s3.EndpointResolverOptions{DisableHTTPS: true},
+			EndpointResolverV2: &Resolver{URL: endpointURL},
+			UsePathStyle:       true,
+			Credentials:        credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
+			//RetryMaxAttempts:   1,
 		},
 	)
 	c.Assert(err, check.IsNil)
@@ -151,7 +166,7 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 	}
 
 	// Prep directory for file storage
-	dir, err := ioutil.TempDir(s.tempdirhelper.Dir(), "")
+	dir, err := os.MkdirTemp(s.tempdirhelper.Dir(), "")
 	c.Assert(err, check.IsNil)
 
 	wn := &servertest.DummyWaiterNotifier{
@@ -350,9 +365,9 @@ func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
 	for classSource, source := range sources {
 		log.Printf("\nVerify that moved files were deleted from the %s server:", classSource)
 		for classDest := range dests {
-			s.CheckFileGone(c, source, "Move-Src", "", fmt.Sprintf("%s->%s", classSource, classDest), classSource)
-			s.CheckFileGone(c, source, "Move-Src", "dir", fmt.Sprintf("%s->%s", classSource, classDest), classSource)
-			s.CheckFileGone(c, source, "Move-Src", "chunked", fmt.Sprintf("%s->%s", classSource, classDest), classSource)
+			s.CheckFileGone(c, source, "MoveSrc", "", fmt.Sprintf("%s->%s", classSource, classDest), classSource)
+			s.CheckFileGone(c, source, "MoveSrc", "dir", fmt.Sprintf("%s->%s", classSource, classDest), classSource)
+			s.CheckFileGone(c, source, "MoveSrc", "chunked", fmt.Sprintf("%s->%s", classSource, classDest), classSource)
 		}
 	}
 }
@@ -658,15 +673,19 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		forcePathStyle = true
 	}
 
+	endpointURL, _ := url.Parse("http://minio:9000")
+
 	// commenting out the credentials for now so the test fails quickly
 	// instead of hanging up
 	s3Svc, err := s3server.NewS3Wrapper(
 		s3.Options{
-			Region:          region,
-			BaseEndpoint:    &endpoint,
-			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: disableSSL},
-			UsePathStyle:    forcePathStyle,
-			// Credentials:     credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
+			Region:             region,
+			BaseEndpoint:       &endpoint,
+			EndpointOptions:    s3.EndpointResolverOptions{DisableHTTPS: disableSSL},
+			UsePathStyle:       forcePathStyle,
+			EndpointResolverV2: &Resolver{URL: endpointURL},
+			//Credentials:        credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
+			ClientLogMode: aws.LogRequestWithBody | aws.LogResponseWithBody,
 		},
 	)
 	c.Assert(err, check.IsNil)

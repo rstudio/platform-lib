@@ -54,12 +54,10 @@ func (s *S3EncryptedServiceSuite) TestUpload(c *check.C) {
 	bucket := "tyler-s3-test"
 	key := "test.text"
 
-	input := &s3.UploadPartInput{
-		Bucket:     &bucket,
-		Key:        &key,
-		Body:       strings.NewReader("test"),
-		UploadId:   aws.String("1"),
-		PartNumber: aws.Int32(1),
+	input := &s3.PutObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
+		Body:   strings.NewReader("test"),
 	}
 
 	_, err = s3Service.Upload(ctx, input)

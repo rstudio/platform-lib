@@ -65,6 +65,7 @@ func getStorageServerAttempt(
 		s3Opts := s3.Options{
 			Region:       cfg.S3.Region,
 			UsePathStyle: cfg.S3.S3ForcePathStyle,
+			//RetryMaxAttempts: 1,
 		}
 		if cfg.S3.Endpoint != "" {
 			s3Opts.BaseEndpoint = &cfg.S3.Endpoint

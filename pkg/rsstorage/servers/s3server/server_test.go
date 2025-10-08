@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/fortytw2/leaktest"
@@ -58,7 +59,7 @@ type fakeS3 struct {
 	delete       *s3.DeleteObjectOutput
 	deleteErr    error
 	deleted      string
-	upload       *s3.UploadPartOutput
+	upload       *manager.UploadOutput
 	uploadErr    error
 	uploaded     string
 	bucket       string
@@ -159,7 +160,7 @@ func (s *fakeS3) ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) 
 	}, s.listError
 }
 
-func (s *fakeS3) Upload(ctx context.Context, input *s3.UploadPartInput, opFns ...func(options *s3.Options)) (*s3.UploadPartOutput, error) {
+func (s *fakeS3) Upload(ctx context.Context, input *s3.PutObjectInput, opFns ...func(uploader *manager.Uploader)) (*manager.UploadOutput, error) {
 	if s.uploadErr == nil {
 		buf := &bytes.Buffer{}
 		_, err := io.Copy(buf, input.Body)
@@ -409,7 +410,7 @@ func (s *S3StorageServerSuite) TestPut(c *check.C) {
 		return "", "", err
 	}
 	svc := &fakeS3{
-		upload: &s3.UploadPartOutput{},
+		upload: &manager.UploadOutput{},
 	}
 	server := &StorageServer{
 		svc:    svc,
@@ -450,7 +451,7 @@ func (s *S3StorageServerSuite) TestPutDeferredAddress(c *check.C) {
 		return "mydir", "deferred_address", err
 	}
 	svc := &fakeS3{
-		upload: &s3.UploadPartOutput{},
+		upload: &manager.UploadOutput{},
 	}
 	server := &StorageServer{
 		svc:    svc,
