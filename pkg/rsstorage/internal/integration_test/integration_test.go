@@ -21,7 +21,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	transport "github.com/aws/smithy-go/endpoints"
-	"github.com/aws/smithy-go/logging"
 	"github.com/fortytw2/leaktest"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -150,9 +149,9 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 			EndpointResolverV2: &Resolver{URL: endpointURL},
 			UsePathStyle:       true,
 			Credentials:        credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
-			ClientLogMode:      aws.LogRequestWithBody | aws.LogResponseWithBody,
+			//ClientLogMode:      aws.LogRequestWithBody | aws.LogResponseWithBody,
 			//RetryMaxAttempts:   1,
-			Logger: logging.NewStandardLogger(os.Stdout),
+			//Logger: logging.NewStandardLogger(os.Stdout),
 		},
 	)
 	c.Assert(err, check.IsNil)
@@ -560,8 +559,8 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: disableSSL},
 			UsePathStyle:    forcePathStyle,
 			Credentials:     credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
-			ClientLogMode:   aws.LogRequestWithBody | aws.LogResponseWithBody,
-			Logger:          logging.NewStandardLogger(os.Stdout),
+			//ClientLogMode:   aws.LogRequestWithBody | aws.LogResponseWithBody,
+			//Logger:          logging.NewStandardLogger(os.Stdout),
 		},
 	)
 	c.Assert(err, check.IsNil)
@@ -691,8 +690,8 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 			UsePathStyle:       forcePathStyle,
 			EndpointResolverV2: &Resolver{URL: endpointURL},
 			Credentials:        credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
-			ClientLogMode:      aws.LogRequestWithBody | aws.LogResponseWithBody,
-			Logger:             logging.NewStandardLogger(os.Stdout),
+			//ClientLogMode:      aws.LogRequestWithBody | aws.LogResponseWithBody,
+			//Logger:             logging.NewStandardLogger(os.Stdout),
 		},
 	)
 	c.Assert(err, check.IsNil)
