@@ -71,7 +71,8 @@ func (s *defaultS3Wrapper) HeadObject(ctx context.Context, input *s3.HeadObjectI
 	out, err := s.client.HeadObject(ctx, input)
 	if err != nil {
 		var nskErr *types.NoSuchKey
-		if errors.As(err, &nskErr) {
+		var nfErr *types.NotFound
+		if errors.As(err, &nskErr) || errors.As(err, &nfErr) {
 			return nil, err
 		}
 		return nil, fmt.Errorf(
@@ -86,7 +87,8 @@ func (s *defaultS3Wrapper) GetObject(ctx context.Context, input *s3.GetObjectInp
 	out, err := s.client.GetObject(ctx, input)
 	if err != nil {
 		var nskErr *types.NoSuchKey
-		if errors.As(err, &nskErr) {
+		var nfErr *types.NotFound
+		if errors.As(err, &nskErr) || errors.As(err, &nfErr) {
 			return nil, err
 		}
 		return nil, fmt.Errorf(

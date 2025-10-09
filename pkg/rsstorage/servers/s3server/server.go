@@ -129,7 +129,8 @@ func (s *StorageServer) Check(ctx context.Context, dir, address string) (bool, *
 	)
 
 	var nsk *awsTypes.NoSuchKey
-	if err != nil && errors.As(err, &nsk) {
+	var nf *awsTypes.NotFound
+	if err != nil && (errors.As(err, &nsk) || errors.As(err, &nf)) {
 		// If the item was not found, check to see if it was chunked. If so, the original address
 		// will be a directory containing an `info.json` file.
 		resp, err = s.svc.HeadObject(
@@ -139,7 +140,7 @@ func (s *StorageServer) Check(ctx context.Context, dir, address string) (bool, *
 				Key:    &infoAddr,
 			},
 		)
-		if err != nil && errors.As(err, &nsk) {
+		if err != nil && (errors.As(err, &nsk) || errors.As(err, &nf)) {
 			return false, nil, 0, time.Time{}, nil
 		}
 		chunked = true
@@ -202,10 +203,11 @@ func (s *StorageServer) Get(ctx context.Context, dir, address string) (io.ReadCl
 	resp, err := s.svc.GetObject(ctx, &s3.GetObjectInput{Bucket: &s.bucket, Key: &addr})
 
 	var nsk *awsTypes.NoSuchKey
-	if err != nil && errors.As(err, &nsk) {
+	var nf *awsTypes.NotFound
+	if err != nil && (errors.As(err, &nsk) || errors.As(err, &nf)) {
 		// The item was not found, so check to see if it was chunked.
 		_, err = s.svc.HeadObject(ctx, &s3.HeadObjectInput{Bucket: &s.bucket, Key: &infoAddr})
-		if err != nil && errors.As(err, &nsk) {
+		if err != nil && (errors.As(err, &nsk) || errors.As(err, &nf)) {
 			return nil, nil, 0, time.Time{}, false, nil
 		}
 		chunked = true
