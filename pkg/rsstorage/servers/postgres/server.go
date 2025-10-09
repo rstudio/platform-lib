@@ -86,11 +86,11 @@ type largeObjectCloser struct {
 }
 
 func (f *largeObjectCloser) Close() error {
-	// Create a nil error and commit the transaction
-	var err error
-	pgxCommit(f.tx, fmt.Sprintf("%s %s", f.op, f.location), &err)
+	// Close the large object first
+	err := f.LargeObject.Close()
 
-	err = f.LargeObject.Close()
+	// Then commit the transaction
+	pgxCommit(f.tx, fmt.Sprintf("%s %s", f.op, f.location), &err)
 
 	// Release the connection
 	f.conn.Release()

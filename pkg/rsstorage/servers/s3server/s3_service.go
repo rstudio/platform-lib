@@ -178,9 +178,41 @@ func (s *defaultS3Wrapper) MoveObject(ctx context.Context, oldBucket, oldKey, ne
 	if err != nil {
 		return nil, fmt.Errorf("error encountered while moving an S3 object; try checking your configuration: %w", err)
 	}
+	
+	// After successful copy, delete the source object (this is what makes it a "move")
+	_, err = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: &oldBucket,
+		Key:    &oldKey,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error encountered while deleting source object after move: %w", err)
+	}
+	
 	return out, nil
 }
 
 func (s *defaultS3Wrapper) ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) (*s3.ListObjectsV2Output, error) {
-	return s.client.ListObjectsV2(ctx, input)
+	// In AWS SDK v2, we need to handle pagination manually
+	// Create a paginator to iterate through all pages
+	paginator := s3.NewListObjectsV2Paginator(s.client, input)
+	
+	// Collect all objects from all pages
+	var allObjects []types.Object
+	
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		
+		// Collect all objects from this page
+		allObjects = append(allObjects, page.Contents...)
+	}
+	
+	// Return all collected objects in a single response
+	isTruncated := false
+	return &s3.ListObjectsV2Output{
+		Contents:    allObjects,
+		IsTruncated: &isTruncated,
+	}, nil
 }
