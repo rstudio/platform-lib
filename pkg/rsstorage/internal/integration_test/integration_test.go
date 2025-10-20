@@ -149,8 +149,9 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 			EndpointResolverV2: &Resolver{URL: endpointURL},
 			UsePathStyle:       true,
 			Credentials:        credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
+			// For debugging, uncomment the following two lines to view the actual requests made by the AWS Go SDK.
+			// These options add a lot of noise to the tests outputs, so they are disabled by default.
 			//ClientLogMode:      aws.LogRequestWithBody | aws.LogResponseWithBody,
-			//RetryMaxAttempts:   1,
 			//Logger: logging.NewStandardLogger(os.Stdout),
 		},
 	)
@@ -559,6 +560,8 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: disableSSL},
 			UsePathStyle:    forcePathStyle,
 			Credentials:     credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
+			// For debugging, uncomment the following two lines to view the actual requests made by the AWS Go SDK.
+			// These options add a lot of noise to the tests outputs, so they are disabled by default.
 			//ClientLogMode:   aws.LogRequestWithBody | aws.LogResponseWithBody,
 			//Logger:          logging.NewStandardLogger(os.Stdout),
 		},
@@ -690,6 +693,8 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 			UsePathStyle:       forcePathStyle,
 			EndpointResolverV2: &Resolver{URL: endpointURL},
 			Credentials:        credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
+			// For debugging, uncomment the following two lines to view the actual requests made by the AWS Go SDK.
+			// These options add a lot of noise to the tests outputs, so they are disabled by default.
 			//ClientLogMode:      aws.LogRequestWithBody | aws.LogResponseWithBody,
 			//Logger:             logging.NewStandardLogger(os.Stdout),
 		},
