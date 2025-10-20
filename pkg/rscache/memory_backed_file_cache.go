@@ -15,6 +15,13 @@ import (
 )
 
 func decompressAndDecodeGob(reader io.ReadCloser, compressed bool, typeExample interface{}) (result interface{}, err error) {
+	defer func(reader io.ReadCloser) {
+		// Only call Close() on the underlying ReadCloser and not the uncompressedReader,
+		// they share state and doing so will call Close() twice, resulting in a
+		// 'file already closed' error.
+		err = errors.Join(err, reader.Close())
+	}(reader)
+
 	// The data may be gzipped on disk. If so, we need to stream the
 	// data through a gzip decoder.
 	var uncompressedReader io.ReadCloser
@@ -23,9 +30,6 @@ func decompressAndDecodeGob(reader io.ReadCloser, compressed bool, typeExample i
 		if err != nil {
 			return
 		}
-		defer func(uncompressedReader io.ReadCloser) {
-			errors.Join(err, uncompressedReader.Close())
-		}(uncompressedReader)
 	} else {
 		// we don't defer close this because we have already deferred its closure above.
 		uncompressedReader = reader
@@ -39,15 +43,6 @@ func decompressAndDecodeGob(reader io.ReadCloser, compressed bool, typeExample i
 	// gob-encoded. Create a reader to represent this gob-encoded data.
 	var gobReader io.Reader
 	gobReader = uncompressedReader
-
-	// use a closure to perform error handling rather than calling the function
-	// directly with the defer statement
-	defer func() {
-		// Only call Close() on uncompressedReader and not both it and reader,
-		// they share state and doing so will call Close() twice, resulting in a
-		// 'file already closed' error.
-		err = errors.Join(err, uncompressedReader.Close())
-	}()
 
 	// Decode and return result into our passed-in example struct
 	r := bufio.NewReader(gobReader)
