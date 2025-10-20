@@ -116,7 +116,7 @@ func (s *defaultS3Wrapper) Upload(
 	optFns ...func(uploader *manager.Uploader),
 ) (*manager.UploadOutput, error) {
 
-	uploader := manager.NewUploader(s.client, func(u *manager.Uploader) {})
+	uploader := manager.NewUploader(s.client)
 
 	out, err := uploader.Upload(ctx, input, optFns...)
 	if err != nil {
