@@ -23,6 +23,9 @@ func decompressAndDecodeGob(reader io.ReadCloser, compressed bool, typeExample i
 		if err != nil {
 			return
 		}
+		defer func(uncompressedReader io.ReadCloser) {
+			errors.Join(err, uncompressedReader.Close())
+		}(uncompressedReader)
 	} else {
 		// we don't defer close this because we have already deferred its closure above.
 		uncompressedReader = reader
