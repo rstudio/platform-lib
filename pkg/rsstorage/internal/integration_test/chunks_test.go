@@ -4,18 +4,20 @@ package integrationtest
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"log"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/fortytw2/leaktest"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"gopkg.in/check.v1"
@@ -55,19 +57,22 @@ func (s *ChunksIntegrationSuite) TearDownTest(c *check.C) {
 // In the tests, we'll typically create two server sets, one set as a source
 // set and another set as a destination set.
 func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]rsstorage.StorageServer {
-	s3Svc, err := s3server.NewS3Wrapper(&rsstorage.ConfigS3{
-		Bucket:             class,
-		Endpoint:           "http://minio:9000",
-		Prefix:             prefix,
-		EnableSharedConfig: true,
-		DisableSSL:         true,
-		S3ForcePathStyle:   true,
-	}, "")
+	baseEndpoint := "http://minio:9000"
+	ctx := context.Background()
+	s3Svc, err := s3server.NewS3Wrapper(
+		s3.Options{
+			Region:          "us-east-1",
+			BaseEndpoint:    &baseEndpoint,
+			UsePathStyle:    true,
+			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: true},
+			Credentials:     credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
+		},
+	)
 	c.Assert(err, check.IsNil)
 
 	// Create S3 bucket
 	if !testing.Short() {
-		_, err = s3Svc.CreateBucket(&s3.CreateBucketInput{
+		_, err = s3Svc.CreateBucket(ctx, &s3.CreateBucketInput{
 			Bucket: aws.String(class),
 		})
 		c.Assert(err, check.IsNil)
@@ -79,7 +84,7 @@ func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) 
 	}
 
 	// Prep directory for file storage
-	dir, err := ioutil.TempDir(s.tempdirhelper.Dir(), "")
+	dir, err := os.MkdirTemp(s.tempdirhelper.Dir(), "")
 	c.Assert(err, check.IsNil)
 
 	wn := &servertest.DummyWaiterNotifier{
@@ -144,7 +149,7 @@ func (s *ChunksIntegrationSuite) TestWriteChunked(c *check.C) {
 }
 
 func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer rsstorage.StorageServer) {
-
+	ctx := context.Background()
 	wn := &servertest.DummyWaiterNotifier{
 		Ch: make(chan bool, 1),
 	}
@@ -164,7 +169,7 @@ func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer rsstorage.Storage
 		_, err = io.Copy(writer, b)
 		return
 	}
-	err := cw.WriteChunked("0a", "test-chunk", sz, resolveJunk)
+	err := cw.WriteChunked(ctx, "0a", "test-chunk", sz, resolveJunk)
 	c.Assert(err, check.IsNil)
 
 	sz = uint64(len(servertest.TestDESC))
@@ -175,11 +180,11 @@ func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer rsstorage.Storage
 		return
 	}
 
-	err = cw.WriteChunked("0a", "test-chunk", sz, resolve)
+	err = cw.WriteChunked(ctx, "0a", "test-chunk", sz, resolve)
 	c.Assert(err, check.IsNil)
 
 	// Look for expected files in output directory
-	items, err := chunkServer.Enumerate()
+	items, err := chunkServer.Enumerate(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(items, check.DeepEquals, []types.StoredItem{
 		{
@@ -190,7 +195,7 @@ func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer rsstorage.Storage
 	})
 
 	// Verify info.json
-	infoFile, _, _, _, ok, err := chunkServer.Get("0a/test-chunk", "info.json")
+	infoFile, _, _, _, ok, err := chunkServer.Get(ctx, "0a/test-chunk", "info.json")
 	c.Assert(err, check.IsNil)
 	c.Assert(ok, check.Equals, true)
 	info := types.ChunksInfo{}
@@ -207,7 +212,7 @@ func (s *ChunksIntegrationSuite) check(c *check.C, chunkServer rsstorage.Storage
 	})
 
 	// Read chunks and assemble them...
-	r, _, size, mod, err := cw.ReadChunked("0a", "test-chunk")
+	r, _, size, mod, err := cw.ReadChunked(ctx, "0a", "test-chunk")
 	c.Assert(err, check.IsNil)
 	c.Assert(size, check.Equals, int64(1953))
 	c.Assert(mod.IsZero(), check.Equals, false)
@@ -242,6 +247,7 @@ func (s *ChunksPartialReadSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
+	ctx := context.Background()
 	log.Printf("Starting test %s", c.TestName())
 	defer leaktest.Check(c)
 
@@ -254,7 +260,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 	}
 
 	// Prep directory for file storage
-	dir, err := ioutil.TempDir(s.tempdirhelper.Dir(), "")
+	dir, err := os.MkdirTemp(s.tempdirhelper.Dir(), "")
 	c.Assert(err, check.IsNil)
 
 	fileServer := file.NewStorageServer(file.StorageServerArgs{
@@ -313,7 +319,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 
 	// Start writing using the slow resolver
 	go func() {
-		err = cw.WriteChunked("0a", "test-chunk", sz, resolve)
+		err = cw.WriteChunked(ctx, "0a", "test-chunk", sz, resolve)
 		c.Assert(err, check.IsNil)
 		log.Printf("Done with WriteChunked")
 	}()
@@ -323,7 +329,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 	log.Printf("Starting ReadChunked after writing 100 chunks")
 
 	// Read chunks and assemble them...
-	r, _, size, mod, err := cw.ReadChunked("0a", "test-chunk")
+	r, _, size, mod, err := cw.ReadChunked(ctx, "0a", "test-chunk")
 	c.Assert(err, check.IsNil)
 	c.Assert(size, check.Equals, int64(1953))
 	c.Assert(mod.IsZero(), check.Equals, false)
@@ -344,6 +350,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 }
 
 func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
+	ctx := context.Background()
 	defer leaktest.Check(c)
 
 	sz := uint64(len(servertest.TestDESC))
@@ -351,7 +358,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 	chunkSize := uint64(5)
 
 	// Prep directory for file storage
-	dir, err := ioutil.TempDir(s.tempdirhelper.Dir(), "")
+	dir, err := os.MkdirTemp(s.tempdirhelper.Dir(), "")
 	c.Assert(err, check.IsNil)
 
 	wn := &servertest.DummyWaiterNotifier{
@@ -415,7 +422,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 
 	// Start writing using the slow resolver
 	go func() {
-		err = cw.WriteChunked("0a", "test-chunk", sz, resolve)
+		err = cw.WriteChunked(ctx, "0a", "test-chunk", sz, resolve)
 		c.Assert(err, check.IsNil)
 		log.Printf("Done with WriteChunked")
 	}()
@@ -425,7 +432,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 	log.Printf("Starting ReadChunked after writing 100 chunks")
 
 	// Read chunks and assemble them...
-	r, _, size, mod, err := cw.ReadChunked("0a", "test-chunk")
+	r, _, size, mod, err := cw.ReadChunked(ctx, "0a", "test-chunk")
 	c.Assert(err, check.IsNil)
 	c.Assert(size, check.Equals, int64(1953))
 	c.Assert(mod.IsZero(), check.Equals, false)

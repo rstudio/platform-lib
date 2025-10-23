@@ -3,6 +3,7 @@ package runnerfactory
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -39,14 +40,14 @@ func (r *RunnerFactory) AddConditional(workType uint64, enabled func() bool, run
 
 // Run runs work if the work type is configured. Note that this doesn't check to
 // see if the work type is enabled (in r.types).
-func (r *RunnerFactory) Run(work queue.RecursableWork) error {
+func (r *RunnerFactory) Run(ctx context.Context, work queue.RecursableWork) error {
 
 	runner, ok := r.runners[work.WorkType]
 	if !ok {
 		return fmt.Errorf("invalid work type %d", work.WorkType)
 	}
 
-	return runner.Run(work)
+	return runner.Run(ctx, work)
 }
 
 // Stop all the runners in the factory. After each runner is stopped,

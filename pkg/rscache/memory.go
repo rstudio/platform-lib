@@ -13,7 +13,8 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-// In-memory cache, backs FileCache, which controls whether cache entries are put here via the resolver.CacheInMemory flag.
+// MemoryCache is an in-memory cache, backs FileCache, which controls whether cache entries are put here
+// via the resolver.CacheInMemory flag.
 type MemoryCache interface {
 	Enabled() bool
 	Get(address string) (cacheReturn *CacheReturn)

@@ -189,6 +189,7 @@ func (s *MemoryBackedFileCacheSuite) TestGetNotInMemoryErrsDecodingRetrySucceeds
 }
 
 func (s *MemoryBackedFileCacheSuite) TestCheckInMemory(c *check.C) {
+	ctx := context.Background()
 	defer leaktest.Check(c)
 
 	server := &rsstorage.DummyStorageServer{
@@ -206,7 +207,7 @@ func (s *MemoryBackedFileCacheSuite) TestCheckInMemory(c *check.C) {
 		},
 	}
 
-	ok, err := st.Check(spec)
+	ok, err := st.Check(ctx, spec)
 	c.Assert(err, check.IsNil)
 	c.Check(ok, check.Equals, false)
 
@@ -219,7 +220,7 @@ func (s *MemoryBackedFileCacheSuite) TestCheckInMemory(c *check.C) {
 	c.Check(obj.(*testItem), check.DeepEquals, &testItem{"one"})
 	c.Check(cacheValue.ReturnedFrom, check.Equals, "memory")
 
-	ok, err = st.Check(spec)
+	ok, err = st.Check(ctx, spec)
 	c.Assert(err, check.IsNil)
 	c.Check(ok, check.Equals, true)
 

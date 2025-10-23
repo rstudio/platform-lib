@@ -157,7 +157,7 @@ func (w *QueueWork) Type() uint64 {
 	return w.WorkType
 }
 
-// Used for queue work with an address. If your queue work has an address, and
+// QueueError is used for queue work with an address. If your queue work has an address, and
 // if the work's `Run` method returns a *QueueError pointer, then the queue
 // `Agent` will record the message and code in the database. If the work's
 // `Run` method returns a generic error, then the message will be recorded, but

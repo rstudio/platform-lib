@@ -3,6 +3,7 @@ package rsstorage
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"io"
 	"time"
 
@@ -31,7 +32,7 @@ type StorageServer interface {
 	//  * int64 the file size if known
 	//  * time.Time the last modification time if known
 	//  * error
-	Check(dir, address string) (bool, *types.ChunksInfo, int64, time.Time, error)
+	Check(ctx context.Context, dir, address string) (bool, *types.ChunksInfo, int64, time.Time, error)
 
 	// Dir will present the underlying "directory" for a
 	// storage server. This doesn't make sense for all server
@@ -55,7 +56,7 @@ type StorageServer interface {
 	//  * time.Time The last modification time
 	//  * bool `true` if found
 	//  * error
-	Get(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error)
+	Get(ctx context.Context, dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error)
 
 	// Put writes an item. Creates a file
 	// named `address`, and then passes the file writer
@@ -63,32 +64,32 @@ type StorageServer interface {
 	// See `cache/runners` for a number of queue runners
 	// that are responsible for using this method to store
 	// data
-	Put(resolve types.Resolver, dir, address string) (string, string, error)
+	Put(ctx context.Context, resolve types.Resolver, dir, address string) (string, string, error)
 
 	// PutChunked writes an item. Creates a directory
 	// named `address`, and then passes the file writer
 	// to the provided `resolve` function for writing. The
-	// data will be written to the directly in a series
+	// data will be written to the directory in a series
 	// of chunk files of fixed size. The `dir`, `address`, and
 	// `sz` parameters must all be included, unlike the regular
 	// Put method, which allows post-determined location and size.
-	PutChunked(resolve types.Resolver, dir, address string, sz uint64) (string, string, error)
+	PutChunked(ctx context.Context, resolve types.Resolver, dir, address string, sz uint64) (string, string, error)
 
 	// Remove an item
-	Remove(dir, address string) error
+	Remove(ctx context.Context, dir, address string) error
 
 	// Flush the NFS cache while waiting for an
 	// item to appear
-	Flush(dir, address string)
+	Flush(ctx context.Context, dir, address string)
 
 	// Enumerate all items in storage
-	Enumerate() ([]types.StoredItem, error)
+	Enumerate(ctx context.Context) ([]types.StoredItem, error)
 
 	// Move an item from one storage system to another
-	Move(dir, address string, server StorageServer) error
+	Move(ctx context.Context, dir, address string, server StorageServer) error
 
 	// Copy an item from one storage system to another
-	Copy(dir, address string, server StorageServer) error
+	Copy(ctx context.Context, dir, address string, server StorageServer) error
 
 	// Locate returns the storage location for a given dir, address
 	Locate(dir, address string) string
@@ -120,16 +121,16 @@ type ConfigFile struct {
 }
 
 type ConfigS3 struct {
-	Bucket             string
-	Prefix             string
-	Profile            string
-	Region             string
-	Endpoint           string
-	KeyID              string
-	SkipValidation     bool
-	DisableSSL         bool
-	S3ForcePathStyle   bool
-	EnableSharedConfig bool
+	Bucket             string // S3 bucket to use
+	Prefix             string // prefix to prepend to item addresses
+	Profile            string // AWS profile to use
+	Region             string // AWS regions to use
+	Endpoint           string // S3 service endpoint to use
+	KeyID              string // the AWS KMS ID to use for client-side S3 encryption
+	SkipValidation     bool   // skip the validation of the S3 configuration
+	DisableSSL         bool   // disable SSL for S3
+	S3ForcePathStyle   bool   // force path style for URLs for S3 objects
+	EnableSharedConfig bool   // overrides the AWS_SKD_LOAD_CONFIG env var and enables shared config functionality
 }
 
 type CopyPart struct {

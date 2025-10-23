@@ -11,35 +11,34 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 type AwsOps interface {
-	BucketDirs(bucket, s3Prefix string) ([]string, error)
-	BucketObjects(bucket, s3Prefix string, concurrency int, recursive bool, reg *regexp.Regexp) ([]string, error)
-	BucketObjectsETagMap(bucket, s3Prefix string, concurrency int, recursive bool, reg *regexp.Regexp) (map[string]string, error)
+	BucketDirs(ctx context.Context, bucket, s3Prefix string) ([]string, error)
+	BucketObjects(ctx context.Context, bucket, s3Prefix string, concurrency int, recursive bool, reg *regexp.Regexp) ([]string, error)
+	BucketObjectsETagMap(ctx context.Context, bucket, s3Prefix string, concurrency int, recursive bool, reg *regexp.Regexp) (map[string]string, error)
 }
 
 type DefaultAwsOps struct {
-	sess *session.Session
+	s3Client *s3.Client
 }
 
-func NewAwsOps(sess *session.Session) *DefaultAwsOps {
-	return &DefaultAwsOps{sess: sess}
+func NewAwsOps(client *s3.Client) *DefaultAwsOps {
+	return &DefaultAwsOps{s3Client: client}
 }
 
-func (a *DefaultAwsOps) BucketDirs(bucket, s3Prefix string) ([]string, error) {
-	svc := s3.New(a.sess)
+func (a *DefaultAwsOps) BucketDirs(ctx context.Context, bucket, s3Prefix string) ([]string, error) {
+	delimiter := "/"
 
 	query := &s3.ListObjectsInput{
-		Bucket:    aws.String(bucket),
-		Prefix:    aws.String(s3Prefix),
-		Delimiter: aws.String("/"),
+		Bucket:    &bucket,
+		Prefix:    &s3Prefix,
+		Delimiter: &delimiter,
 	}
 
-	resp, err := svc.ListObjects(query)
+	resp, err := a.s3Client.ListObjects(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("something went wrong listing objects: %s", err)
 	}
@@ -52,8 +51,13 @@ func (a *DefaultAwsOps) BucketDirs(bucket, s3Prefix string) ([]string, error) {
 	return results, nil
 }
 
-func (a *DefaultAwsOps) BucketObjects(bucket, s3Prefix string, concurrency int, recursive bool, reg *regexp.Regexp) ([]string, error) {
-	svc := s3.New(a.sess)
+func (a *DefaultAwsOps) BucketObjects(
+	ctx context.Context,
+	bucket, s3Prefix string,
+	concurrency int,
+	recursive bool,
+	reg *regexp.Regexp,
+) ([]string, error) {
 
 	nextMarkerChan := make(chan string, 100)
 	nextMarkerChan <- ""
@@ -94,10 +98,10 @@ func (a *DefaultAwsOps) BucketObjects(bucket, s3Prefix string, concurrency int, 
 					}
 
 					if nextMarker != "" {
-						query.SetMarker(nextMarker)
+						query.Marker = &nextMarker
 					}
 
-					resp, err := svc.ListObjectsWithContext(ctx, query)
+					resp, err := a.s3Client.ListObjects(ctx, query)
 					if err != nil {
 						errCh <- fmt.Errorf("something went wrong listing objects: %s", err)
 						return
@@ -158,8 +162,13 @@ func (a *DefaultAwsOps) BucketObjects(bucket, s3Prefix string, concurrency int, 
 	}
 }
 
-func (a *DefaultAwsOps) BucketObjectsETagMap(bucket, s3Prefix string, concurrency int, recursive bool, reg *regexp.Regexp) (map[string]string, error) {
-	svc := s3.New(a.sess)
+func (a *DefaultAwsOps) BucketObjectsETagMap(
+	ctx context.Context,
+	bucket, s3Prefix string,
+	concurrency int,
+	recursive bool,
+	reg *regexp.Regexp,
+) (map[string]string, error) {
 
 	nextMarkerChan := make(chan string, 100)
 	nextMarkerChan <- ""
@@ -200,10 +209,10 @@ func (a *DefaultAwsOps) BucketObjectsETagMap(bucket, s3Prefix string, concurrenc
 					}
 
 					if nextMarker != "" {
-						query.SetMarker(nextMarker)
+						query.Marker = &nextMarker
 					}
 
-					resp, err := svc.ListObjectsWithContext(ctx, query)
+					resp, err := a.s3Client.ListObjects(ctx, query)
 					if err != nil {
 						errCh <- fmt.Errorf("something went wrong listing objects: %s", err)
 						return
@@ -290,7 +299,6 @@ func getObjectsAllMap(bucketObjectsList *s3.ListObjectsOutput, s3Prefix string, 
 	binaryMeta := make(map[string]string)
 
 	for _, key := range bucketObjectsList.Contents {
-
 		if reg != nil {
 			if s := reg.FindStringSubmatch(*key.Key); len(s) > 1 {
 				binaryMeta[strings.TrimPrefix(s[1], s3Prefix)] = *key.ETag
@@ -298,7 +306,6 @@ func getObjectsAllMap(bucketObjectsList *s3.ListObjectsOutput, s3Prefix string, 
 		} else {
 			binaryMeta[strings.TrimPrefix(*key.Key, s3Prefix)] = *key.ETag
 		}
-
 	}
 
 	return binaryMeta

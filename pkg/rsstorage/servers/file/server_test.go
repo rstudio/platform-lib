@@ -4,11 +4,11 @@ package file
 
 import (
 	"bytes"
+	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
@@ -212,7 +212,7 @@ func (s *FileStorageServerSuite) TestCheckOpenErr(c *check.C) {
 			statErr: errors.New("open error"),
 		},
 	}
-	ok, _, _, _, err := server.Check("", "storageaddress")
+	ok, _, _, _, err := server.Check(context.Background(), "", "storageaddress")
 	c.Check(ok, check.Equals, false)
 	c.Check(err, check.ErrorMatches, "open error")
 }
@@ -223,7 +223,7 @@ func (s *FileStorageServerSuite) TestCheckNotExist(c *check.C) {
 			statErr: os.ErrNotExist,
 		},
 	}
-	ok, _, _, _, err := server.Check("", "storageaddress")
+	ok, _, _, _, err := server.Check(context.Background(), "", "storageaddress")
 	c.Check(ok, check.Equals, false)
 	c.Check(err, check.IsNil)
 }
@@ -239,7 +239,7 @@ func (s *FileStorageServerSuite) TestCheckOk(c *check.C) {
 			stat: stat,
 		},
 	}
-	ok, chunked, sz, ts, err := server.Check("", "storageaddress")
+	ok, chunked, sz, ts, err := server.Check(context.Background(), "", "storageaddress")
 	c.Check(ok, check.Equals, true)
 	c.Assert(chunked, check.IsNil)
 	c.Check(sz, check.Equals, int64(65))
@@ -248,6 +248,7 @@ func (s *FileStorageServerSuite) TestCheckOk(c *check.C) {
 }
 
 func (s *FileStorageServerSuite) TestCheckChunked(c *check.C) {
+	ctx := context.Background()
 	now := time.Now()
 	nowbytes, err := now.MarshalJSON()
 	c.Assert(err, check.IsNil)
@@ -271,19 +272,19 @@ func (s *FileStorageServerSuite) TestCheckChunked(c *check.C) {
 		fileIO: fio,
 	}
 
-	ok, _, _, _, err := server.Check("", "storageaddress")
+	ok, _, _, _, err := server.Check(ctx, "", "storageaddress")
 	c.Assert(ok, check.Equals, false)
 	c.Assert(err, check.ErrorMatches, "no chunked directory 'info.json' for storageaddress: info open error")
 
 	fio.openErr = nil
-	ok, _, _, _, err = server.Check("", "storageaddress")
+	ok, _, _, _, err = server.Check(ctx, "", "storageaddress")
 	c.Assert(ok, check.Equals, false)
 	c.Assert(err, check.ErrorMatches, "error decoding chunked directory 'info.json' for storageaddress: .+")
 
 	info = []byte(fmt.Sprintf(`{"chunk_size":64,"file_size":3232,"num_chunks":15,"complete":true,"mod_time":%s}`, string(nowbytes)))
 	buf = bytes.NewBuffer(info)
 	file.contents = buf
-	ok, chunked, sz, ts, err := server.Check("", "storageaddress")
+	ok, chunked, sz, ts, err := server.Check(ctx, "", "storageaddress")
 	c.Check(ok, check.Equals, true)
 	c.Check(chunked, check.NotNil)
 	c.Check(sz, check.Equals, int64(3232))
@@ -297,7 +298,7 @@ func (s *FileStorageServerSuite) TestGetOpenErr(c *check.C) {
 			openErr: errors.New("open error"),
 		},
 	}
-	r, _, _, _, ok, err := server.Get("", "storageaddress")
+	r, _, _, _, ok, err := server.Get(context.Background(), "", "storageaddress")
 	c.Check(r, check.IsNil)
 	c.Check(ok, check.Equals, false)
 	c.Check(err, check.ErrorMatches, "open error")
@@ -309,7 +310,7 @@ func (s *FileStorageServerSuite) TestGetNotExist(c *check.C) {
 			openErr: os.ErrNotExist,
 		},
 	}
-	r, _, _, _, ok, err := server.Get("", "storageaddress")
+	r, _, _, _, ok, err := server.Get(context.Background(), "", "storageaddress")
 	c.Check(r, check.IsNil)
 	c.Check(ok, check.Equals, false)
 	c.Check(err, check.IsNil)
@@ -324,7 +325,7 @@ func (s *FileStorageServerSuite) TestGetOk(c *check.C) {
 			open: f,
 		},
 	}
-	r, ch, _, _, ok, err := server.Get("", "storageaddress")
+	r, ch, _, _, ok, err := server.Get(context.Background(), "", "storageaddress")
 	c.Check(r, check.DeepEquals, f)
 	c.Check(ok, check.Equals, true)
 	c.Assert(ch, check.IsNil)
@@ -332,6 +333,7 @@ func (s *FileStorageServerSuite) TestGetOk(c *check.C) {
 }
 
 func (s *FileStorageServerSuite) TestGetChunked(c *check.C) {
+	ctx := context.Background()
 	f := &FakeFileIOFile{
 		stat: &fakeFileStat{
 			dir: true,
@@ -357,13 +359,13 @@ func (s *FileStorageServerSuite) TestGetChunked(c *check.C) {
 		},
 		chunker: chunker,
 	}
-	r, _, _, _, ok, err := server.Get("", "storageaddress")
+	r, _, _, _, ok, err := server.Get(ctx, "", "storageaddress")
 	c.Check(err, check.ErrorMatches, "error reading chunked directory files for storageaddress: chunked read error")
 	c.Check(ok, check.Equals, false)
 	c.Check(r, check.IsNil)
 
 	chunker.ReadErr = nil
-	r, ch, sz, mod, ok, err := server.Get("", "storageaddress")
+	r, ch, sz, mod, ok, err := server.Get(ctx, "", "storageaddress")
 	c.Check(err, check.IsNil)
 	c.Check(r, check.DeepEquals, rc)
 	c.Check(ok, check.Equals, true)
@@ -385,14 +387,14 @@ func (s *FileStorageServerSuite) TestFlushFails(c *check.C) {
 		},
 	}
 	// Ensure no panic
-	server.Flush("", "storageaddress")
+	server.Flush(context.Background(), "", "storageaddress")
 }
 
 func (s *FileStorageServerSuite) TestFlushOk(c *check.C) {
 	server := &StorageServer{
 		fileIO: &fakeFileIO{},
 	}
-	server.Flush("", "storageaddress")
+	server.Flush(context.Background(), "", "storageaddress")
 }
 
 func (s *FileStorageServerSuite) TestPutOpenErr(c *check.C) {
@@ -404,7 +406,7 @@ func (s *FileStorageServerSuite) TestPutOpenErr(c *check.C) {
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
 	}
-	_, _, err := server.Put(resolve, "", "storageaddress")
+	_, _, err := server.Put(context.Background(), resolve, "", "storageaddress")
 	c.Check(err, check.ErrorMatches, "open staging error")
 }
 
@@ -420,7 +422,7 @@ func (s *FileStorageServerSuite) TestPutResolveErr(c *check.C) {
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", errors.New("resolver error")
 	}
-	_, _, err := server.Put(resolve, "", "storageaddress")
+	_, _, err := server.Put(context.Background(), resolve, "", "storageaddress")
 	c.Check(err, check.ErrorMatches, "resolver error")
 }
 
@@ -436,7 +438,7 @@ func (s *FileStorageServerSuite) TestPutResolveErrPreserved(c *check.C) {
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", errors.New("resolver error")
 	}
-	_, _, err := server.Put(resolve, "", "storageaddress")
+	_, _, err := server.Put(context.Background(), resolve, "", "storageaddress")
 	c.Check(err, check.ErrorMatches, "resolver error")
 }
 
@@ -451,7 +453,7 @@ func (s *FileStorageServerSuite) TestPutMkDirError(c *check.C) {
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
 	}
-	_, _, err := server.Put(resolve, "custom_dir", "storageaddress")
+	_, _, err := server.Put(context.Background(), resolve, "custom_dir", "storageaddress")
 	c.Check(err, check.ErrorMatches, "mkdir error")
 }
 
@@ -467,7 +469,7 @@ func (s *FileStorageServerSuite) TestPutMkDirErrorIgnored(c *check.C) {
 		return "", "", nil
 	}
 	// Since the `dir` parameter is blank, we don't attempt to create a custom dir
-	_, _, err := server.Put(resolve, "", "storageaddress")
+	_, _, err := server.Put(context.Background(), resolve, "", "storageaddress")
 	c.Check(err, check.IsNil)
 }
 
@@ -482,7 +484,7 @@ func (s *FileStorageServerSuite) TestPutMoveError(c *check.C) {
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
 	}
-	_, _, err := server.Put(resolve, "", "storageaddress")
+	_, _, err := server.Put(context.Background(), resolve, "", "storageaddress")
 	c.Check(err, check.ErrorMatches, "staging to perm error")
 }
 
@@ -497,7 +499,7 @@ func (s *FileStorageServerSuite) TestPutOk(c *check.C) {
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
 	}
-	d, a, err := server.Put(resolve, "", "storageaddress")
+	d, a, err := server.Put(context.Background(), resolve, "", "storageaddress")
 	c.Check(err, check.IsNil)
 	c.Check(ffi.permanent, check.Equals, "storageaddress")
 	c.Check(d, check.Equals, "")
@@ -505,6 +507,7 @@ func (s *FileStorageServerSuite) TestPutOk(c *check.C) {
 }
 
 func (s *FileStorageServerSuite) TestPutChunked(c *check.C) {
+	ctx := context.Background()
 	f := &servertest.DummyChunkUtils{
 		WriteErr: errors.New("write error"),
 	}
@@ -515,17 +518,17 @@ func (s *FileStorageServerSuite) TestPutChunked(c *check.C) {
 		return "", "", nil
 	}
 
-	_, _, err := server.PutChunked(resolve, "", "", 0)
+	_, _, err := server.PutChunked(ctx, resolve, "", "", 0)
 	c.Check(err, check.ErrorMatches, "cache only supports pre-addressed chunked put commands")
 
-	_, _, err = server.PutChunked(resolve, "", "storageaddress", 0)
+	_, _, err = server.PutChunked(ctx, resolve, "", "storageaddress", 0)
 	c.Check(err, check.ErrorMatches, "cache only supports pre-sized chunked put commands")
 
-	_, _, err = server.PutChunked(resolve, "", "storageaddress", 25)
+	_, _, err = server.PutChunked(ctx, resolve, "", "storageaddress", 25)
 	c.Check(err, check.ErrorMatches, "write error")
 
 	f.WriteErr = nil
-	d, a, err := server.PutChunked(resolve, "dir", "storageaddress", 25)
+	d, a, err := server.PutChunked(ctx, resolve, "dir", "storageaddress", 25)
 	c.Check(err, check.IsNil)
 	c.Assert(d, check.Equals, "dir")
 	c.Assert(a, check.Equals, "storageaddress")
@@ -546,7 +549,7 @@ func (s *FileStorageServerSuite) TestPutOkDeferredAddress(c *check.C) {
 	}
 	// Note that we don't provide a dir and address here since the
 	// resolver will provide it instead.
-	d, a, err := server.Put(resolve, "", "")
+	d, a, err := server.Put(context.Background(), resolve, "", "")
 	c.Check(err, check.IsNil)
 	c.Check(ffi.permanent, check.Equals, "mydir/deferred")
 	c.Check(d, check.Equals, "mydir")
@@ -564,11 +567,12 @@ func (s *FileStorageServerSuite) TestPutOkCleanupFailure(c *check.C) {
 	resolve := func(w io.Writer) (string, string, error) {
 		return "", "", nil
 	}
-	_, _, err := server.Put(resolve, "", "storageaddress")
+	_, _, err := server.Put(context.Background(), resolve, "", "storageaddress")
 	c.Check(err, check.IsNil)
 }
 
 func (s *FileStorageServerSuite) TestRemove(c *check.C) {
+	ctx := context.Background()
 	now := time.Now()
 	nowbytes, err := now.MarshalJSON()
 	c.Assert(err, check.IsNil)
@@ -590,15 +594,15 @@ func (s *FileStorageServerSuite) TestRemove(c *check.C) {
 	server := &StorageServer{
 		fileIO: fileIO,
 	}
-	err = server.Remove("", "storageaddress")
+	err = server.Remove(ctx, "", "storageaddress")
 	c.Check(err, check.ErrorMatches, "stat error")
 
 	fileIO.statErr = nil
-	err = server.Remove("", "storageaddress")
+	err = server.Remove(ctx, "", "storageaddress")
 	c.Check(err, check.ErrorMatches, "remove error")
 
 	fileIO.remove = nil
-	err = server.Remove("", "storageaddress")
+	err = server.Remove(ctx, "", "storageaddress")
 	c.Check(err, check.IsNil)
 
 	buf = bytes.NewBuffer(info)
@@ -607,7 +611,7 @@ func (s *FileStorageServerSuite) TestRemove(c *check.C) {
 	}
 	fileIO.open = f
 	stat.dir = true
-	err = server.Remove("", "storageaddress")
+	err = server.Remove(ctx, "", "storageaddress")
 	c.Check(err, check.ErrorMatches, "remove all error")
 
 	buf = bytes.NewBuffer(info)
@@ -616,12 +620,12 @@ func (s *FileStorageServerSuite) TestRemove(c *check.C) {
 	}
 	fileIO.open = f
 	fileIO.removeAll = nil
-	err = server.Remove("", "storageaddress")
+	err = server.Remove(ctx, "", "storageaddress")
 	c.Check(err, check.IsNil)
 }
 
 func (s *FileStorageServerSuite) TestUsage(c *check.C) {
-	tempdir, err := ioutil.TempDir("", "")
+	tempdir, err := os.MkdirTemp("", "")
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(tempdir)
 
@@ -635,19 +639,19 @@ func (s *FileStorageServerSuite) TestUsage(c *check.C) {
 	rand.Read(fileContents4)
 	fileContents5 := make([]byte, int64(15*datasize.KB))
 	rand.Read(fileContents5)
-	dir1, err := ioutil.TempDir(tempdir, "dutest")
-	dir2, err := ioutil.TempDir(dir1, "another")
+	dir1, err := os.MkdirTemp(tempdir, "dutest")
+	dir2, err := os.MkdirTemp(dir1, "another")
 	defer os.RemoveAll(dir1)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(tempdir, "test1"), fileContents1, 0644)
+	err = os.WriteFile(filepath.Join(tempdir, "test1"), fileContents1, 0644)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(dir1, "test2"), fileContents2, 0644)
+	err = os.WriteFile(filepath.Join(dir1, "test2"), fileContents2, 0644)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(dir1, "test3"), fileContents3, 0644)
+	err = os.WriteFile(filepath.Join(dir1, "test3"), fileContents3, 0644)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(dir2, "test4"), fileContents4, 0644)
+	err = os.WriteFile(filepath.Join(dir2, "test4"), fileContents4, 0644)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(dir2, "test5"), fileContents5, 0644)
+	err = os.WriteFile(filepath.Join(dir2, "test5"), fileContents5, 0644)
 	c.Assert(err, check.IsNil)
 
 	server := &StorageServer{
@@ -662,7 +666,7 @@ func (s *FileStorageServerSuite) TestUsage(c *check.C) {
 }
 
 func (s *FileStorageServerSuite) TestUsageTimeout(c *check.C) {
-	tempdir, err := ioutil.TempDir("", "")
+	tempdir, err := os.MkdirTemp("", "")
 	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(tempdir)
 
@@ -676,19 +680,19 @@ func (s *FileStorageServerSuite) TestUsageTimeout(c *check.C) {
 	rand.Read(fileContents4)
 	fileContents5 := make([]byte, int64(15*datasize.KB))
 	rand.Read(fileContents5)
-	dir1, err := ioutil.TempDir(tempdir, "dutest")
-	dir2, err := ioutil.TempDir(dir1, "another")
+	dir1, err := os.MkdirTemp(tempdir, "dutest")
+	dir2, err := os.MkdirTemp(dir1, "another")
 	defer os.RemoveAll(dir1)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(tempdir, "test1"), fileContents1, 0644)
+	err = os.WriteFile(filepath.Join(tempdir, "test1"), fileContents1, 0644)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(dir1, "test2"), fileContents2, 0644)
+	err = os.WriteFile(filepath.Join(dir1, "test2"), fileContents2, 0644)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(dir1, "test3"), fileContents3, 0644)
+	err = os.WriteFile(filepath.Join(dir1, "test3"), fileContents3, 0644)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(dir2, "test4"), fileContents4, 0644)
+	err = os.WriteFile(filepath.Join(dir2, "test4"), fileContents4, 0644)
 	c.Assert(err, check.IsNil)
-	err = ioutil.WriteFile(filepath.Join(dir2, "test5"), fileContents5, 0644)
+	err = os.WriteFile(filepath.Join(dir2, "test5"), fileContents5, 0644)
 	c.Assert(err, check.IsNil)
 
 	server := &StorageServer{
@@ -785,6 +789,7 @@ func createTempFile(dir, file, data string, c *check.C) {
 }
 
 func (s *FileEnumerationSuite) TestEnumerate(c *check.C) {
+	ctx := context.Background()
 	server := &StorageServer{
 		dir:    s.tempDirHelper.Dir(),
 		fileIO: &defaultFileIO{},
@@ -812,14 +817,14 @@ func (s *FileEnumerationSuite) TestEnumerate(c *check.C) {
 	}
 
 	sz := uint64(len(servertest.TestDESC))
-	_, _, err := server.PutChunked(resolve, "dir", "DESCRIPTION", sz)
+	_, _, err := server.PutChunked(ctx, resolve, "dir", "DESCRIPTION", sz)
 	c.Check(err, check.IsNil)
 
-	_, _, err = server.PutChunked(resolve, "", "DESCRIPTION2", sz)
+	_, _, err = server.PutChunked(ctx, resolve, "", "DESCRIPTION2", sz)
 	c.Check(err, check.IsNil)
 
 	// Successfully enumerate files
-	en, err := server.Enumerate()
+	en, err := server.Enumerate(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(en, check.DeepEquals, []types.StoredItem{
 		{
@@ -881,6 +886,7 @@ func (s *FileCopyMoveSuite) TearDownTest(c *check.C) {
 }
 
 func (s *FileCopyMoveSuite) TestCopyFail(c *check.C) {
+	ctx := context.Background()
 	f := &FakeFileIOFile{
 		stat: &fakeFileStat{},
 	}
@@ -895,19 +901,21 @@ func (s *FileCopyMoveSuite) TestCopyFail(c *check.C) {
 	serverDest := &rsstorage.DummyStorageServer{
 		PutErr: errors.New("put error"),
 	}
-	err := serverSource.Copy("dir", "address", serverDest)
+	err := serverSource.Copy(ctx, "dir", "address", serverDest)
 	c.Assert(err, check.ErrorMatches, "open error")
 
 	fi.openErr = nil
-	err = serverSource.Copy("dir", "address", serverDest)
+	err = serverSource.Copy(ctx, "dir", "address", serverDest)
 	c.Assert(err, check.ErrorMatches, "put error")
 }
 
 func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
+	ctx := context.Background()
+
 	// Create both destination and source directories
-	dirSource, err := ioutil.TempDir(s.tempDirHelper.Dir(), "a")
+	dirSource, err := os.MkdirTemp(s.tempDirHelper.Dir(), "a")
 	c.Assert(err, check.IsNil)
-	dirDest, err := ioutil.TempDir(s.tempDirHelper.Dir(), "b")
+	dirDest, err := os.MkdirTemp(s.tempDirHelper.Dir(), "b")
 	c.Assert(err, check.IsNil)
 
 	// Associated a server with each directory (source and destination)
@@ -947,25 +955,25 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 		return "", "", err
 	}
 	sz := uint64(len(servertest.TestDESC))
-	_, _, err = serverSource.PutChunked(resolve, "dir", "CHUNK", sz)
+	_, _, err = serverSource.PutChunked(ctx, resolve, "dir", "CHUNK", sz)
 	c.Check(err, check.IsNil)
-	_, _, err = serverSource.PutChunked(resolve, "", "CHUNK2", sz)
+	_, _, err = serverSource.PutChunked(ctx, resolve, "", "CHUNK2", sz)
 	c.Check(err, check.IsNil)
 
 	// Successfully copy files
-	err = serverSource.Copy("", "PACKAGES", serverDest)
+	err = serverSource.Copy(ctx, "", "PACKAGES", serverDest)
 	c.Assert(err, check.IsNil)
-	err = serverSource.Copy("af", "data.json", serverDest)
+	err = serverSource.Copy(ctx, "af", "data.json", serverDest)
 	c.Assert(err, check.IsNil)
-	err = serverSource.Copy("af/test", "data2.json", serverDest)
+	err = serverSource.Copy(ctx, "af/test", "data2.json", serverDest)
 	c.Assert(err, check.IsNil)
-	err = serverSource.Copy("dir", "CHUNK", serverDest)
+	err = serverSource.Copy(ctx, "dir", "CHUNK", serverDest)
 	c.Assert(err, check.IsNil)
-	err = serverSource.Copy("", "CHUNK2", serverDest)
+	err = serverSource.Copy(ctx, "", "CHUNK2", serverDest)
 	c.Assert(err, check.IsNil)
 
 	// Successfully enumerate files
-	en, err := serverDest.Enumerate()
+	en, err := serverDest.Enumerate(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(en, check.DeepEquals, []types.StoredItem{
 		{
@@ -993,14 +1001,14 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 	})
 
 	// Read one chunk
-	f, _, _, _, _, err := serverDest.Get("", "CHUNK2")
+	f, _, _, _, _, err := serverDest.Get(ctx, "", "CHUNK2")
 	c.Assert(err, check.IsNil)
-	b, err := ioutil.ReadAll(f)
+	b, err := io.ReadAll(f)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(b), check.Equals, servertest.TestDESC)
 
 	// Files should still be on source
-	en, err = serverSource.Enumerate()
+	en, err = serverSource.Enumerate(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(en, check.DeepEquals, []types.StoredItem{
 		{
@@ -1029,6 +1037,7 @@ func (s *FileCopyMoveSuite) TestCopyReal(c *check.C) {
 }
 
 func (s *FileCopyMoveSuite) TestMoveFail(c *check.C) {
+	ctx := context.Background()
 	f := &FakeFileIOFile{
 		contents: bytes.NewBufferString("test"),
 		stat:     &fakeFileStat{},
@@ -1048,31 +1057,32 @@ func (s *FileCopyMoveSuite) TestMoveFail(c *check.C) {
 	// Since serverSource and serverDest are of the same type, we first
 	// attempt to use `os.Rename` to move the file. Since the file doesn't exist,
 	// we fall back to copying, which errors when the file can't be opened
-	err := serverSource.Move("dir", "address", serverDest)
+	err := serverSource.Move(ctx, "dir", "address", serverDest)
 	c.Assert(err, check.ErrorMatches, "open error")
 
 	// Next, we remove the open error, and fail on the `Put.
 	fi.openErr = nil
-	err = serverSource.Move("dir", "address", serverDest)
+	err = serverSource.Move(ctx, "dir", "address", serverDest)
 	c.Assert(err, check.ErrorMatches, "put error")
 
 	// Now, we remove the put error, but fail on removing the file
 	serverDest.PutErr = nil
 	fi.remove = errors.New("remove error")
-	err = serverSource.Move("dir", "address", serverDest)
+	err = serverSource.Move(ctx, "dir", "address", serverDest)
 	c.Assert(err, check.ErrorMatches, "remove error")
 
 	// Now, we remove the put error, but fail on removing the file
 	fi.remove = nil
-	err = serverSource.Move("dir", "address", serverDest)
+	err = serverSource.Move(ctx, "dir", "address", serverDest)
 	c.Assert(err, check.IsNil)
 }
 
 func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
+	ctx := context.Background()
 	// Create both destination and source directories
-	dirSource, err := ioutil.TempDir(s.tempDirHelper.Dir(), "a")
+	dirSource, err := os.MkdirTemp(s.tempDirHelper.Dir(), "a")
 	c.Assert(err, check.IsNil)
-	dirDest, err := ioutil.TempDir(s.tempDirHelper.Dir(), "b")
+	dirDest, err := os.MkdirTemp(s.tempDirHelper.Dir(), "b")
 	c.Assert(err, check.IsNil)
 
 	// Associated a server with each directory (source and destination)
@@ -1112,25 +1122,25 @@ func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
 		return "", "", err
 	}
 	sz := uint64(len(servertest.TestDESC))
-	_, _, err = serverSource.PutChunked(resolve, "dir", "CHUNK", sz)
+	_, _, err = serverSource.PutChunked(ctx, resolve, "dir", "CHUNK", sz)
 	c.Check(err, check.IsNil)
-	_, _, err = serverSource.PutChunked(resolve, "", "CHUNK2", sz)
+	_, _, err = serverSource.PutChunked(ctx, resolve, "", "CHUNK2", sz)
 	c.Check(err, check.IsNil)
 
 	// Successfully move files
-	err = serverSource.Move("", "PACKAGES", serverDest)
+	err = serverSource.Move(ctx, "", "PACKAGES", serverDest)
 	c.Assert(err, check.IsNil)
-	err = serverSource.Move("af", "data.json", serverDest)
+	err = serverSource.Move(ctx, "af", "data.json", serverDest)
 	c.Assert(err, check.IsNil)
-	err = serverSource.Move("af/test", "data2.json", serverDest)
+	err = serverSource.Move(ctx, "af/test", "data2.json", serverDest)
 	c.Assert(err, check.IsNil)
-	err = serverSource.Move("dir", "CHUNK", serverDest)
+	err = serverSource.Move(ctx, "dir", "CHUNK", serverDest)
 	c.Assert(err, check.IsNil)
-	err = serverSource.Move("", "CHUNK2", serverDest)
+	err = serverSource.Move(ctx, "", "CHUNK2", serverDest)
 	c.Assert(err, check.IsNil)
 
 	// Successfully enumerate files
-	en, err := serverDest.Enumerate()
+	en, err := serverDest.Enumerate(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(en, check.DeepEquals, []types.StoredItem{
 		{
@@ -1158,13 +1168,13 @@ func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
 	})
 
 	// Read one chunk
-	f, _, _, _, _, err := serverDest.Get("dir", "CHUNK")
-	b, err := ioutil.ReadAll(f)
+	f, _, _, _, _, err := serverDest.Get(ctx, "dir", "CHUNK")
+	b, err := io.ReadAll(f)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(b), check.Equals, servertest.TestDESC)
 
 	// Files should no longer be on source
-	en, err = serverSource.Enumerate()
+	en, err = serverSource.Enumerate(ctx)
 	c.Assert(err, check.IsNil)
 	c.Check(en, check.DeepEquals, []types.StoredItem{})
 }

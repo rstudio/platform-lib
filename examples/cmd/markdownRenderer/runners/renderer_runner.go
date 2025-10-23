@@ -3,6 +3,7 @@ package runners
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -20,7 +21,7 @@ import (
 )
 
 // RendererRunner is a runner is registered with the queue agent that knows how
-// to render markdown text to HTML.
+// to render Markdown text to HTML.
 type RendererRunner struct {
 	queue.BaseRunner
 
@@ -74,7 +75,7 @@ func (w RendererWork) Dir() string {
 	return ""
 }
 
-func (r *RendererRunner) Run(work queue.RecursableWork) error {
+func (r *RendererRunner) Run(ctx context.Context, work queue.RecursableWork) error {
 
 	job := &RendererWork{}
 	err := json.Unmarshal(work.Work, &job)
@@ -84,7 +85,7 @@ func (r *RendererRunner) Run(work queue.RecursableWork) error {
 
 	for {
 		// Render the markdown to HTML and "Put" it into storage.
-		_, _, err = r.server.Put(r.getResolverText(job), job.Dir(), job.Address())
+		_, _, err = r.server.Put(ctx, r.getResolverText(job), job.Dir(), job.Address())
 		if err != nil {
 			return errors.Wrap(err, "renderer_runner error")
 		} else {
@@ -104,7 +105,7 @@ func (r *RendererRunner) getResolverText(job *RendererWork) storagetypes.Resolve
 			parser.Strikethrough |
 			parser.SpaceHeadings |
 			parser.AutoHeadingIDs
-		parser := parser.NewWithExtensions(extensions)
+		p := parser.NewWithExtensions(extensions)
 
 		// Specify some helpful flags and create a renderer.
 		htmlFlags := html.CommonFlags | html.HrefTargetBlank
@@ -113,8 +114,8 @@ func (r *RendererRunner) getResolverText(job *RendererWork) storagetypes.Resolve
 
 		// Render the markdown and write it to storage.
 		normalized := markdown.NormalizeNewlines([]byte(job.Markdown))
-		html := markdown.ToHTML(normalized, parser, renderer)
-		_, err := writer.Write(html)
+		renderedHtml := markdown.ToHTML(normalized, p, renderer)
+		_, err := writer.Write(renderedHtml)
 		return "", "", err
 	}
 }

@@ -4,6 +4,7 @@ package rsstorage
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"sync"
@@ -56,7 +57,7 @@ type DummyStorageServer struct {
 	GetCheckLock sync.RWMutex
 }
 
-func (f *DummyStorageServer) Check(dir, address string) (bool, *types.ChunksInfo, int64, time.Time, error) {
+func (f *DummyStorageServer) Check(ctx context.Context, dir, address string) (bool, *types.ChunksInfo, int64, time.Time, error) {
 	f.GetCheckLock.RLock()
 	defer f.GetCheckLock.RUnlock()
 
@@ -68,19 +69,19 @@ func (f *DummyStorageServer) Check(dir, address string) (bool, *types.ChunksInfo
 	}
 }
 
-func (s *DummyStorageServer) Dir() string {
-	return s.MockDir
+func (f *DummyStorageServer) Dir() string {
+	return f.MockDir
 }
 
-func (s *DummyStorageServer) Type() types.StorageType {
-	return s.MockType
+func (f *DummyStorageServer) Type() types.StorageType {
+	return f.MockType
 }
 
-func (s *DummyStorageServer) CalculateUsage() (types.Usage, error) {
-	return s.MockUsage, s.MockUsageError
+func (f *DummyStorageServer) CalculateUsage() (types.Usage, error) {
+	return f.MockUsage, f.MockUsageError
 }
 
-func (f *DummyStorageServer) Get(dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
+func (f *DummyStorageServer) Get(ctx context.Context, dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
 	f.GetCheckLock.RLock()
 	defer f.GetCheckLock.RUnlock()
 
@@ -92,7 +93,7 @@ func (f *DummyStorageServer) Get(dir, address string) (io.ReadCloser, *types.Chu
 	}
 }
 
-func (f *DummyStorageServer) Put(resolve types.Resolver, dir, address string) (string, string, error) {
+func (f *DummyStorageServer) Put(ctx context.Context, resolve types.Resolver, dir, address string) (string, string, error) {
 	if f.PutDelay > 0 {
 		time.Sleep(f.PutDelay)
 	}
@@ -113,12 +114,12 @@ func (f *DummyStorageServer) Put(resolve types.Resolver, dir, address string) (s
 	}
 }
 
-func (f *DummyStorageServer) PutChunked(resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
+func (f *DummyStorageServer) PutChunked(ctx context.Context, resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
 	f.PutChunks = true
-	return f.Put(resolve, dir, address)
+	return f.Put(ctx, resolve, dir, address)
 }
 
-func (f *DummyStorageServer) Remove(dir, address string) error {
+func (f *DummyStorageServer) Remove(ctx context.Context, dir, address string) error {
 	if f.RemoveMap == nil {
 		f.RemoveMap = make(map[string]bool)
 	}
@@ -129,22 +130,22 @@ func (f *DummyStorageServer) Remove(dir, address string) error {
 	return f.RemoveErr
 }
 
-func (f *DummyStorageServer) Flush(dir, address string) {
+func (f *DummyStorageServer) Flush(ctx context.Context, dir, address string) {
 	f.Flushed++
 }
 
-func (f *DummyStorageServer) Enumerate() ([]types.StoredItem, error) {
+func (f *DummyStorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, error) {
 	return f.EnumItems, f.EnumErr
 }
 
-func (f *DummyStorageServer) Move(dir, address string, server StorageServer) error {
+func (f *DummyStorageServer) Move(ctx context.Context, dir, address string, server StorageServer) error {
 	if f.MoveErr == nil && f.Moved != nil {
 		f.Moved = append(f.Moved, dir+"/"+address)
 	}
 	return f.MoveErr
 }
 
-func (f *DummyStorageServer) Copy(dir, address string, server StorageServer) error {
+func (f *DummyStorageServer) Copy(ctx context.Context, dir, address string, server StorageServer) error {
 	if f.CopyErr == nil && f.Copied != nil {
 		f.Copied = append(f.Copied, dir+"/"+address)
 	}

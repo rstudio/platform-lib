@@ -4,16 +4,14 @@ package s3server
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jarcoal/httpmock"
 	"gopkg.in/check.v1"
 )
@@ -28,49 +26,71 @@ const (
 )
 
 func (s *S3EncryptedServiceSuite) TestUpload(c *check.C) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-1"),
-		Credentials: credentials.AnonymousCredentials,
-	})
+	ctx := context.Background()
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(
+		s3.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
+		},
+		kms.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
+		},
+		"7ddec34f-7c3e-4875-a348-de761fc28b4f",
+	)
 	c.Assert(err, check.IsNil)
-
-	httpmock.ActivateNonDefault(sess.Config.HTTPClient)
+	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
 	httpmock.RegisterResponder(http.MethodPost, `https://kms.us-east-1.amazonaws.com/`,
 		httpmock.NewStringResponder(http.StatusOK, kmsResponse))
 
-	httpmock.RegisterResponder(http.MethodPut, `https://tyler-s3-test.s3.amazonaws.com/test.txt`,
+	httpmock.RegisterResponder(http.MethodPut, `https://tyler-s3-test.s3.us-east-1.amazonaws.com/test.text?partNumber=1&uploadId=1&x-id=UploadPart`,
 		httpmock.NewStringResponder(http.StatusOK, ""))
 
-	s3service := &encryptedS3Service{
-		keyID: "7ddec34f-7c3e-4875-a348-de761fc28b4f",
-	}
-	s3service.session = sess
-	input := &s3manager.UploadInput{
-		Bucket: aws.String("tyler-s3-test"),
-		Key:    aws.String("test.txt"),
+	httpmock.RegisterResponder(http.MethodPut, `https://tyler-s3-test.s3.us-east-1.amazonaws.com/test.text?x-id=PutObject`,
+		httpmock.NewStringResponder(http.StatusOK, ""))
+
+	bucket := "tyler-s3-test"
+	key := "test.text"
+
+	input := &s3.PutObjectInput{
+		Bucket: &bucket,
+		Key:    &key,
 		Body:   strings.NewReader("test"),
 	}
 
-	_, err = s3service.Upload(input, context.Background())
+	_, err = s3Service.Upload(ctx, input)
 	c.Assert(err, check.IsNil)
 }
 
 func (s *S3EncryptedServiceSuite) TestGetObject(c *check.C) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-1"),
-		Credentials: credentials.AnonymousCredentials,
-	})
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(
+		s3.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
+		},
+		kms.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
+		},
+		"7ddec34f-7c3e-4875-a348-de761fc28b4f",
+	)
 	c.Assert(err, check.IsNil)
 
-	httpmock.ActivateNonDefault(sess.Config.HTTPClient)
+	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
 	httpmock.RegisterResponder(http.MethodPost, `https://kms.us-east-1.amazonaws.com/`,
 		httpmock.NewStringResponder(http.StatusOK, kmsResponse))
 
-	httpmock.RegisterResponder(http.MethodGet, `https://tyler-s3-test.s3.amazonaws.com/test.txt`,
+	httpmock.RegisterResponder(http.MethodGet, `https://tyler-s3-test.s3.us-east-1.amazonaws.com/test.txt`,
 		func(req *http.Request) (*http.Response, error) {
 			b, err := os.ReadFile("./testdata/test.txt")
 			c.Assert(err, check.IsNil)
@@ -88,19 +108,17 @@ func (s *S3EncryptedServiceSuite) TestGetObject(c *check.C) {
 		},
 	)
 
+	bucket := "tyler-s3-test"
+	key := "test.txt"
+
 	input := &s3.GetObjectInput{
-		Bucket: aws.String("tyler-s3-test"),
-		Key:    aws.String("test.txt"),
+		Bucket: &bucket,
+		Key:    &key,
 	}
 
-	s3service := &encryptedS3Service{
-		keyID: "7ddec34f-7c3e-4875-a348-de761fc28b4f",
-	}
-	s3service.session = sess
-
-	out, err := s3service.GetObject(input)
+	out, err := s3Service.GetObject(context.Background(), input)
 	c.Assert(err, check.IsNil)
-	b, err := ioutil.ReadAll(out.Body)
+	b, err := io.ReadAll(out.Body)
 	c.Assert(err, check.IsNil)
 	c.Check(string(b), check.Equals, "test")
 }

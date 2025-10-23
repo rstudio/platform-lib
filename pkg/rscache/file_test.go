@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rscache/test"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
 )
 
 func TestPackage(t *testing.T) { check.TestingT(t) }
@@ -36,7 +36,7 @@ func fileCfg(q Queue, dup DuplicateMatcher, server rsstorage.StorageServer, recu
 type fakeDupMatcher struct{}
 
 func (f *fakeDupMatcher) IsDuplicate(err error) bool {
-	return err == errDup
+	return errors.Is(err, errDup)
 }
 
 type addParams struct {
@@ -123,7 +123,7 @@ func (s *FileCacheSuite) TestCheckMissing(c *check.C) {
 			address: "two",
 		},
 	}
-	ok, err := st.Check(spec)
+	ok, err := st.Check(context.Background(), spec)
 	c.Assert(err, check.IsNil)
 	c.Assert(ok, check.Equals, false)
 }
@@ -144,7 +144,7 @@ func (s *FileCacheSuite) TestCheckAlreadyCached(c *check.C) {
 			address: "two",
 		},
 	}
-	ok, err := st.Check(spec)
+	ok, err := st.Check(context.Background(), spec)
 	c.Assert(err, check.IsNil)
 	c.Assert(ok, check.Equals, true)
 }
@@ -168,7 +168,7 @@ func (s *FileCacheSuite) TestCheckAlreadyCachedChunked(c *check.C) {
 			address: "two",
 		},
 	}
-	ok, err := st.Check(spec)
+	ok, err := st.Check(context.Background(), spec)
 	c.Assert(err, check.IsNil)
 	c.Assert(ok, check.Equals, true)
 }
@@ -192,7 +192,7 @@ func (s *FileCacheSuite) TestCheckAlreadyCachedChunkedButIncomplete(c *check.C) 
 			address: "two",
 		},
 	}
-	ok, err := st.Check(spec)
+	ok, err := st.Check(context.Background(), spec)
 	c.Assert(err, check.IsNil)
 	c.Assert(ok, check.Equals, false)
 }
@@ -708,7 +708,7 @@ func (s *FileCacheSuite) TestUncacheError(c *check.C) {
 		},
 	}
 
-	err := st.Uncache(spec)
+	err := st.Uncache(context.Background(), spec)
 	c.Check(err, check.ErrorMatches, "remove error")
 }
 
@@ -723,7 +723,7 @@ func (s *FileCacheSuite) TestUncacheOk(c *check.C) {
 		},
 	}
 
-	err := st.Uncache(spec)
+	err := st.Uncache(context.Background(), spec)
 	c.Assert(err, check.IsNil)
 }
 
@@ -749,7 +749,7 @@ func (s *FileCacheSuite) TestRetryingGetInitialSuccess(c *check.C) {
 		duplicateMatcher: &fakeDupMatcher{},
 	}
 	fakeGet := &fakeGet{result: true}
-	result := st.retryingGet("", "", fakeGet.get)
+	result := st.retryingGet(context.Background(), "", "", fakeGet.get)
 	c.Check(result, check.Equals, true)
 }
 
@@ -763,7 +763,7 @@ func (s *FileCacheSuite) TestRetryingGetTimeout(c *check.C) {
 		duplicateMatcher: &fakeDupMatcher{},
 	}
 	fakeGet := &fakeGet{result: false}
-	result := st.retryingGet("", "", fakeGet.get)
+	result := st.retryingGet(context.Background(), "", "", fakeGet.get)
 	c.Check(result, check.Equals, false)
 }
 
@@ -796,7 +796,7 @@ func (s *FileCacheSuite) TestRetryingGetRetryOk(c *check.C) {
 		<-notify
 		return
 	}()
-	result := st.retryingGet("", "", fakeGet.get)
+	result := st.retryingGet(context.Background(), "", "", fakeGet.get)
 	c.Check(result, check.Equals, true)
 
 	// We should have flushed the NFS cache exactly twice

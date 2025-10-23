@@ -4,57 +4,43 @@ package s3server
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
 	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal"
 )
 
 const S3Concurrency = 20
 
-// Encapsulates the S3 services we need
+// S3Wrapper encapsulates the S3 services we need
 type S3Wrapper interface {
-	CreateBucket(input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error)
-	DeleteBucket(input *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error)
-	HeadObject(input *s3.HeadObjectInput) (*s3.HeadObjectOutput, error)
-	GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, error)
-	DeleteObject(input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error)
-	Upload(input *s3manager.UploadInput, ctx context.Context, options ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error)
-	CopyObject(bucket, key, newBucket, newKey string) (*s3.CopyObjectOutput, error)
-	MoveObject(bucket, key, newBucket, newKey string) (*s3.CopyObjectOutput, error)
-	ListObjects(bucket, prefix string) ([]string, error)
+	CreateBucket(ctx context.Context, input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error)
+	DeleteBucket(ctx context.Context, input *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error)
+	HeadObject(ctx context.Context, input *s3.HeadObjectInput) (*s3.HeadObjectOutput, error)
+	GetObject(ctx context.Context, input *s3.GetObjectInput) (*s3.GetObjectOutput, error)
+	DeleteObject(ctx context.Context, input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error)
+	Upload(ctx context.Context, input *s3.PutObjectInput, optFns ...func(uploader *manager.Uploader)) (*manager.UploadOutput, error)
+	CopyObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error)
+	MoveObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error)
+	ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) (*s3.ListObjectsV2Output, error)
 	KmsEncrypted() bool
 }
 
 type defaultS3Wrapper struct {
-	session *session.Session
+	client *s3.Client
 }
 
-func NewS3Wrapper(configInput *rsstorage.ConfigS3, keyID string) (S3Wrapper, error) {
-	// Create a session
-	options := getS3Options(configInput)
-	sess, err := session.NewSessionWithOptions(options)
-	if err != nil {
-		return nil, fmt.Errorf("Error starting AWS session: %s", err)
-	}
-
-	if keyID != "" {
-		svc := &encryptedS3Service{
-			keyID: keyID,
-		}
-		svc.session = sess
-		return svc, nil
+func NewS3Wrapper(s3Opts s3.Options) (S3Wrapper, error) {
+	if s3Opts.Region == "" {
+		return nil, fmt.Errorf("'region' field of ConfigS3 is required")
 	}
 
 	return &defaultS3Wrapper{
-		session: sess,
+		client: s3.New(s3Opts),
 	}, nil
 }
 
@@ -62,166 +48,171 @@ func (s *defaultS3Wrapper) KmsEncrypted() bool {
 	return false
 }
 
-func (s *defaultS3Wrapper) CreateBucket(input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {
-	svc := s3.New(s.session)
-	out, err := svc.CreateBucket(input)
+func (s *defaultS3Wrapper) CreateBucket(ctx context.Context, input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {
+	out, err := s.client.CreateBucket(ctx, input)
 	if err != nil {
 		return nil, err
 	}
 	return out, err
 }
 
-func (s *defaultS3Wrapper) DeleteBucket(input *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error) {
-	svc := s3.New(s.session)
-	out, err := svc.DeleteBucket(input)
+func (s *defaultS3Wrapper) DeleteBucket(ctx context.Context, input *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error) {
+	out, err := s.client.DeleteBucket(ctx, input)
 	if err != nil {
-		return nil, fmt.Errorf("Something went wrong deleting an S3 bucket. You may want to check your configuration, error: %s", err.Error())
-	}
-	return out, err
-}
-
-func (s *defaultS3Wrapper) HeadObject(input *s3.HeadObjectInput) (*s3.HeadObjectOutput, error) {
-	svc := s3.New(s.session)
-	out, err := svc.HeadObject(input)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == s3.ErrCodeNoSuchKey || aerr.Code() == "NotFound" {
-				return nil, err
-			} else {
-				return nil, fmt.Errorf("Something went wrong getting the HEAD for an object from S3. You may want to check your configuration, error: %s", err.Error())
-			}
-		}
-	}
-	return out, err
-}
-
-func (s *defaultS3Wrapper) GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, error) {
-	svc := s3.New(s.session)
-	out, err := svc.GetObject(input)
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			if aerr.Code() == s3.ErrCodeNoSuchKey {
-				return nil, err
-			} else {
-				return nil, fmt.Errorf("Something went wrong getting an object from S3. You may want to check your configuration, error: %s", err.Error())
-			}
-		}
-	}
-	return out, err
-}
-
-func (s *defaultS3Wrapper) DeleteObject(input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error) {
-	svc := s3.New(s.session)
-	out, err := svc.DeleteObject(input)
-	if err != nil {
-		return nil, fmt.Errorf("Something went wrong deleting from S3. You may want to check your configuration, error: %s", err.Error())
+		return nil, fmt.Errorf(
+			"error encountered while deleting an S3 bucket; try checking your configuration:: %w",
+			err,
+		)
 	}
 	return out, nil
 }
 
-func (s *defaultS3Wrapper) Upload(input *s3manager.UploadInput, ctx context.Context, options ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error) {
-	uploader := s3manager.NewUploader(s.session)
-	out, err := uploader.UploadWithContext(ctx, input, options...)
+func (s *defaultS3Wrapper) HeadObject(ctx context.Context, input *s3.HeadObjectInput) (*s3.HeadObjectOutput, error) {
+	out, err := s.client.HeadObject(ctx, input)
 	if err != nil {
-		return nil, fmt.Errorf("Something went wrong uploading to S3. You may want to check your configuration, error: %s", err.Error())
+		var nskErr *types.NoSuchKey
+		var nfErr *types.NotFound
+		if errors.As(err, &nskErr) || errors.As(err, &nfErr) {
+			return nil, err
+		}
+		return nil, fmt.Errorf(
+			"error encountered while getting the HEAD for an S3 object; try checking your configuration: %w",
+			err,
+		)
 	}
 	return out, err
 }
 
-func (s *defaultS3Wrapper) copyObject(svc *s3.S3, bucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
-	copier := NewCopierWithClient(svc)
-
-	// Note: We have to perform this HEAD request on the old temporary file to ensure that any and all metadata fields
-	// get copied over. This isn't a problem for smaller objects, but when _some_ size is exceeded, these fields are
-	// no longer copied. There's some references to this problem here:
-	// https://github.com/aws/aws-sdk-go/pull/2653#issuecomment-617684878
-	head, err := s.HeadObject(&s3.HeadObjectInput{
-		Key:    aws.String(oldKey),
-		Bucket: aws.String(bucket),
-	})
+func (s *defaultS3Wrapper) GetObject(ctx context.Context, input *s3.GetObjectInput) (*s3.GetObjectOutput, error) {
+	out, err := s.client.GetObject(ctx, input)
 	if err != nil {
-		return nil, fmt.Errorf("Something went wrong checking an object on S3. You may want to check your configuration, copy error: %s", err.Error())
+		var nskErr *types.NoSuchKey
+		var nfErr *types.NotFound
+		if errors.As(err, &nskErr) || errors.As(err, &nfErr) {
+			return nil, err
+		}
+		return nil, fmt.Errorf(
+			"error encountered while getting an S3 object; try checking your configuration: %w",
+			err,
+		)
+	}
+	return out, err
+}
+
+func (s *defaultS3Wrapper) DeleteObject(ctx context.Context, input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error) {
+	out, err := s.client.DeleteObject(ctx, input)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"error encountered while deleting an S3 object, try checking your configuration: %w",
+			err,
+		)
+	}
+	return out, nil
+}
+
+func (s *defaultS3Wrapper) Upload(
+	ctx context.Context,
+	input *s3.PutObjectInput,
+	optFns ...func(uploader *manager.Uploader),
+) (*manager.UploadOutput, error) {
+
+	uploader := manager.NewUploader(s.client)
+
+	out, err := uploader.Upload(ctx, input, optFns...)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"error encountered while uploading to S3; try checking your configuration: %w",
+			err,
+		)
+	}
+	return out, err
+}
+
+func (s *defaultS3Wrapper) CopyObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
+	head, err := s.HeadObject(ctx, &s3.HeadObjectInput{Key: &oldKey, Bucket: &oldBucket})
+	if err != nil {
+		return nil, fmt.Errorf(
+			"error encountered while getting the HEAD for an S3 object; try checking your configuration: %w",
+			err,
+		)
 	}
 
-	// First, copy the object
-	out, err := copier.Copy(&s3.CopyObjectInput{
-		Bucket:            aws.String(newBucket),
-		Key:               aws.String(newKey),
-		CopySource:        aws.String(internal.NotEmptyJoin([]string{bucket, oldKey}, "/")),
-		MetadataDirective: aws.String(s3.MetadataDirectiveReplace),
+	copySource := internal.NotEmptyJoin([]string{oldBucket, oldKey}, "/")
+	out, err := s.client.CopyObject(
+		ctx, &s3.CopyObjectInput{
+			Bucket:            &newBucket,
+			Key:               &newKey,
+			CopySource:        &copySource,
+			MetadataDirective: types.MetadataDirectiveReplace,
+			Metadata:          head.Metadata,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
+func (s *defaultS3Wrapper) MoveObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
+	head, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Key:    &oldKey,
+		Bucket: &oldBucket,
+	})
+	if err != nil {
+		return nil, fmt.Errorf(
+			"error encountered while getting the HEAD for an S3 object; try checking your configuration: %w",
+			err,
+		)
+	}
+
+	copySource := internal.NotEmptyJoin([]string{oldBucket, oldKey}, "/")
+	input := s3.CopyObjectInput{
+		Bucket:            &newBucket,
+		Key:               &newKey,
+		CopySource:        &copySource,
+		MetadataDirective: types.MetadataDirectiveReplace,
 		Metadata:          head.Metadata,
+	}
+	out, err := s.client.CopyObject(ctx, &input)
+	if err != nil {
+		return nil, fmt.Errorf("error encountered while moving an S3 object; try checking your configuration: %w", err)
+	}
+
+	// After successful copy, delete the source object (this is what makes it a "move")
+	_, err = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: &oldBucket,
+		Key:    &oldKey,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Something went wrong moving an object on S3. You may want to check your configuration, copy error: %s", err.Error())
+		return nil, fmt.Errorf("error encountered while deleting source object after move: %w", err)
 	}
 
 	return out, nil
 }
 
-func (s *defaultS3Wrapper) CopyObject(bucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
-	svc := s3.New(s.session)
+func (s *defaultS3Wrapper) ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) (*s3.ListObjectsV2Output, error) {
+	// In AWS SDK v2, we need to handle pagination manually
+	// Create a paginator to iterate through all pages
+	paginator := s3.NewListObjectsV2Paginator(s.client, input)
 
-	out, err := s.copyObject(svc, bucket, oldKey, newBucket, newKey)
-	if err != nil {
-		return nil, err
+	// Collect all objects from all pages
+	var allObjects []types.Object
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Collect all objects from this page
+		allObjects = append(allObjects, page.Contents...)
 	}
 
-	return out, nil
-}
-
-func (s *defaultS3Wrapper) MoveObject(bucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
-	svc := s3.New(s.session)
-
-	out, err := s.copyObject(svc, bucket, oldKey, newBucket, newKey)
-	if err != nil {
-		return nil, err
-	}
-
-	// Then, delete the original
-	_, err = svc.DeleteObject(&s3.DeleteObjectInput{Bucket: aws.String(bucket), Key: aws.String(oldKey)})
-	if err != nil {
-		return nil, fmt.Errorf("Something went wrong moving an object on S3. You may want to check your configuration, delete error: %s", err.Error())
-	}
-
-	return out, nil
-}
-
-func (s *defaultS3Wrapper) ListObjects(bucket, prefix string) ([]string, error) {
-	ops := NewAwsOps(s.session)
-	// prefix must end with a slash
-	if prefix != "" && !strings.HasSuffix(prefix, "/") {
-		prefix += "/"
-	}
-	return ops.BucketObjects(bucket, prefix, S3Concurrency, true, nil)
-}
-
-func getS3Options(configInput *rsstorage.ConfigS3) session.Options {
-	// By default decide whether to use shared config (e.g., `~/.aws/config`) from the
-	// environment. If the environment contains a truthy value for AWS_SDK_LOAD_CONFIG,
-	// then we'll use the shared config automatically. However, if
-	// `SharedConfigEnable == true`, then we forcefully enable it.
-	sharedConfig := session.SharedConfigStateFromEnv
-	if configInput.EnableSharedConfig {
-		sharedConfig = session.SharedConfigEnable
-	}
-
-	// Optionally support a configured region
-	s3config := aws.Config{}
-	if configInput.Region != "" {
-		s3config.Region = aws.String(configInput.Region)
-	}
-
-	// Optionally support a configured endpoint
-	if configInput.Endpoint != "" {
-		s3config.Endpoint = aws.String(configInput.Endpoint)
-	}
-
-	s3config.DisableSSL = aws.Bool(configInput.DisableSSL)
-	s3config.S3ForcePathStyle = aws.Bool(configInput.S3ForcePathStyle)
-
-	return session.Options{
-		Config:            s3config,
-		Profile:           configInput.Profile,
-		SharedConfigState: sharedConfig,
-	}
+	// Return all collected objects in a single response
+	isTruncated := false
+	return &s3.ListObjectsV2Output{
+		Contents:    allObjects,
+		IsTruncated: &isTruncated,
+	}, nil
 }

@@ -3,11 +3,12 @@ package s3server
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"net/http"
+	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jarcoal/httpmock"
 	"gopkg.in/check.v1"
 )
@@ -16,27 +17,21 @@ type MetaTestSuite struct{}
 
 var _ = check.Suite(&MetaTestSuite{})
 
-func (s *MetaTestSuite) TestNewAwsOps(c *check.C) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-2"),
-		Credentials: credentials.AnonymousCredentials,
-	})
-	c.Assert(err, check.IsNil)
-	ops := NewAwsOps(sess)
-	c.Assert(ops, check.DeepEquals, &DefaultAwsOps{sess: sess})
-}
-
 func (s *MetaTestSuite) TestBucketDirs(c *check.C) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-1"),
-		Credentials: credentials.AnonymousCredentials,
-	})
-	c.Assert(err, check.IsNil)
+	client := http.Client{}
+	s3Client := s3.New(
+		s3.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
+		},
+	)
+	awsOps := NewAwsOps(s3Client)
 
-	httpmock.ActivateNonDefault(sess.Config.HTTPClient)
+	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("GET", `https://sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F`,
+	httpmock.RegisterResponder("GET", `https://sync.s3.us-east-1.amazonaws.com/?delimiter=%2F&prefix=bin%2F`,
 		httpmock.NewStringResponder(http.StatusOK, `<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <Name>sync</Name>
   <Prefix>bin/</Prefix>
@@ -48,30 +43,34 @@ func (s *MetaTestSuite) TestBucketDirs(c *check.C) {
     <Prefix>bin/3.5-xenial/</Prefix>
   </CommonPrefixes>
 </ListBucketResult>`))
-	httpmock.RegisterResponder("GET", `https://no-sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F`,
+	httpmock.RegisterResponder("GET", `https://no-sync.s3.us-east-1.amazonaws.com/?delimiter=%2F&prefix=bin%2F`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``))
 
-	ops := &DefaultAwsOps{sess: sess}
-	dirs, err := ops.BucketDirs("no-sync", "bin/")
-	c.Assert(err.Error(), check.Equals, "something went wrong listing objects: NotFound: Not Found\n"+
-		"\tstatus code: 404, request id: , host id: ")
+	ctx := context.Background()
+	dirs, err := awsOps.BucketDirs(ctx, "no-sync", "bin/")
+	c.Assert(err, check.NotNil)
+	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 
-	dirs, err = ops.BucketDirs("sync", "bin/")
+	dirs, err = awsOps.BucketDirs(ctx, "sync", "bin/")
 	c.Assert(err, check.IsNil)
 	c.Check(dirs, check.DeepEquals, []string{"3.4-xenial", "3.5-xenial"})
 }
 
 func (s *MetaTestSuite) TestBucketObjects(c *check.C) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-1"),
-		Credentials: credentials.AnonymousCredentials,
-	})
-	c.Assert(err, check.IsNil)
+	client := http.Client{}
+	s3Client := s3.New(
+		s3.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
+		},
+	)
+	awsOps := NewAwsOps(s3Client)
 
-	httpmock.ActivateNonDefault(sess.Config.HTTPClient)
+	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("GET", `https://sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
+	httpmock.RegisterResponder("GET", `https://sync.s3.us-east-1.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
 		httpmock.NewStringResponder(http.StatusOK, `<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <Name>sync</Name>
   <Prefix>bin/3.5-xenial/</Prefix>
@@ -89,30 +88,34 @@ func (s *MetaTestSuite) TestBucketObjects(c *check.C) {
     <Key>nothing</Key>
   </Contents>
 </ListBucketResult>`))
-	httpmock.RegisterResponder("GET", `https://no-sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
+	httpmock.RegisterResponder("GET", `https://no-sync.s3.us-east-1.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``))
 
-	ops := &DefaultAwsOps{sess: sess}
-	files, err := ops.BucketObjects("no-sync", "bin/3.5-xenial", 1, false, BinaryReg)
-	c.Assert(err.Error(), check.Equals, "something went wrong listing objects: NotFound: Not Found\n"+
-		"\tstatus code: 404, request id: , host id: ")
+	ctx := context.Background()
+	files, err := awsOps.BucketObjects(ctx, "no-sync", "bin/3.5-xenial", 1, false, BinaryReg)
+	c.Assert(err, check.NotNil)
+	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 
-	files, err = ops.BucketObjects("sync", "bin/3.5-xenial", 1, false, BinaryReg)
+	files, err = awsOps.BucketObjects(ctx, "sync", "bin/3.5-xenial", 1, false, BinaryReg)
 	c.Assert(err, check.IsNil)
 	c.Check(files, check.DeepEquals, []string{"HIJKLMN", "OPQRSTU"})
 }
 
 func (s *MetaTestSuite) TestBucketObjectsMap(c *check.C) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:      aws.String("us-east-1"),
-		Credentials: credentials.AnonymousCredentials,
-	})
-	c.Assert(err, check.IsNil)
+	client := http.Client{}
+	s3Client := s3.New(
+		s3.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  &client,
+		},
+	)
+	awsOps := NewAwsOps(s3Client)
 
-	httpmock.ActivateNonDefault(sess.Config.HTTPClient)
+	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
 
-	httpmock.RegisterResponder("GET", `https://sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
+	httpmock.RegisterResponder("GET", `https://sync.s3.us-east-1.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
 		httpmock.NewStringResponder(http.StatusOK, `<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <Name>sync</Name>
   <Prefix>bin/3.5-xenial/</Prefix>
@@ -134,15 +137,15 @@ func (s *MetaTestSuite) TestBucketObjectsMap(c *check.C) {
     <ETag>0</ETag>
   </Contents>
 </ListBucketResult>`))
-	httpmock.RegisterResponder("GET", `https://no-sync.s3.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
+	httpmock.RegisterResponder("GET", `https://no-sync.s3.us-east-1.amazonaws.com/?delimiter=%2F&prefix=bin%2F3.5-xenial`,
 		httpmock.NewStringResponder(http.StatusNotFound, ``))
 
-	ops := &DefaultAwsOps{sess: sess}
-	files, err := ops.BucketObjectsETagMap("no-sync", "bin/3.5-xenial", 1, false, BinaryReg)
-	c.Assert(err.Error(), check.Equals, "something went wrong listing objects: NotFound: Not Found\n"+
-		"\tstatus code: 404, request id: , host id: ")
+	ctx := context.Background()
+	files, err := awsOps.BucketObjectsETagMap(ctx, "no-sync", "bin/3.5-xenial", 1, false, BinaryReg)
+	c.Assert(err, check.NotNil)
+	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 
-	files, err = ops.BucketObjectsETagMap("sync", "bin/3.5-xenial", 1, false, BinaryReg)
+	files, err = awsOps.BucketObjectsETagMap(ctx, "sync", "bin/3.5-xenial", 1, false, BinaryReg)
 	c.Assert(err, check.IsNil)
 	c.Check(files, check.DeepEquals, map[string]string{
 		"HIJKLMN": "456",
