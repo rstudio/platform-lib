@@ -108,7 +108,7 @@ func NewDummyFileCache() *DummyMemoryBackedFileCache {
 	}
 }
 
-func (f *DummyMemoryBackedFileCache) Check(resolver ResolverSpec) (bool, error) {
+func (f *DummyMemoryBackedFileCache) Check(ctx context.Context, resolver ResolverSpec) (bool, error) {
 	f.GotSpec = resolver
 	if f.GotSpecs == nil {
 		f.GotSpecs = make([]ResolverSpec, 0)
