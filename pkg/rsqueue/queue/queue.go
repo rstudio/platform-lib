@@ -3,7 +3,6 @@ package queue
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
-	"context"
 	"errors"
 	"sync"
 
@@ -145,9 +144,6 @@ type QueueWork struct {
 
 	// A byte array representing the work that can be unmarshaled to JSON
 	Work []byte
-
-	// A context for tracking recursive work
-	Context context.Context
 
 	// Byte array for persisting tracing data across the work lifecycle.
 	Carrier []byte

@@ -182,7 +182,7 @@ func (s *AgentSuite) TestWaitImmediate(c *check.C) {
 	msgs := make(chan listener.Notification)
 	a := NewAgent(agentCfg(&FakeRunner{}, &FakeQueue{}, s.cEnforcer, supportedTypes, msgs, 10, &fakeWrapper{}))
 	done := make(chan int64)
-	result := a.Wait(50, done)
+	result := a.Wait(context.Background(), 50, done)
 	// If there are already 50 jobs running, we can only take a new job
 	// if it's priority is 9 or greater
 	c.Check(result, check.Equals, uint64(1))
@@ -197,7 +197,7 @@ func (s *AgentSuite) TestWaitBlocked(c *check.C) {
 	done := make(chan bool)
 
 	go func() {
-		result := a.Wait(99, jobDone)
+		result := a.Wait(context.Background(), 99, jobDone)
 		c.Check(result, check.Equals, uint64(1))
 		completed = true
 		done <- true

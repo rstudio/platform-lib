@@ -160,7 +160,7 @@ func (a *DefaultAgent) Stop(timeout time.Duration) error {
 //
 // Returns:
 //   - uint64 - The maximum job priority for which we have capacity
-func (a *DefaultAgent) Wait(runningJobs int64, jobDone chan int64) uint64 {
+func (a *DefaultAgent) Wait(ctx context.Context, runningJobs int64, jobDone chan int64) uint64 {
 	// Flush notifications while the waiting. If the agent is not calling the
 	// queue's `Get` function due to no available concurrency slots, then any
 	// jobs that complete won't be able to send their work complete notifications
@@ -176,9 +176,9 @@ func (a *DefaultAgent) Wait(runningJobs int64, jobDone chan int64) uint64 {
 			return priority
 
 		} else {
-			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Concurrency limit reached. Waiting for a job to complete..."))
+			slog.Log(ctx, LevelTrace, "Concurrency limit reached. Waiting for a job to complete...")
 			runningJobs = <-jobDone
-			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Job completed. Checking for capacity again."))
+			slog.Log(ctx, LevelTrace, "Job completed. Checking for capacity again.")
 		}
 	}
 }
@@ -194,7 +194,7 @@ func (a *DefaultAgent) flushNotifications(stop chan struct{}) {
 	}
 }
 
-func (a *DefaultAgent) Run(notify agenttypes.Notify) {
+func (a *DefaultAgent) Run(ctx context.Context, notify agenttypes.Notify) {
 	defer close(a.stop)
 
 	// When a job completes, we send the new job count to this channel
@@ -212,7 +212,7 @@ func (a *DefaultAgent) Run(notify agenttypes.Notify) {
 
 		// Wait until we have capacity to run a job. `maxPriority` is the
 		// maximum priority we have capacity to handle.
-		maxPriority := a.Wait(runningJobs, jobDone)
+		maxPriority := a.Wait(ctx, runningJobs, jobDone)
 
 		// Get a job from the queue (blocks)
 		queueWork, err := a.queue.Get(maxPriority, maxPriorityChan, a.types, a.stop)
@@ -235,26 +235,28 @@ func (a *DefaultAgent) Run(notify agenttypes.Notify) {
 			continue
 		}
 
+		// TODO: This seems to undo the retry logic. Look into returning an error
+		// 	after number of retires
 		retry = 0
 
 		slog.Log(
-			context.Background(),
+			ctx,
 			LevelTrace,
-			fmt.Sprintf(
-				"Grabbed a new job with a maxPriority of '%d', type '%d', address '%s', and permit '%d'",
-				maxPriority,
-				queueWork.WorkType,
-				queueWork.Address,
-				queueWork.Permit,
-			),
+			"Grabbed a new job",
+			"max_priority", maxPriority,
+			"work_type", queueWork.WorkType,
+			"address", queueWork.Address,
+			"permit", queueWork.Permit,
 		)
 		jsonDst := bytes.Buffer{}
-		// TODO: Handle this error
-		json.Indent(&jsonDst, queueWork.Work, "", "  ")
-		slog.Log(context.Background(), LevelTrace, jsonDst.String())
+		// TODO: Better handle this error, or possibly remove logging this
+		indentErr := json.Indent(&jsonDst, queueWork.Work, "", "  ")
+		if indentErr == nil {
+			slog.Log(ctx, LevelTrace, jsonDst.String())
+		}
 
 		// Create a context for the work
-		ctx := queue.ContextWithRecursion(context.Background(), queueWork.WorkType, a.getRecurseFn(jobDone))
+		ctx = queue.ContextWithRecursion(ctx, queueWork.WorkType, a.getRecurseFn(jobDone))
 
 		// Increment job count
 		a.mutex.Lock()
@@ -403,7 +405,6 @@ func (a *DefaultAgent) runJob(
 			queue.RecursableWork{
 				Work:     queueWork.Work,
 				WorkType: queueWork.WorkType,
-				Context:  ctx,
 			},
 		)
 		if err != nil {
