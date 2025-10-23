@@ -3,6 +3,7 @@ package store
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -32,7 +33,7 @@ type Store interface {
 	dbqueuetypes.QueueStore
 	dbqueuetypes.QueueGroupStore
 
-	Notify(channelName string, n interface{}) error
+	Notify(ctx context.Context, channelName string, n interface{}) error
 
 	// QueueNewGroup creates a new queue group in the database
 	QueueNewGroup(name string) (dbqueuetypes.QueueGroupRecord, error)
@@ -165,8 +166,8 @@ func (conn *store) CompleteTransaction(err *error) {
 	}
 }
 
-func (conn *store) NotifyExtend(permit uint64) error {
-	return conn.Notify(notifytypes.ChannelLeader, dbqueuetypes.NewQueuePermitExtendNotification(permit, notifytypes.NotifyTypePermitExtend))
+func (conn *store) NotifyExtend(ctx context.Context, permit uint64) error {
+	return conn.Notify(ctx, notifytypes.ChannelLeader, dbqueuetypes.NewQueuePermitExtendNotification(permit, notifytypes.NotifyTypePermitExtend))
 }
 
 func (conn *store) QueueNewGroup(name string) (dbqueuetypes.QueueGroupRecord, error) {
@@ -726,7 +727,7 @@ func (conn *store) QueueGroupGet(name string) (record *QueueGroup, err error) {
 	return
 }
 
-func (conn *store) Notify(channelName string, n interface{}) error {
+func (conn *store) Notify(ctx context.Context, channelName string, n interface{}) error {
 	msgbytes, err := json.Marshal(n)
 	if err != nil {
 		return err

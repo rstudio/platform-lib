@@ -3,6 +3,7 @@ package dbqueuetypes
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"database/sql"
 	"time"
 
@@ -34,7 +35,7 @@ type QueueStore interface {
 	TransactionCompleter
 	BeginTransactionQueue(description string) (QueueStore, error)
 
-	NotifyExtend(permit uint64) error
+	NotifyExtend(ctx context.Context, permit uint64) error
 
 	// QueuePush pushes work into a queue. Pass a queue name, a priority (0 is the highest),
 	// and some work.

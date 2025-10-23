@@ -117,7 +117,7 @@ func (s *QueueTestStore) IsQueueAddressComplete(address string) (bool, error) {
 	return s.poll, s.pollErr
 }
 
-func (s *QueueTestStore) NotifyExtend(permit uint64) error {
+func (s *QueueTestStore) NotifyExtend(ctx context.Context, permit uint64) error {
 	return s.err
 }
 

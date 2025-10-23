@@ -27,9 +27,9 @@ type ChunkUtils interface {
 }
 
 type ChunkWaiter interface {
-	WaitForChunk(c *types.ChunkNotification)
+	WaitForChunk(ctx context.Context, c *types.ChunkNotification)
 }
 
 type ChunkNotifier interface {
-	Notify(c *types.ChunkNotification) error
+	Notify(ctx context.Context, c *types.ChunkNotification) error
 }

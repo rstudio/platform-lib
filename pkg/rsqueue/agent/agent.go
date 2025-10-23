@@ -219,7 +219,7 @@ func (a *DefaultAgent) Run(ctx context.Context, notify agenttypes.Notify) {
 		if utils.IsSqliteLockError(err) {
 			// Do nothing, but sleep a bit to allow competing work through.
 			// Only log if tracing.
-			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Database lock error during queue Get(): %s", err))
+			slog.Log(ctx, LevelTrace, fmt.Sprintf("Database lock error during queue Get(): %s", err))
 			time.Sleep(100 * time.Millisecond)
 			continue
 		} else if err == ErrAgentStopped {
@@ -256,7 +256,7 @@ func (a *DefaultAgent) Run(ctx context.Context, notify agenttypes.Notify) {
 		}
 
 		// Create a context for the work
-		ctx = queue.ContextWithRecursion(ctx, queueWork.WorkType, a.getRecurseFn(jobDone))
+		ctx = queue.ContextWithRecursion(ctx, queueWork.WorkType, a.getRecurseFn(ctx, jobDone))
 
 		// Increment job count
 		a.mutex.Lock()
@@ -293,7 +293,7 @@ func (a *DefaultAgent) Run(ctx context.Context, notify agenttypes.Notify) {
 //	}
 //
 // ```
-func (a *DefaultAgent) getRecurseFn(jobDone chan int64) queue.RecurseFunc {
+func (a *DefaultAgent) getRecurseFn(ctx context.Context, jobDone chan int64) queue.RecurseFunc {
 	return func(run func()) {
 
 		// Track recursions
@@ -311,7 +311,7 @@ func (a *DefaultAgent) getRecurseFn(jobDone chan int64) queue.RecurseFunc {
 		// during the recursive call.
 		a.mutex.Lock()
 		a.runningJobs -= 1
-		slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Recursion function reduced running job count from %d to %d", a.runningJobs+1, a.runningJobs))
+		slog.Log(ctx, LevelTrace, fmt.Sprintf("Recursion function reduced running job count from %d to %d", a.runningJobs+1, a.runningJobs))
 		a.mutex.Unlock()
 
 		// Notify the runner that we've freed up capacity due to recursion

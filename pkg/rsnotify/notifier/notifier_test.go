@@ -3,6 +3,7 @@ package notifier
 // Copyright (C) 2022 by RStudio, PBC.
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -25,7 +26,7 @@ type fakeNotification struct {
 	Visited []string
 }
 
-func (f *fakeProvider) Notify(channelName string, msg []byte) error {
+func (f *fakeProvider) Notify(ctx context.Context, channelName string, msg []byte) error {
 	if f.notified == nil {
 		f.notified = make([]string, 0)
 	}

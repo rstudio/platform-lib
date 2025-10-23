@@ -595,12 +595,13 @@ func (s *AgentSuite) TestCheckForJobsWithRecursionTimeout(c *check.C) {
 
 func (s *AgentSuite) TestRecurseFn(c *check.C) {
 	defer leaktest.Check(c)
+	ctx := context.Background()
 
 	a := &DefaultAgent{
 		runningJobs: 2,
 	}
 	jobDone := make(chan int64)
-	recurse := a.getRecurseFn(jobDone)
+	recurse := a.getRecurseFn(ctx, jobDone)
 	workDone := make(chan bool)
 	work := func() {
 		defer close(workDone)
@@ -626,7 +627,7 @@ func (s *AgentSuite) TestRecurseFn(c *check.C) {
 
 	// Start the work again
 	jobDone = make(chan int64)
-	recurse = a.getRecurseFn(jobDone)
+	recurse = a.getRecurseFn(ctx, jobDone)
 	workDone = make(chan bool)
 	work = func() {
 		defer close(workDone)

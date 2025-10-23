@@ -104,7 +104,7 @@ type dummyNotifier struct {
 	wait chan bool
 }
 
-func (d *dummyNotifier) Notify(channel string, msgBytes []byte) error {
+func (d *dummyNotifier) Notify(ctx context.Context, channel string, msgBytes []byte) error {
 	d.msgs = append(d.msgs, notification{
 		ch:  channel,
 		msg: msgBytes,
@@ -167,7 +167,7 @@ func (s *FollowerSuite) TestFollowNotify(c *check.C) {
 	}
 	msgBytes, err := json.Marshal(ping)
 	c.Assert(err, check.IsNil)
-	err = realNotifier.Notify(channel+"_follower", msgBytes)
+	err = realNotifier.Notify(context.Background(), channel+"_follower", msgBytes)
 	c.Assert(err, check.IsNil)
 
 	// Wait for notification to be handled

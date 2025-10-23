@@ -3,6 +3,7 @@ package pgxelection
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -37,7 +38,7 @@ type FakePgNotifier struct {
 	notifyErr error
 }
 
-func (f FakePgNotifier) Notify(channel string, msgBytes []byte) error {
+func (f FakePgNotifier) Notify(ctx context.Context, channel string, msgBytes []byte) error {
 	return f.notifyErr
 }
 
@@ -167,6 +168,7 @@ func (s *LeaderSuite) TestLeaderLeadStartStopSelfAware(c *check.C) {
 
 func (s *LeaderSuite) TestLeaderLeadInternal(c *check.C) {
 	defer leaktest.Check(c)
+	ctx := context.Background()
 
 	channel := c.TestName()
 	// Use a real notifier to send the Ping Request notification.
@@ -267,7 +269,7 @@ func (s *LeaderSuite) TestLeaderLeadInternal(c *check.C) {
 	msgBytes, err := json.Marshal(ping)
 	c.Assert(err, check.IsNil)
 	wait(pingCh, func() {
-		err = realNotifier.Notify(channel+"_leader", msgBytes)
+		err = realNotifier.Notify(ctx, channel+"_leader", msgBytes)
 		c.Assert(err, check.IsNil)
 	})
 
@@ -283,7 +285,7 @@ func (s *LeaderSuite) TestLeaderLeadInternal(c *check.C) {
 	msgBytes, err = json.Marshal(nodesReq)
 	c.Assert(err, check.IsNil)
 	go func() {
-		err = realNotifier.Notify(channel+"_leader", msgBytes)
+		err = realNotifier.Notify(ctx, channel+"_leader", msgBytes)
 		c.Assert(err, check.IsNil)
 	}()
 	<-nWait
@@ -417,7 +419,7 @@ func (s *LeaderSuite) TestLeaderPingSelf(c *check.C) {
 
 	now := time.Now()
 	wait(pingCh, func() {
-		err = realNotifier.Notify(channel+"_leader", msgBytes)
+		err = realNotifier.Notify(context.Background(), channel+"_leader", msgBytes)
 		c.Assert(err, check.IsNil)
 	})
 	c.Assert(len(leader.nodes), check.Equals, 1)
@@ -485,7 +487,7 @@ func (s *LeaderSuite) TestLeaderDemotion(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = realNotifier.Notify(channel+"_leader", msgBytes)
+	err = realNotifier.Notify(context.Background(), channel+"_leader", msgBytes)
 	c.Assert(err, check.IsNil)
 
 	// Wait for exit. Should stop upon self-demotion

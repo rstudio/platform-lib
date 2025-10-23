@@ -24,7 +24,7 @@ const (
 )
 
 type Follower interface {
-	Follow() FollowResult
+	Follow(ctx context.Context) FollowResult
 	Promote()
 }
 
@@ -81,7 +81,7 @@ func NewPgxFollower(cfg PgxFollowerConfig) *PgxFollower {
 	}
 }
 
-func (p *PgxFollower) Follow() (result FollowResult) {
+func (p *PgxFollower) Follow(ctx context.Context) (result FollowResult) {
 	l := p.awb.Subscribe(electiontypes.ClusterMessageTypePing)
 	defer p.awb.Unsubscribe(l)
 
@@ -100,7 +100,7 @@ func (p *PgxFollower) Follow() (result FollowResult) {
 			// Follower has received a notification. For example, the follower receives
 			// periodic "pings" from the leader.
 			if cn, ok := n.(*electiontypes.ClusterPingRequest); ok {
-				go p.handleNotify(cn)
+				go p.handleNotify(ctx, cn)
 			}
 		case <-timeout.C:
 			// Follower has received no pings for the timeout duration. It is time to
@@ -118,15 +118,15 @@ func (p *PgxFollower) Promote() {
 	p.promote <- true
 }
 
-func (p *PgxFollower) handleNotify(cn *electiontypes.ClusterPingRequest) {
+func (p *PgxFollower) handleNotify(ctx context.Context, cn *electiontypes.ClusterPingRequest) {
 	resp := electiontypes.NewClusterPingResponse(p.address, cn.SrcAddr, p.awb.IP())
 	b, err := json.Marshal(resp)
 	if err != nil {
 		log.Printf("Error marshaling notification to JSON: %s", err)
 		return
 	}
-	slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Follower %s responding to ping from leader %s", p.address, cn.SrcAddr))
-	err = p.notify.Notify(p.chLeader, b)
+	slog.Log(ctx, LevelTrace, fmt.Sprintf("Follower %s responding to ping from leader %s", p.address, cn.SrcAddr))
+	err = p.notify.Notify(ctx, p.chLeader, b)
 	if err != nil {
 		log.Printf("Follower error responding to leader ping: %s", err)
 	}

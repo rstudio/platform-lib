@@ -35,7 +35,7 @@ type DummyWaiterNotifier struct {
 	Ch chan bool
 }
 
-func (d *DummyWaiterNotifier) WaitForChunk(c *types.ChunkNotification) {
+func (d *DummyWaiterNotifier) WaitForChunk(ctx context.Context, c *types.ChunkNotification) {
 	to := time.NewTimer(time.Second)
 	defer to.Stop()
 	select {
@@ -44,7 +44,7 @@ func (d *DummyWaiterNotifier) WaitForChunk(c *types.ChunkNotification) {
 	}
 }
 
-func (d *DummyWaiterNotifier) Notify(c *types.ChunkNotification) error {
+func (d *DummyWaiterNotifier) Notify(ctx context.Context, c *types.ChunkNotification) error {
 	select {
 	case d.Ch <- true:
 	default:

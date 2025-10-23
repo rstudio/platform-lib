@@ -3,6 +3,7 @@ package groups
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -150,7 +151,7 @@ func (r *QueueGroupRunner) unmarshal(work []byte) (GroupQueueJob, error) {
 	return input, nil
 }
 
-func (r *QueueGroupRunner) Run(work queue.RecursableWork) error {
+func (r *QueueGroupRunner) Run(ctx context.Context, work queue.RecursableWork) error {
 	r.wg.Add(1)
 	defer r.wg.Done()
 
@@ -164,7 +165,7 @@ func (r *QueueGroupRunner) Run(work queue.RecursableWork) error {
 	// Run in the context of the queue agent's "recurse" function, so
 	// we won't continually use an agent concurrency slot while waiting
 	// for the queue group to complete.
-	r.recurser.OptionallyRecurse(queue.ContextWithExpectedRecursion(work.Context), func() {
+	r.recurser.OptionallyRecurse(queue.ContextWithExpectedRecursion(ctx), func() {
 		origErr := r.run(job)
 		if origErr != nil {
 			slog.Debug(fmt.Sprintf("QueueGroupRunner run failure: %s", origErr))

@@ -4,6 +4,7 @@ package notifier
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -34,7 +35,7 @@ var chunkHeaderRegex = regexp.MustCompile("" +
 // chunks from the Notifier to the messaging system, e.g., Postgres
 // NOTIFY.
 type Provider interface {
-	Notify(channelName string, msg []byte) error
+	Notify(ctx context.Context, channelName string, msg []byte) error
 }
 
 const (
@@ -99,7 +100,7 @@ func NewNotifier(args Args) *Notifier {
 
 // Notify sends a regular or chunked message via the Provider. The Notifier
 // configuration (see Args) determines when and how messages are chunked.
-func (n *Notifier) Notify(channelName string, notification interface{}) error {
+func (n *Notifier) Notify(ctx context.Context, channelName string, notification interface{}) error {
 	msg, err := json.Marshal(notification)
 	if err != nil {
 		return err
@@ -116,7 +117,7 @@ func (n *Notifier) Notify(channelName string, notification interface{}) error {
 		return err
 	}
 	for _, chunk := range chunks {
-		err = n.provider.Notify(channelName, chunk)
+		err = n.provider.Notify(ctx, channelName, chunk)
 		if err != nil {
 			return err
 		}
