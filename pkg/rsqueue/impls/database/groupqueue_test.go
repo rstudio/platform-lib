@@ -3,6 +3,7 @@ package database
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"errors"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/groups"
@@ -110,7 +111,7 @@ func (f *fakeQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, types q
 	return nil, errors.New("n/i")
 }
 
-func (f *fakeQueue) Extend(permit.Permit) error {
+func (f *fakeQueue) Extend(context.Context, permit.Permit) error {
 	f.extended += 1
 	return f.extendErr
 }

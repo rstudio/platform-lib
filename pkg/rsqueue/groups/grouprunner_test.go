@@ -3,6 +3,7 @@ package groups
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -128,7 +129,7 @@ func (f *fakeQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, types q
 	return nil, errors.New("n/i")
 }
 
-func (f *fakeQueue) Extend(permit.Permit) error {
+func (f *fakeQueue) Extend(ctx context.Context, permit permit.Permit) error {
 	f.extended += 1
 	return f.extendErr
 }
@@ -274,41 +275,42 @@ func (s *QueueGroupRunnerSuite) TestRun(c *check.C) {
 	matcher := NewMatcher("type")
 	matcher.Register(3, &fakeGroup{})
 	r := NewQueueGroupRunner(runnerCfg(q, p, matcher, factory, &queue.OptionalRecurser{}))
+	ctx := context.Background()
 
 	// Unmarshal errs
 	work := queue.RecursableWork{
 		Work: []byte(`{!`),
 	}
-	err := r.Run(work)
+	err := r.Run(ctx, work)
 	c.Assert(err, check.ErrorMatches, "error unmarshalling .*")
 
 	// Run failure results in cancel, clear, fail
 	p.completeErr = errors.New("complete error")
 	work.Work = []byte(`{"type":3,"value":"something","flag":"START"}`)
-	err = r.Run(work)
+	err = r.Run(ctx, work)
 	c.Assert(err, check.ErrorMatches, "complete error")
 
 	// Run failure with cancel error
 	p.cancelErr = errors.New("cancel error")
-	err = r.Run(work)
+	err = r.Run(ctx, work)
 	c.Assert(err, check.ErrorMatches, "cancel error")
 
 	// Run failure with clear error
 	p.cancelErr = nil
 	p.clearErr = errors.New("clear error")
-	err = r.Run(work)
+	err = r.Run(ctx, work)
 	c.Assert(err, check.ErrorMatches, "clear error")
 
 	// Run failure with fail error
 	p.clearErr = nil
 	p.failErr = errors.New("fail error")
-	err = r.Run(work)
+	err = r.Run(ctx, work)
 	c.Assert(err, check.ErrorMatches, "fail error")
 	c.Assert(p.failRecordErr, check.ErrorMatches, "complete error")
 
 	// Success
 	p.completeErr = nil
-	err = r.Run(work)
+	err = r.Run(ctx, work)
 	c.Assert(err, check.IsNil)
 }
 

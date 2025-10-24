@@ -3,6 +3,7 @@ package queue
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"errors"
 	"sync"
 
@@ -99,7 +100,7 @@ func (q *RecordingProducer) Get(maxPriority uint64, maxPriorityChan chan uint64,
 	return nil, kaboom
 }
 
-func (q *RecordingProducer) Extend(permit.Permit) error {
+func (q *RecordingProducer) Extend(ctx context.Context, permit permit.Permit) error {
 	q.Extended += 1
 	return nil
 }

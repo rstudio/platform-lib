@@ -3,6 +3,7 @@ package database
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -393,8 +394,8 @@ func (q *DatabaseQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, typ
 	}
 }
 
-func (q *DatabaseQueue) Extend(permit permit.Permit) error {
-	return q.store.NotifyExtend(uint64(permit))
+func (q *DatabaseQueue) Extend(ctx context.Context, permit permit.Permit) error {
+	return q.store.NotifyExtend(ctx, uint64(permit))
 }
 
 func (q *DatabaseQueue) Delete(permit permit.Permit) error {

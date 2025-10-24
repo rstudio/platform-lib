@@ -387,7 +387,7 @@ func (s *QueueSuite) TestExtend(c *check.C) {
 		store:   s.store,
 		wrapper: &fakeWrapper{},
 	}
-	err := q.Extend(permit.Permit(9))
+	err := q.Extend(context.Background(), permit.Permit(9))
 	c.Assert(err, check.IsNil)
 }
 
@@ -430,7 +430,7 @@ func (s *QueueSuite) TestExtendErrs(c *check.C) {
 		store:   s.store,
 		wrapper: &fakeWrapper{},
 	}
-	err := q.Extend(permit.Permit(9))
+	err := q.Extend(context.Background(), permit.Permit(9))
 	c.Assert(err, check.NotNil)
 }
 

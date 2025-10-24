@@ -3,6 +3,7 @@ package queue
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"errors"
 	"sync"
 
@@ -67,7 +68,7 @@ type Queue interface {
 	Get(maxPriority uint64, maxPriorityChan chan uint64, types QueueSupportedTypes, stop chan bool) (*QueueWork, error)
 
 	// Extend (heartbeat) a queue permit while work is in progress.
-	Extend(permit.Permit) error
+	Extend(context.Context, permit.Permit) error
 
 	// Delete a queue permit and its associated work. This is typically called when
 	// the work is complete.

@@ -96,7 +96,7 @@ func NewPgxLeader(cfg PgxLeaderConfig) *PgxLeader {
 	}
 }
 
-func (p *PgxLeader) Lead() error {
+func (p *PgxLeader) Lead(ctx context.Context) error {
 	// Initialize list of nodes
 	p.nodes = make(map[string]*electiontypes.ClusterNode)
 	nodes, err := p.store.Nodes()
@@ -118,11 +118,11 @@ func (p *PgxLeader) Lead() error {
 	go p.taskHandler.Handle(p.awb)
 	defer p.taskHandler.Stop()
 
-	p.lead(pingTicker.C, sweepTicker.C, p.stop)
+	p.lead(ctx, pingTicker.C, sweepTicker.C, p.stop)
 	return nil
 }
 
-func (p *PgxLeader) lead(pingTick, sweepTick <-chan time.Time, stop chan bool) {
+func (p *PgxLeader) lead(ctx context.Context, pingTick, sweepTick <-chan time.Time, stop chan bool) {
 
 	// Listen for ping responses from other nodes
 	l := p.awb.Subscribe(electiontypes.ClusterMessageTypePingResponse)
@@ -142,7 +142,7 @@ func (p *PgxLeader) lead(pingTick, sweepTick <-chan time.Time, stop chan bool) {
 	logTickCh := logTicker.C
 
 	// Send a ping synchronously to ensure other nodes know about the new leader
-	p.pingNodes()
+	p.pingNodes(ctx)
 
 	for {
 
@@ -170,10 +170,10 @@ func (p *PgxLeader) lead(pingTick, sweepTick <-chan time.Time, stop chan bool) {
 			// This supports receiving a request to enumerate cluster nodes. The leader
 			// responds with a list of nodes on the generic messaging channel.
 			if cn, ok := n.(*electiontypes.ClusterNodesRequest); ok {
-				go p.handleNodesRequest(cn)
+				go p.handleNodesRequest(ctx, cn)
 			}
 		case <-pingTick:
-			go p.pingNodes()
+			go p.pingNodes(ctx)
 		case <-sweepTick:
 			p.sweepNodes()
 		case vCh := <-p.taskHandler.Verify():
@@ -254,7 +254,7 @@ func (p *PgxLeader) verify(vCh chan bool) {
 
 // pingNodes sends a ping request out on the follower channel. All online cluster
 // nodes should receive this message and respond with a ping response.
-func (p *PgxLeader) pingNodes() {
+func (p *PgxLeader) pingNodes(ctx context.Context) {
 	req := &electiontypes.ClusterNotification{
 		GuidVal:     uuid.New().String(),
 		MessageType: electiontypes.ClusterMessageTypePing,
@@ -270,8 +270,8 @@ func (p *PgxLeader) pingNodes() {
 	defer p.pingSuccessLock.Unlock()
 	p.pingSuccess = true
 
-	slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Leader pinging nodes on follower channel %s", p.chFollower))
-	err = p.notify.Notify(p.chFollower, b)
+	slog.Log(ctx, LevelTrace, fmt.Sprintf("Leader pinging nodes on follower channel %s", p.chFollower))
+	err = p.notify.Notify(ctx, p.chFollower, b)
 	if err != nil {
 		p.pingSuccess = false
 		log.Printf("Leader error pinging followers: %s", err)
@@ -280,8 +280,8 @@ func (p *PgxLeader) pingNodes() {
 
 	// This will ensure that the leader is tracked as part of the nodes in the cluster, and it will force
 	// duplicate leaders to surrender the position.
-	slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Leader pinging itself on leader channel %s", p.chLeader))
-	err = p.notify.Notify(p.chLeader, b)
+	slog.Log(ctx, LevelTrace, fmt.Sprintf("Leader pinging itself on leader channel %s", p.chLeader))
+	err = p.notify.Notify(ctx, p.chLeader, b)
 	if err != nil {
 		p.pingSuccess = false
 		log.Printf("Leader error pinging leaders: %s", err)
@@ -289,11 +289,11 @@ func (p *PgxLeader) pingNodes() {
 	}
 }
 
-func (p *PgxLeader) handleNodesRequest(cn *electiontypes.ClusterNodesRequest) {
+func (p *PgxLeader) handleNodesRequest(ctx context.Context, cn *electiontypes.ClusterNodesRequest) {
 	p.mutex.RLock()
 	defer p.mutex.RUnlock()
 
-	slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Leader received request for nodes"))
+	slog.Log(ctx, LevelTrace, fmt.Sprintf("Leader received request for nodes"))
 	nodes := make([]electiontypes.ClusterNode, 0)
 	for _, node := range p.nodes {
 		leader := node.Name == p.address && node.IP == p.awb.IP()
@@ -313,7 +313,7 @@ func (p *PgxLeader) handleNodesRequest(cn *electiontypes.ClusterNodesRequest) {
 	}
 
 	// Broadcast the response on the generic channel
-	err = p.notify.Notify(p.chMessages, b)
+	err = p.notify.Notify(ctx, p.chMessages, b)
 	if err != nil {
 		log.Printf("Leader error notifying of cluster nodes: %s", err)
 		return

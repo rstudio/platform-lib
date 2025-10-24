@@ -140,7 +140,7 @@ func (f *FakeQueue) RecordFailure(address string, failure error) error {
 func (*FakeQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
 	return nil, nil
 }
-func (f *FakeQueue) Extend(p permit.Permit) error {
+func (f *FakeQueue) Extend(ctx context.Context, p permit.Permit) error {
 	if f.extend == nil {
 		f.mutex.Lock()
 		defer f.mutex.Unlock()
