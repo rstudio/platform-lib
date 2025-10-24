@@ -7,6 +7,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 )
 
@@ -36,11 +37,11 @@ type RecordingProducer struct {
 	PeekErr  error
 }
 
-func (q *RecordingProducer) WithDbTx(tx interface{}) Queue {
+func (q *RecordingProducer) WithDbTx(ctx context.Context, tx dbqueuetypes.QueueStore) Queue {
 	return q
 }
 
-func (q *RecordingProducer) Peek(filter func(work *QueueWork) (bool, error), types ...uint64) ([]QueueWork, error) {
+func (q *RecordingProducer) Peek(ctx context.Context, filter func(work *QueueWork) (bool, error), types ...uint64) ([]QueueWork, error) {
 	if q.PeekErr != nil {
 		return nil, q.PeekErr
 	}
@@ -62,7 +63,7 @@ func (q *RecordingProducer) Peek(filter func(work *QueueWork) (bool, error), typ
 	return results, nil
 }
 
-func (q *RecordingProducer) Push(priority uint64, groupId int64, work Work) error {
+func (q *RecordingProducer) Push(ctx context.Context, priority uint64, groupId int64, work Work) error {
 	q.AddParams = append(q.AddParams, addParams{work, ""})
 	q.Lock.Lock()
 	defer q.Lock.Unlock()
@@ -73,7 +74,7 @@ func (q *RecordingProducer) Push(priority uint64, groupId int64, work Work) erro
 	return q.PushError
 }
 
-func (q *RecordingProducer) AddressedPush(priority uint64, groupId int64, address string, work Work) error {
+func (q *RecordingProducer) AddressedPush(ctx context.Context, priority uint64, groupId int64, address string, work Work) error {
 	q.AddParams = append(q.AddParams, addParams{work, address})
 	q.Lock.Lock()
 	defer q.Lock.Unlock()
@@ -84,19 +85,19 @@ func (q *RecordingProducer) AddressedPush(priority uint64, groupId int64, addres
 	return q.PushError
 }
 
-func (q *RecordingProducer) IsAddressInQueue(address string) (bool, error) {
+func (q *RecordingProducer) IsAddressInQueue(ctx context.Context, address string) (bool, error) {
 	return q.HasAddress, q.HasAddressErr
 }
 
-func (q *RecordingProducer) PollAddress(address string) (errs <-chan error) {
+func (q *RecordingProducer) PollAddress(ctx context.Context, address string) (errs <-chan error) {
 	return q.PollErrs
 }
 
-func (q *RecordingProducer) RecordFailure(address string, failure error) error {
+func (q *RecordingProducer) RecordFailure(ctx context.Context, address string, failure error) error {
 	return q.RecordErr
 }
 
-func (q *RecordingProducer) Get(maxPriority uint64, maxPriorityChan chan uint64, types QueueSupportedTypes, stop chan bool) (*QueueWork, error) {
+func (q *RecordingProducer) Get(ctx context.Context, maxPriority uint64, maxPriorityChan chan uint64, types QueueSupportedTypes, stop chan bool) (*QueueWork, error) {
 	return nil, kaboom
 }
 
@@ -105,7 +106,7 @@ func (q *RecordingProducer) Extend(ctx context.Context, permit permit.Permit) er
 	return nil
 }
 
-func (q *RecordingProducer) Delete(permit.Permit) error {
+func (q *RecordingProducer) Delete(ctx context.Context, permit permit.Permit) error {
 	return kaboom
 }
 

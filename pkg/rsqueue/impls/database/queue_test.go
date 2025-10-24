@@ -65,37 +65,37 @@ type QueueTestStore struct {
 	peekErr        error
 }
 
-func (s *QueueTestStore) BeginTransactionQueue(description string) (dbqueuetypes.QueueStore, error) {
+func (s *QueueTestStore) BeginTransactionQueue(ctx context.Context, description string) (dbqueuetypes.QueueStore, error) {
 	return s, nil
 }
 
-func (s *QueueTestStore) CompleteTransaction(err *error) {}
+func (s *QueueTestStore) CompleteTransaction(ctx context.Context, err *error) {}
 
-func (s *QueueTestStore) QueuePermits(name string) ([]dbqueuetypes.QueuePermit, error) {
+func (s *QueueTestStore) QueuePermits(ctx context.Context, name string) ([]dbqueuetypes.QueuePermit, error) {
 	s.permitsCalled++
 	return s.permits, s.permitsErr
 }
 
-func (s *QueueTestStore) QueuePermitDelete(permitID permit.Permit) error {
+func (s *QueueTestStore) QueuePermitDelete(ctx context.Context, permitID permit.Permit) error {
 	if s.permitDelete == nil {
 		s.permitsDeleted++
 	}
 	return s.permitDelete
 }
 
-func (s *QueueTestStore) QueuePeek(types ...uint64) (results []queue.QueueWork, err error) {
+func (s *QueueTestStore) QueuePeek(ctx context.Context, types ...uint64) (results []queue.QueueWork, err error) {
 	return s.peek, s.peekErr
 }
 
-func (s *QueueTestStore) QueuePush(name string, groupId sql.NullInt64, priority, workType uint64, work interface{}, carrier []byte) error {
+func (s *QueueTestStore) QueuePush(ctx context.Context, name string, groupId sql.NullInt64, priority, workType uint64, work interface{}, carrier []byte) error {
 	return s.err
 }
 
-func (s *QueueTestStore) QueuePushAddressed(name string, groupId sql.NullInt64, priority, workType uint64, address string, work interface{}, carrier []byte) error {
+func (s *QueueTestStore) QueuePushAddressed(ctx context.Context, name string, groupId sql.NullInt64, priority, workType uint64, address string, work interface{}, carrier []byte) error {
 	return s.err
 }
 
-func (s *QueueTestStore) QueuePop(name string, maxPriority uint64, types []uint64) (*queue.QueueWork, error) {
+func (s *QueueTestStore) QueuePop(ctx context.Context, name string, maxPriority uint64, types []uint64) (*queue.QueueWork, error) {
 	// Simulate returning results on for maxPriority > 1
 	if s.err == nil {
 		s.enabled = types
@@ -108,11 +108,11 @@ func (s *QueueTestStore) QueuePop(name string, maxPriority uint64, types []uint6
 	return nil, s.err
 }
 
-func (s *QueueTestStore) IsQueueAddressInProgress(address string) (bool, error) {
+func (s *QueueTestStore) IsQueueAddressInProgress(ctx context.Context, address string) (bool, error) {
 	return s.hasAddress, s.hasAddressErr
 }
 
-func (s *QueueTestStore) IsQueueAddressComplete(address string) (bool, error) {
+func (s *QueueTestStore) IsQueueAddressComplete(ctx context.Context, address string) (bool, error) {
 	s.polled++
 	return s.poll, s.pollErr
 }
@@ -121,11 +121,11 @@ func (s *QueueTestStore) NotifyExtend(ctx context.Context, permit uint64) error 
 	return s.err
 }
 
-func (s *QueueTestStore) QueueDelete(permit permit.Permit) error {
+func (s *QueueTestStore) QueueDelete(ctx context.Context, permit permit.Permit) error {
 	return s.err
 }
 
-func (s *QueueTestStore) QueueAddressedComplete(address string, failure error) error {
+func (s *QueueTestStore) QueueAddressedComplete(ctx context.Context, address string, failure error) error {
 	return s.err
 }
 
@@ -218,9 +218,11 @@ func (s *QueueSuite) TestRecord(c *check.C) {
 		store:   s.store,
 		wrapper: &fakeWrapper{},
 	}
-	err := q.RecordFailure("abc", errors.New("test"))
+	ctx := context.Background()
+
+	err := q.RecordFailure(ctx, "abc", errors.New("test"))
 	c.Assert(err, check.IsNil)
-	err = q.RecordFailure("abc", nil)
+	err = q.RecordFailure(ctx, "abc", nil)
 	c.Assert(err, check.IsNil)
 }
 
@@ -230,7 +232,7 @@ func (s *QueueSuite) TestRecordErrs(c *check.C) {
 		store:   s.store,
 		wrapper: &fakeWrapper{},
 	}
-	err := q.RecordFailure("abc", errors.New("test"))
+	err := q.RecordFailure(context.Background(), "abc", errors.New("test"))
 	c.Assert(err, check.NotNil)
 }
 
@@ -240,7 +242,7 @@ func (s *QueueSuite) TestPush(c *check.C) {
 		carrierFactory: &fakeCarrierFactory{},
 		wrapper:        &fakeWrapper{},
 	}
-	err := q.Push(9, 0, &FakeWork{})
+	err := q.Push(context.Background(), 9, 0, &FakeWork{})
 	c.Assert(err, check.IsNil)
 }
 
@@ -263,20 +265,21 @@ func (s *QueueSuite) TestPeek(c *check.C) {
 		store:   cstore,
 		wrapper: &fakeWrapper{},
 	}
+	ctx := context.Background()
 
 	// Error in store
-	_, err := q.Peek(func(work *queue.QueueWork) (bool, error) { return true, nil }, 5)
+	_, err := q.Peek(ctx, func(work *queue.QueueWork) (bool, error) { return true, nil }, 5)
 	c.Assert(err, check.ErrorMatches, "peek error")
 
 	// Error in filter
 	cstore.peekErr = nil
-	_, err = q.Peek(func(work *queue.QueueWork) (bool, error) {
+	_, err = q.Peek(ctx, func(work *queue.QueueWork) (bool, error) {
 		return false, errors.New("filter error")
 	}, 5)
 	c.Assert(err, check.ErrorMatches, "filter error")
 
 	// Ok with filter
-	results, err := q.Peek(func(work *queue.QueueWork) (bool, error) {
+	results, err := q.Peek(ctx, func(work *queue.QueueWork) (bool, error) {
 		return work.Address == "abc", nil
 	}, 5)
 	c.Assert(err, check.IsNil)
@@ -307,7 +310,7 @@ func (s *QueueSuite) TestGetAvailable(c *check.C) {
 	enabled.SetEnabled(3, true)
 	enabled.SetEnabled(4, true)
 	stop := make(chan bool)
-	queueWork, err := q.Get(2, make(chan uint64), enabled, stop)
+	queueWork, err := q.Get(context.Background(), 2, make(chan uint64), enabled, stop)
 	c.Assert(err, check.IsNil)
 	c.Check(queueWork.Permit, check.Equals, permit.Permit(34))
 	c.Check(s.store.enabled, utils.SliceEquivalent, []uint64{3, 4})
@@ -351,7 +354,7 @@ func (s *QueueSuite) TestGetWait(c *check.C) {
 	go func() {
 		enabled := &queue.DefaultQueueSupportedTypes{}
 		stop := make(chan bool)
-		queueWork, err := q.Get(1, maxPriorityChan, enabled, stop)
+		queueWork, err := q.Get(context.Background(), 1, maxPriorityChan, enabled, stop)
 		c.Check(priorityChanged, check.Equals, true)
 		c.Assert(err, check.IsNil)
 		c.Check(queueWork.Permit, check.Equals, permit.Permit(34))
@@ -396,7 +399,7 @@ func (s *QueueSuite) TestDelete(c *check.C) {
 		store:   s.store,
 		wrapper: &fakeWrapper{},
 	}
-	err := q.Delete(permit.Permit(9))
+	err := q.Delete(context.Background(), permit.Permit(9))
 	c.Assert(err, check.IsNil)
 }
 
@@ -407,7 +410,7 @@ func (s *QueueSuite) TestPushErrs(c *check.C) {
 		carrierFactory: &fakeCarrierFactory{},
 		wrapper:        &fakeWrapper{},
 	}
-	err := q.Push(9, 0, &FakeWork{})
+	err := q.Push(context.Background(), 9, 0, &FakeWork{})
 	c.Assert(err, check.ErrorMatches, "push error")
 }
 
@@ -419,7 +422,7 @@ func (s *QueueSuite) TestGetErrs(c *check.C) {
 	}
 	enabled := &queue.DefaultQueueSupportedTypes{}
 	stop := make(chan bool)
-	queueWork, err := q.Get(0, make(chan uint64), enabled, stop)
+	queueWork, err := q.Get(context.Background(), 0, make(chan uint64), enabled, stop)
 	c.Assert(err, check.NotNil)
 	c.Check(queueWork, check.IsNil)
 }
@@ -440,7 +443,7 @@ func (s *QueueSuite) TestDeleteErrs(c *check.C) {
 		store:   s.store,
 		wrapper: &fakeWrapper{},
 	}
-	err := q.Delete(permit.Permit(9))
+	err := q.Delete(context.Background(), permit.Permit(9))
 	c.Assert(err, check.NotNil)
 }
 
@@ -467,7 +470,7 @@ func (s *QueueSuite) TestPollErr(c *check.C) {
 	defer func() { stopper <- true }()
 	go q.broadcast(stopper, queueMsgs, workMsgs, chunkMsgs)
 
-	errCh := q.PollAddress("something")
+	errCh := q.PollAddress(context.Background(), "something")
 
 	err := <-errCh
 	c.Check(err, check.ErrorMatches, "horrible error")
@@ -499,7 +502,7 @@ func (s *QueueSuite) TestPollLockErr(c *check.C) {
 	defer func() { stopper <- true }()
 	go q.broadcast(stopper, queueMsgs, workMsgs, chunkMsgs)
 
-	errCh := q.PollAddress("something")
+	errCh := q.PollAddress(context.Background(), "something")
 
 	go func() {
 		time.Sleep(time.Millisecond * 30)
@@ -537,7 +540,7 @@ func (s *QueueSuite) TestPollTickOk(c *check.C) {
 	defer func() { stopper <- true }()
 	go q.broadcast(stopper, queueMsgs, workMsgs, chunkMsgs)
 
-	errCh := q.PollAddress("something")
+	errCh := q.PollAddress(context.Background(), "something")
 
 	go func() {
 		time.Sleep(time.Millisecond * 30)
@@ -577,7 +580,7 @@ func (s *QueueSuite) TestPollNotifyOk(c *check.C) {
 	defer func() { stopper <- true }()
 	go q.broadcast(stopper, queueMsgs, workMsgs, chunkMsgs)
 
-	errCh := q.PollAddress("something")
+	errCh := q.PollAddress(context.Background(), "something")
 
 	time.Sleep(10 * time.Millisecond)
 
@@ -620,7 +623,7 @@ func (s *QueueSuite) TestPollNotifyChunkOk(c *check.C) {
 	defer func() { stopper <- true }()
 	go q.broadcast(stopper, queueMsgs, workMsgs, chunkMsgs)
 
-	errCh := q.PollAddress("something")
+	errCh := q.PollAddress(context.Background(), "something")
 
 	time.Sleep(10 * time.Millisecond)
 
@@ -644,7 +647,7 @@ func (s *QueueSuite) TestHasAddressError(c *check.C) {
 		store:   cstore,
 		wrapper: &fakeWrapper{},
 	}
-	_, err := q.IsAddressInQueue("something")
+	_, err := q.IsAddressInQueue(context.Background(), "something")
 	c.Assert(err, check.ErrorMatches, "check address error")
 }
 
@@ -656,7 +659,7 @@ func (s *QueueSuite) TestHasAddressOk(c *check.C) {
 		store:   cstore,
 		wrapper: &fakeWrapper{},
 	}
-	has, err := q.IsAddressInQueue("something")
+	has, err := q.IsAddressInQueue(context.Background(), "something")
 	c.Assert(err, check.IsNil)
 	c.Assert(has, check.Equals, true)
 }

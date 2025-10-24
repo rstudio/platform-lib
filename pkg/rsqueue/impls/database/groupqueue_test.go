@@ -85,38 +85,38 @@ type fakeQueue struct {
 	record    error
 }
 
-func (f *fakeQueue) Push(priority uint64, groupId int64, work queue.Work) error {
+func (f *fakeQueue) Push(ctx context.Context, priority uint64, groupId int64, work queue.Work) error {
 	f.queue = append(f.queue, work)
 	return f.result
 }
-func (f *fakeQueue) WithDbTx(tx interface{}) queue.Queue {
+func (f *fakeQueue) WithDbTx(ctx context.Context, tx dbqueuetypes.QueueStore) queue.Queue {
 	return f
 }
-func (f *fakeQueue) Peek(filter func(work *queue.QueueWork) (bool, error), types ...uint64) ([]queue.QueueWork, error) {
+func (f *fakeQueue) Peek(ctx context.Context, filter func(work *queue.QueueWork) (bool, error), types ...uint64) ([]queue.QueueWork, error) {
 	return nil, nil
 }
-func (f *fakeQueue) AddressedPush(priority uint64, groupId int64, address string, work queue.Work) error {
+func (f *fakeQueue) AddressedPush(ctx context.Context, priority uint64, groupId int64, address string, work queue.Work) error {
 	return nil
 }
-func (f *fakeQueue) IsAddressInQueue(address string) (bool, error) {
+func (f *fakeQueue) IsAddressInQueue(ctx context.Context, address string) (bool, error) {
 	return false, nil
 }
-func (f *fakeQueue) PollAddress(address string) (errs <-chan error) {
+func (f *fakeQueue) PollAddress(ctx context.Context, address string) (errs <-chan error) {
 	return f.pollErrs
 }
-func (f *fakeQueue) RecordFailure(address string, failure error) error {
+func (f *fakeQueue) RecordFailure(ctx context.Context, address string, failure error) error {
 	return f.record
 }
-func (f *fakeQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
+func (f *fakeQueue) Get(ctx context.Context, maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
 	return nil, errors.New("n/i")
 }
 
-func (f *fakeQueue) Extend(context.Context, permit.Permit) error {
+func (f *fakeQueue) Extend(ctx context.Context, permit permit.Permit) error {
 	f.extended += 1
 	return f.extendErr
 }
 
-func (f *fakeQueue) Delete(permit.Permit) error {
+func (f *fakeQueue) Delete(ctx context.Context, permit permit.Permit) error {
 	return errors.New("n/i")
 }
 
@@ -133,29 +133,29 @@ type fakeStore struct {
 	existsErr error
 }
 
-func (s *fakeStore) BeginTransactionQueue(description string) (dbqueuetypes.QueueGroupStore, error) {
+func (s *fakeStore) BeginTransactionQueue(ctx context.Context, description string) (dbqueuetypes.QueueGroupStore, error) {
 	return s, s.begin
 }
 
-func (s *fakeStore) CompleteTransaction(err *error) {
+func (s *fakeStore) CompleteTransaction(ctx context.Context, err *error) {
 	if s.complete != nil && *err == nil {
 		*err = s.complete
 	}
 }
 
-func (s *fakeStore) QueueGroupStart(id int64) error {
+func (s *fakeStore) QueueGroupStart(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *fakeStore) QueueGroupComplete(id int64) (bool, bool, error) {
+func (s *fakeStore) QueueGroupComplete(ctx context.Context, id int64) (bool, bool, error) {
 	return false, false, nil
 }
 
-func (s *fakeStore) QueueGroupCancel(id int64) error {
+func (s *fakeStore) QueueGroupCancel(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *fakeStore) QueueGroupClear(id int64) error {
+func (s *fakeStore) QueueGroupClear(ctx context.Context, id int64) error {
 	return nil
 }
 
@@ -212,6 +212,7 @@ func (work) Type() uint64 {
 }
 
 func (s *GroupQueueSuite) TestPush(c *check.C) {
+	ctx := context.Background()
 	baseQueue := &fakeQueue{
 		queue: make([]queue.Work, 0),
 	}
@@ -225,9 +226,9 @@ func (s *GroupQueueSuite) TestPush(c *check.C) {
 	gq, err := gf.NewGroup(group)
 	c.Assert(err, check.IsNil)
 
-	err = gq.Push(0, work{name: "testwork"})
+	err = gq.Push(ctx, 0, work{name: "testwork"})
 	c.Assert(err, check.IsNil)
-	err = gq.Push(0, work{name: "testwork2"})
+	err = gq.Push(ctx, 0, work{name: "testwork2"})
 	c.Assert(err, check.IsNil)
 
 	c.Assert(baseQueue.queue, check.HasLen, 2)
@@ -249,7 +250,7 @@ func (s *GroupQueueSuite) TestPushErrs(c *check.C) {
 	gq, err := gf.NewGroup(group)
 	c.Assert(err, check.IsNil)
 
-	err = gq.Push(0, work{name: "testwork"})
+	err = gq.Push(context.Background(), 0, work{name: "testwork"})
 	c.Assert(err, check.ErrorMatches, "push failed")
 }
 
@@ -267,7 +268,7 @@ func (s *GroupQueueSuite) TestStart(c *check.C) {
 	gq, err := gf.NewGroup(group)
 	c.Assert(err, check.IsNil)
 
-	err = gq.Start()
+	err = gq.Start(context.Background())
 	c.Assert(err, check.IsNil)
 
 	c.Assert(baseQueue.queue, check.HasLen, 0)
@@ -289,7 +290,7 @@ func (s *GroupQueueSuite) TestStartErrs(c *check.C) {
 	gq, err := gf.NewGroup(group)
 	c.Assert(err, check.IsNil)
 
-	err = gq.Start()
+	err = gq.Start(context.Background())
 	c.Assert(err, check.ErrorMatches, "start push failed")
 }
 
@@ -311,7 +312,7 @@ func (s *GroupQueueSuite) TestSetEndWork(c *check.C) {
 		Name: "test",
 	}
 
-	err = gq.SetEndWork(fe, 3)
+	err = gq.SetEndWork(context.Background(), fe, 3)
 	c.Assert(err, check.IsNil)
 	c.Assert(gq.Group().EndWorkJob(), check.DeepEquals, []byte(`{"name":"test"}`))
 	c.Assert(gq.Group().EndWorkType(), check.Equals, uint8(3))

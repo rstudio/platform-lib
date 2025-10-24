@@ -89,7 +89,7 @@ func (t *DatabaseQueueMonitorTask) Run(ctx context.Context, b broadcaster.Broadc
 	permitMap := make(map[uint64]time.Time)
 
 	// Refresh the queue permits on boot to avoid any race condition of not having received an extension notification
-	t.refreshPermitMap(permitMap)
+	t.refreshPermitMap(ctx, permitMap)
 
 	// Record start time
 	t.started = time.Now()
@@ -146,8 +146,8 @@ func (t *DatabaseQueueMonitorTask) Run(ctx context.Context, b broadcaster.Broadc
 	}
 }
 
-func (t *DatabaseQueueMonitorTask) refreshPermitMap(permitMap map[uint64]time.Time) {
-	permits, err := t.cstore.QueuePermits(t.queueName)
+func (t *DatabaseQueueMonitorTask) refreshPermitMap(ctx context.Context, permitMap map[uint64]time.Time) {
+	permits, err := t.cstore.QueuePermits(ctx, t.queueName)
 	if err != nil {
 		slog.Debug(fmt.Sprintf("Error: DatabaseQueueMonitorTask failed to refresh queue permits map"))
 		return

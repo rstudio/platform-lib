@@ -215,7 +215,7 @@ func (a *DefaultAgent) Run(ctx context.Context, notify agenttypes.Notify) {
 		maxPriority := a.Wait(ctx, runningJobs, jobDone)
 
 		// Get a job from the queue (blocks)
-		queueWork, err := a.queue.Get(maxPriority, maxPriorityChan, a.types, a.stop)
+		queueWork, err := a.queue.Get(ctx, maxPriority, maxPriorityChan, a.types, a.stop)
 		if utils.IsSqliteLockError(err) {
 			// Do nothing, but sleep a bit to allow competing work through.
 			// Only log if tracing.
@@ -423,7 +423,7 @@ func (a *DefaultAgent) runJob(
 		if queueWork.Address != "" {
 			// Note, `RecordFailure` will record the error if err != nil. If
 			// err == nil, then it clears any recorded error for the address.
-			err = a.queue.RecordFailure(queueWork.Address, err)
+			err = a.queue.RecordFailure(ctx, queueWork.Address, err)
 			if err != nil {
 				slog.Debug(fmt.Sprintf("Failed while recording addressed work success/failure: %s\n", err))
 			}
@@ -452,7 +452,7 @@ func (a *DefaultAgent) runJob(
 	// Delete the job from the queue
 	slog.Log(ctx, LevelTrace, fmt.Sprintf("Deleting job from queue: %d\n", queueWork.Permit))
 
-	if err := a.queue.Delete(queueWork.Permit); err != nil {
+	if err := a.queue.Delete(ctx, queueWork.Permit); err != nil {
 		slog.Debug(fmt.Sprintf("queue Delete() returned error: %s", err))
 	}
 

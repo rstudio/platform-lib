@@ -47,15 +47,15 @@ func (q *DatabaseQueueSweeperTask) Run(ctx context.Context) {
 	var err error
 	var tx dbqueuetypes.QueueStore
 
-	tx, err = q.store.BeginTransactionQueue("DatabaseQueueSweeperTask.Run")
+	tx, err = q.store.BeginTransactionQueue(ctx, "DatabaseQueueSweeperTask.Run")
 	if err != nil {
 		slog.Debug(fmt.Sprintf("Error sweeping for expired queue permits. Error getting permits: %s", err))
 		return
 	}
-	defer tx.CompleteTransaction(&err)
+	defer tx.CompleteTransaction(ctx, &err)
 
 	// Sweep for expired nodes
-	permits, err := tx.QueuePermits(q.queueName)
+	permits, err := tx.QueuePermits(ctx, q.queueName)
 	if err != nil {
 		slog.Debug(fmt.Sprintf("Error sweeping for expired queue permits: %s", err))
 		return
@@ -64,7 +64,7 @@ func (q *DatabaseQueueSweeperTask) Run(ctx context.Context) {
 	for _, permit := range permits {
 		if !q.monitor.Check(ctx, uint64(permit.PermitId()), permit.PermitCreated(), q.sweepFor) {
 			slog.Debug(fmt.Sprintf("Sweeping expired queue permit %d", permit.PermitId()))
-			err := tx.QueuePermitDelete(permit.PermitId())
+			err := tx.QueuePermitDelete(ctx, permit.PermitId())
 			if err != nil {
 				slog.Debug(fmt.Sprintf("Error removing expired queue permit with id %d: %s", permit.PermitId(), err))
 				return

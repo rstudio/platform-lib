@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
@@ -103,29 +104,29 @@ type fakeQueue struct {
 	record    error
 }
 
-func (f *fakeQueue) Push(priority uint64, groupId int64, work queue.Work) error {
+func (f *fakeQueue) Push(ctx context.Context, priority uint64, groupId int64, work queue.Work) error {
 	f.queue = append(f.queue, work)
 	return f.result
 }
-func (f *fakeQueue) WithDbTx(tx interface{}) queue.Queue {
+func (f *fakeQueue) WithDbTx(ctx context.Context, tx dbqueuetypes.QueueStore) queue.Queue {
 	return f
 }
-func (f *fakeQueue) Peek(filter func(work *queue.QueueWork) (bool, error), types ...uint64) ([]queue.QueueWork, error) {
+func (f *fakeQueue) Peek(ctx context.Context, filter func(work *queue.QueueWork) (bool, error), types ...uint64) ([]queue.QueueWork, error) {
 	return nil, nil
 }
-func (f *fakeQueue) AddressedPush(priority uint64, groupId int64, address string, work queue.Work) error {
+func (f *fakeQueue) AddressedPush(ctx context.Context, priority uint64, groupId int64, address string, work queue.Work) error {
 	return nil
 }
-func (f *fakeQueue) IsAddressInQueue(address string) (bool, error) {
+func (f *fakeQueue) IsAddressInQueue(ctx context.Context, address string) (bool, error) {
 	return false, nil
 }
-func (f *fakeQueue) PollAddress(address string) (errs <-chan error) {
+func (f *fakeQueue) PollAddress(ctx context.Context, address string) (errs <-chan error) {
 	return f.pollErrs
 }
-func (f *fakeQueue) RecordFailure(address string, failure error) error {
+func (f *fakeQueue) RecordFailure(ctx context.Context, address string, failure error) error {
 	return f.record
 }
-func (f *fakeQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
+func (f *fakeQueue) Get(ctx context.Context, maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
 	return nil, errors.New("n/i")
 }
 
@@ -134,7 +135,7 @@ func (f *fakeQueue) Extend(ctx context.Context, permit permit.Permit) error {
 	return f.extendErr
 }
 
-func (f *fakeQueue) Delete(permit.Permit) error {
+func (f *fakeQueue) Delete(ctx context.Context, permit permit.Permit) error {
 	return errors.New("n/i")
 }
 

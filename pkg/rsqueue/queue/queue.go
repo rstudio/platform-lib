@@ -7,6 +7,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 )
 
@@ -15,17 +16,17 @@ var ErrDuplicateAddressedPush = errors.New("Duplicate address")
 type Queue interface {
 	// WithDbTx returns a queue that operates in the context of a database
 	// transaction.
-	WithDbTx(tx interface{}) Queue
+	WithDbTx(ctx context.Context, tx dbqueuetypes.QueueStore) Queue
 
 	// Peek at work in the queue
 	// * types the types of work to peek at
-	Peek(filter func(work *QueueWork) (bool, error), types ...uint64) ([]QueueWork, error)
+	Peek(ctx context.Context, filter func(work *QueueWork) (bool, error), types ...uint64) ([]QueueWork, error)
 
 	// Push new work into the queue
 	//  * priority the priority for this work. Lower number are higher priority
 	//  * groupId the group id for this work. Use zero (0) if not grouped
 	//  * work the work to push into the queue. Must be JSON-serializable
-	Push(priority uint64, groupId int64, work Work) error
+	Push(ctx context.Context, priority uint64, groupId int64, work Work) error
 
 	// AddressedPush pushes uniquely addressed new work into the queue
 	//  * priority the priority for this work. Lower number are higher priority
@@ -33,21 +34,21 @@ type Queue interface {
 	//  * address the address for this work. Must be unique. Address can be reused,
 	//      but only one occurrence of any address may be in the queue at any time.
 	//  * work the work to push into the queue. Must be JSON-serializable
-	AddressedPush(priority uint64, groupId int64, address string, work Work) error
+	AddressedPush(ctx context.Context, priority uint64, groupId int64, address string, work Work) error
 
 	// RecordFailure records a failure of addressed work in the queue
 	//  * address the address of the work the failed
 	//  * failure the error that occurred. Overwrites any previous error information
 	//    from earlier runs of the same work. If `failure==nil`, the error is cleared.
-	RecordFailure(address string, failure error) error
+	RecordFailure(ctx context.Context, address string, failure error) error
 
 	// PollAddress polls addressed work in the queue, and an `errs` channels
 	// to report when the work is done and/or an error has occurred. We pass
 	// `nil` over the errs channel when the poll has completed without errors
-	PollAddress(address string) (errs <-chan error)
+	PollAddress(ctx context.Context, address string) (errs <-chan error)
 
 	// IsAddressInQueue checks to see if work with the provided address is in the queue
-	IsAddressInQueue(address string) (bool, error)
+	IsAddressInQueue(ctx context.Context, address string) (bool, error)
 
 	// Get attempts to get a job from the queue. Blocks until a job is found and returned
 	// Parameters:
@@ -65,14 +66,14 @@ type Queue interface {
 	// Returns:
 	//  * *QueueWork - A pointer to a QueueWork struct
 	//  * error - An error (if error occurs); nil if successful
-	Get(maxPriority uint64, maxPriorityChan chan uint64, types QueueSupportedTypes, stop chan bool) (*QueueWork, error)
+	Get(ctx context.Context, maxPriority uint64, maxPriorityChan chan uint64, types QueueSupportedTypes, stop chan bool) (*QueueWork, error)
 
 	// Extend (heartbeat) a queue permit while work is in progress.
-	Extend(context.Context, permit.Permit) error
+	Extend(ctx context.Context, permit permit.Permit) error
 
 	// Delete a queue permit and its associated work. This is typically called when
 	// the work is complete.
-	Delete(permit.Permit) error
+	Delete(ctx context.Context, permit permit.Permit) error
 
 	// Name returns the name of the queue.
 	Name() string
