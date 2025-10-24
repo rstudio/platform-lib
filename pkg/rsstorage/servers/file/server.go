@@ -201,6 +201,7 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 		walkTimeout = defaultWalkTimeout
 	}
 
+	// TODO: replace this with a context
 	walkTimeoutTimer := time.NewTimer(walkTimeout)
 	defer walkTimeoutTimer.Stop()
 

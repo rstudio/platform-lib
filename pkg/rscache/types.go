@@ -110,5 +110,5 @@ type CacheProvider interface {
 	GetObject(ctx context.Context, resolver ResolverSpec, typeExample interface{}) (value CacheReturn)
 	Check(ctx context.Context, resolver ResolverSpec) (bool, error)
 	Head(ctx context.Context, resolver ResolverSpec) (size int64, modTime time.Time, err error)
-	Uncache(resolver ResolverSpec) error
+	Uncache(ctx context.Context, resolver ResolverSpec) error
 }
