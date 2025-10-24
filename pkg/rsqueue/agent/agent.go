@@ -379,7 +379,7 @@ func (a *DefaultAgent) runJob(
 							queueWork.Permit,
 						),
 					)
-					err := a.queue.Extend(queueWork.Permit)
+					err := a.queue.Extend(ctx, queueWork.Permit)
 					if err != nil {
 						slog.Debug(fmt.Sprintf("Error extending job for work type %d: %s", queueWork.WorkType, err))
 					}
