@@ -90,6 +90,8 @@ func (l *leveler) Level() slog.Level {
 }
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: &leveler{level: slog.LevelDebug},
@@ -286,12 +288,12 @@ func main() {
 		JobLifecycleWrapper:    &metrics.EmptyJobLifecycleWrapper{},
 	}
 	ag := agent.NewAgent(agentCfg)
-	go ag.Run(func(n listener.Notification) {
+	go ag.Run(ctx, func(n listener.Notification) {
 		// Since we don't enforce how notifications are sent, the agent sends a
 		// notification to this callback method when work is completed. Here, we
 		// simply pass those messages on to the store, which knows how to send
 		// notifications.
-		err = exampleStore.Notify(notifytypes.ChannelMessages, n)
+		err = exampleStore.Notify(ctx, notifytypes.ChannelMessages, n)
 		if err != nil {
 			log.Printf("Error notifying of queue work complete: %s", err)
 		}
@@ -300,7 +302,7 @@ func main() {
 	// Start HTTP services and listen until the application exits.
 	router := mux.NewRouter()
 	handler := handlers.NewHttpHandler(address, router, cache)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	go handler.Start(ctx)
 	// Cancel the handler's context when the application exits for graceful
 	// shutdown.
