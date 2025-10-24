@@ -233,7 +233,7 @@ func (f *DummyMemoryBackedFileCache) Head(ctx context.Context, resolver Resolver
 	return obj.GetSize(), obj.GetTimestamp(), f.HeadErr
 }
 
-func (f *DummyMemoryBackedFileCache) Uncache(resolver ResolverSpec) error {
+func (f *DummyMemoryBackedFileCache) Uncache(ctx context.Context, resolver ResolverSpec) error {
 	f.RemoveCount++
 	return f.UncacheErr
 }
