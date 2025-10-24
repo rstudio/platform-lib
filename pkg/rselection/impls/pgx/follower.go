@@ -31,7 +31,7 @@ type Follower interface {
 // Queue is not provided by the election library. Implement this interface. When new leadership
 // is needed, an `electiontypes.AssumeLeader` job will be pushed to the queue.
 type Queue interface {
-	Push(assumeLeader electiontypes.AssumeLeader) error
+	Push(ctx context.Context, assumeLeader electiontypes.AssumeLeader) error
 }
 
 type PgxFollower struct {
@@ -106,7 +106,7 @@ func (p *PgxFollower) Follow(ctx context.Context) (result FollowResult) {
 			// Follower has received no pings for the timeout duration. It is time to
 			// ask for a new leader.
 			slog.Debug(fmt.Sprintf("Follower '%s' ping receipt timeout. Requesting a new leader", p.address))
-			go p.requestLeader()
+			go p.requestLeader(ctx)
 		}
 		return
 	}() {
@@ -132,8 +132,8 @@ func (p *PgxFollower) handleNotify(ctx context.Context, cn *electiontypes.Cluste
 	}
 }
 
-func (p *PgxFollower) requestLeader() {
-	err := p.queue.Push(electiontypes.AssumeLeader{SrcAddr: p.address})
+func (p *PgxFollower) requestLeader(ctx context.Context) {
+	err := p.queue.Push(ctx, electiontypes.AssumeLeader{SrcAddr: p.address})
 	if err != nil {
 		now := time.Now()
 		// Limit how often this message logs to avoid too much spam

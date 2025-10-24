@@ -63,7 +63,7 @@ func generateKey(t time.Time) (key int) {
 	return
 }
 
-func (q *fakeQueue) Push(w electiontypes.AssumeLeader) error {
+func (q *fakeQueue) Push(ctx context.Context, w electiontypes.AssumeLeader) error {
 	key := generateKey(time.Now())
 	address := fmt.Sprintf("AssumeLeader-%d", key)
 	q.AddParams = append(q.AddParams, addParams{w, address})
@@ -319,7 +319,7 @@ func (s *FollowerSuite) TestRequestLeader(c *check.C) {
 		address: "follower-a",
 	}
 
-	follower.requestLeader()
+	follower.requestLeader(context.Background())
 	c.Assert(q.AddParams, check.HasLen, 1)
 	c.Assert(q.AddParams[0].Address, check.Matches, "AssumeLeader-[0-5]")
 	c.Assert(q.AddParams[0].Item, check.DeepEquals, electiontypes.AssumeLeader{
