@@ -58,7 +58,7 @@ func (s *NotifierSuite) TestNew(c *check.C) {
 func (s *NotifierSuite) TestNotify(c *check.C) {
 	p := &fakeProvider{}
 	n := NewNotifier(Args{Provider: p, MaxChunks: 10, Chunking: true})
-	err := n.Notify("test", &fakeNotification{
+	err := n.Notify(context.Background(), "test", &fakeNotification{
 		Name: "John Doe",
 		Visited: []string{
 			"USA",
@@ -89,7 +89,7 @@ func (s *NotifierSuite) TestNotifyChunks(c *check.C) {
 			"Munich",
 		},
 	}
-	err := n.Notify("test", notification)
+	err := n.Notify(context.Background(), "test", notification)
 	c.Assert(err, check.IsNil)
 	c.Assert(p.notified, check.DeepEquals, []string{
 		"01/03:254d1bd9-aa29-4116-97e8-e9c302b7dd84\n{\"Name\":\"John Doe\",\"Visited\":[\"New",
@@ -100,7 +100,7 @@ func (s *NotifierSuite) TestNotifyChunks(c *check.C) {
 	// Turn off chunking
 	n.chunking = false
 	p.notified = make([]string, 0)
-	err = n.Notify("test", notification)
+	err = n.Notify(context.Background(), "test", notification)
 	c.Assert(err, check.IsNil)
 	c.Assert(p.notified, check.DeepEquals, []string{
 		"{\"Name\":\"John Doe\",\"Visited\":[\"New York\",\"Tokyo\",\"Chicago\",\"Paris\",\"London\",\"Munich\"]}",
@@ -110,7 +110,7 @@ func (s *NotifierSuite) TestNotifyChunks(c *check.C) {
 func (s *NotifierSuite) TestNotifyTooLarge(c *check.C) {
 	p := &fakeProvider{}
 	n := NewNotifier(Args{Provider: p, MaxChunks: 1, MaxChunkSize: 20, Chunking: true})
-	err := n.Notify("test", &fakeNotification{
+	err := n.Notify(context.Background(), "test", &fakeNotification{
 		Name: "John Doe",
 		Visited: []string{
 			"New York",

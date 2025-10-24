@@ -15,7 +15,6 @@ import (
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/local"
 	agenttypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent/types"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/utils"
@@ -57,7 +56,7 @@ type QueueTestStore struct {
 	hasAddressErr  error
 	enabled        []uint64
 	permitsCalled  int
-	permits        []dbqueuetypes.QueuePermit
+	permits        []queue.QueuePermit
 	permitsErr     error
 	permitsDeleted int
 	permitDelete   error
@@ -65,13 +64,13 @@ type QueueTestStore struct {
 	peekErr        error
 }
 
-func (s *QueueTestStore) BeginTransactionQueue(ctx context.Context, description string) (dbqueuetypes.QueueStore, error) {
+func (s *QueueTestStore) BeginTransactionQueue(ctx context.Context, description string) (queue.QueueStore, error) {
 	return s, nil
 }
 
 func (s *QueueTestStore) CompleteTransaction(ctx context.Context, err *error) {}
 
-func (s *QueueTestStore) QueuePermits(ctx context.Context, name string) ([]dbqueuetypes.QueuePermit, error) {
+func (s *QueueTestStore) QueuePermits(ctx context.Context, name string) ([]queue.QueuePermit, error) {
 	s.permitsCalled++
 	return s.permits, s.permitsErr
 }
@@ -176,11 +175,11 @@ func (f *fakeWrapper) Start(ctx context.Context, work *queue.QueueWork) (context
 	return ctx, nil, nil
 }
 
-func (f *fakeWrapper) Enqueue(queueName string, work queue.Work, err error) error {
+func (f *fakeWrapper) Enqueue(ctx context.Context, queueName string, work queue.Work, err error) error {
 	return nil
 }
 
-func (f *fakeWrapper) Dequeue(queueName string, work queue.Work, err error) error {
+func (f *fakeWrapper) Dequeue(ctx context.Context, queueName string, work queue.Work, err error) error {
 	return nil
 }
 

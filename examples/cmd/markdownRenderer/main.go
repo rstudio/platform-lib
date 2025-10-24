@@ -73,8 +73,8 @@ type cacheQueueWrapper struct {
 // AddressedPush is part of the cache's queue interface. Since we're using the
 // rsqueue/Queue package for message queuing, we can simply wrap the queue's
 // AddressedPush method and hand off the wrapped queue to the cache.
-func (q *cacheQueueWrapper) AddressedPush(priority uint64, groupId int64, address string, work rscache.QueueWork) error {
-	return q.Queue.AddressedPush(priority, groupId, address, work)
+func (q *cacheQueueWrapper) AddressedPush(ctx context.Context, priority uint64, groupId int64, address string, work rscache.QueueWork) error {
+	return q.Queue.AddressedPush(ctx, priority, groupId, address, work)
 }
 
 func init() {

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 )
 
 type DatabaseQueueMonitor interface {
@@ -25,7 +25,7 @@ type DatabaseQueueMonitor interface {
 type DatabaseQueueMonitorTask struct {
 	check    chan permitCheck
 	sweepAge time.Duration
-	cstore   dbqueuetypes.QueueStore
+	cstore   queue.QueueStore
 	started  time.Time
 
 	queueName string
@@ -51,7 +51,7 @@ type permitCheck struct {
 type DatabaseQueueMonitorTaskConfig struct {
 	QueueName                 string
 	SweepAge                  time.Duration
-	QueueStore                dbqueuetypes.QueueStore
+	QueueStore                queue.QueueStore
 	NotifyTypePermitExtension uint8
 }
 
@@ -116,7 +116,7 @@ func (t *DatabaseQueueMonitorTask) Run(ctx context.Context, b broadcaster.Broadc
 			drain()
 			return
 		case n := <-sub:
-			if cn, ok := n.(*dbqueuetypes.QueuePermitExtendNotification); ok {
+			if cn, ok := n.(*queue.QueuePermitExtendNotification); ok {
 				permitMap[cn.PermitID] = time.Now()
 			}
 		case in := <-t.check:

@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 )
 
 type DatabaseQueueSweeper interface {
@@ -19,7 +19,7 @@ type DatabaseQueueSweeper interface {
 // Intended to be called by the task manager of your choice. This is a scheduled task that runs
 // periodically when called by a scheduler.
 type DatabaseQueueSweeperTask struct {
-	store     dbqueuetypes.QueueStore
+	store     queue.QueueStore
 	queueName string
 	monitor   DatabaseQueueMonitor
 
@@ -29,7 +29,7 @@ type DatabaseQueueSweeperTask struct {
 
 type DatabaseQueueSweeperTaskConfig struct {
 	QueueName  string
-	QueueStore dbqueuetypes.QueueStore
+	QueueStore queue.QueueStore
 	SweepFor   time.Duration
 	Monitor    DatabaseQueueMonitor
 }
@@ -45,7 +45,7 @@ func NewDatabaseQueueSweeperTask(cfg DatabaseQueueSweeperTaskConfig) *DatabaseQu
 
 func (q *DatabaseQueueSweeperTask) Run(ctx context.Context) {
 	var err error
-	var tx dbqueuetypes.QueueStore
+	var tx queue.QueueStore
 
 	tx, err = q.store.BeginTransactionQueue(ctx, "DatabaseQueueSweeperTask.Run")
 	if err != nil {

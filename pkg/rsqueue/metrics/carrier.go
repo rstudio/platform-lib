@@ -18,8 +18,8 @@ type CarrierFactory interface {
 
 type JobLifecycleWrapper interface {
 	Start(ctx context.Context, work *queue.QueueWork) (context.Context, interface{}, error)
-	Enqueue(queueName string, work queue.Work, err error) error
-	Dequeue(queueName string, work queue.Work, err error) error
+	Enqueue(ctx context.Context, queueName string, work queue.Work, err error) error
+	Dequeue(ctx context.Context, queueName string, work queue.Work, err error) error
 	Finish(data interface{})
 }
 
@@ -34,10 +34,10 @@ type EmptyJobLifecycleWrapper struct{}
 func (*EmptyJobLifecycleWrapper) Start(ctx context.Context, work *queue.QueueWork) (context.Context, interface{}, error) {
 	return ctx, nil, nil
 }
-func (*EmptyJobLifecycleWrapper) Enqueue(queueName string, work queue.Work, err error) error {
+func (*EmptyJobLifecycleWrapper) Enqueue(ctx context.Context, queueName string, work queue.Work, err error) error {
 	return nil
 }
-func (*EmptyJobLifecycleWrapper) Dequeue(queueName string, work queue.Work, err error) error {
+func (*EmptyJobLifecycleWrapper) Dequeue(ctx context.Context, queueName string, work queue.Work, err error) error {
 	return nil
 }
 func (*EmptyJobLifecycleWrapper) Finish(data interface{}) {}

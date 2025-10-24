@@ -13,7 +13,6 @@ import (
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent"
 	agenttypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent/types"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/metrics"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
@@ -28,7 +27,7 @@ type DatabaseQueue struct {
 	name string
 
 	// A store
-	store dbqueuetypes.QueueStore
+	store queue.QueueStore
 
 	// Poll for addressed item completion at this interval
 	addressPollInterval time.Duration
@@ -44,7 +43,7 @@ type DatabaseQueue struct {
 	notifyTypeChunk        uint8
 
 	// Determines when a relevant chunk notification is received.
-	chunkMatcher dbqueuetypes.DatabaseQueueChunkMatcher
+	chunkMatcher queue.DatabaseQueueChunkMatcher
 
 	wrapper metrics.JobLifecycleWrapper
 
@@ -56,9 +55,9 @@ type DatabaseQueueConfig struct {
 	NotifyTypeWorkReady    uint8
 	NotifyTypeWorkComplete uint8
 	NotifyTypeChunk        uint8
-	ChunkMatcher           dbqueuetypes.DatabaseQueueChunkMatcher
+	ChunkMatcher           queue.DatabaseQueueChunkMatcher
 	CarrierFactory         metrics.CarrierFactory
-	QueueStore             dbqueuetypes.QueueStore
+	QueueStore             queue.QueueStore
 	QueueMsgsChan          <-chan listener.Notification
 	WorkMsgsChan           <-chan listener.Notification
 	ChunkMsgsChan          <-chan listener.Notification
@@ -94,7 +93,7 @@ func NewDatabaseQueue(cfg DatabaseQueueConfig) (queue.Queue, error) {
 	return rq, nil
 }
 
-func (q *DatabaseQueue) WithDbTx(ctx context.Context, tx dbqueuetypes.QueueStore) queue.Queue {
+func (q *DatabaseQueue) WithDbTx(ctx context.Context, tx queue.QueueStore) queue.Queue {
 	return &DatabaseQueue{
 		name:                q.name,
 		store:               tx,
@@ -234,7 +233,7 @@ func (q *DatabaseQueue) AddressedPush(ctx context.Context, priority uint64, grou
 	group := sql.NullInt64{Int64: groupId, Valid: groupId > 0}
 	c := q.carrierFactory.GetCarrier("addressed-queue-push", q.name, address, priority, work.Type(), groupId)
 	err := q.store.QueuePushAddressed(ctx, q.name, group, priority, work.Type(), address, work, c)
-	_ = q.wrapper.Enqueue(q.name, work, err)
+	_ = q.wrapper.Enqueue(ctx, q.name, work, err)
 	return err
 }
 
@@ -318,7 +317,7 @@ func (q *DatabaseQueue) Push(ctx context.Context, priority uint64, groupId int64
 	}
 	c := q.carrierFactory.GetCarrier("queue-push", q.name, "", priority, work.Type(), groupId)
 	err := q.store.QueuePush(ctx, q.name, group, priority, work.Type(), work, c)
-	_ = q.wrapper.Enqueue(q.name, work, err)
+	_ = q.wrapper.Enqueue(ctx, q.name, work, err)
 	return err
 }
 
@@ -357,7 +356,7 @@ func (q *DatabaseQueue) Get(ctx context.Context, maxPriority uint64, maxPriority
 		}
 	}(queueWork)
 	if err != sql.ErrNoRows {
-		q.measureDequeue(queueWork, err)
+		q.measureDequeue(ctx, queueWork, err)
 		return queueWork, err
 	}
 
@@ -388,7 +387,7 @@ func (q *DatabaseQueue) Get(ctx context.Context, maxPriority uint64, maxPriority
 		}
 		queueWork, err := q.store.QueuePop(ctx, q.name, maxPriority, types.Enabled())
 		if err != sql.ErrNoRows {
-			q.measureDequeue(queueWork, err)
+			q.measureDequeue(ctx, queueWork, err)
 			return queueWork, err
 		}
 	}
@@ -427,9 +426,9 @@ func (q *DatabaseQueue) Peek(ctx context.Context, filter func(work *queue.QueueW
 	return results, nil
 }
 
-func (q *DatabaseQueue) measureDequeue(queueWork *queue.QueueWork, err error) {
+func (q *DatabaseQueue) measureDequeue(ctx context.Context, queueWork *queue.QueueWork, err error) {
 	if queueWork == nil {
 		queueWork = &queue.QueueWork{WorkType: queuetypes.TYPE_NONE}
 	}
-	_ = q.wrapper.Dequeue(q.name, queueWork, err)
+	_ = q.wrapper.Dequeue(ctx, q.name, queueWork, err)
 }

@@ -85,7 +85,7 @@ type fakeQueue struct {
 	Lock     sync.Mutex
 }
 
-func (q *fakeQueue) AddressedPush(priority uint64, groupId int64, address string, work rscache.QueueWork) error {
+func (q *fakeQueue) AddressedPush(ctx context.Context, priority uint64, groupId int64, address string, work rscache.QueueWork) error {
 	q.AddParams = append(q.AddParams, addParams{work, address})
 	q.Lock.Lock()
 	defer q.Lock.Unlock()
@@ -96,7 +96,7 @@ func (q *fakeQueue) AddressedPush(priority uint64, groupId int64, address string
 	return q.PushError
 }
 
-func (q *fakeQueue) PollAddress(address string) (errs <-chan error) {
+func (q *fakeQueue) PollAddress(ctx context.Context, address string) (errs <-chan error) {
 	return q.PollErrs
 }
 

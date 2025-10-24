@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/groups"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/utils"
 )
 
 type QueueGroupProvider struct {
-	cstore dbqueuetypes.QueueGroupStore
+	cstore queue.QueueGroupStore
 
 	// Interval at which to poll for the group status. We poll periodically
 	// to see if the queue group is complete.
@@ -24,7 +24,7 @@ type QueueGroupProvider struct {
 }
 
 type QueueGroupProviderConfig struct {
-	Store dbqueuetypes.QueueGroupStore
+	Store queue.QueueGroupStore
 }
 
 func NewQueueGroupProvider(cfg QueueGroupProviderConfig) *QueueGroupProvider {

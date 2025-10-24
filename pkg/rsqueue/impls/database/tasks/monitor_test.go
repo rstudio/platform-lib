@@ -13,7 +13,6 @@ import (
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/local"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 	"gopkg.in/check.v1"
@@ -43,7 +42,7 @@ type QueueTestStore struct {
 	hasAddressErr  error
 	enabled        []uint64
 	permitsCalled  int
-	permits        []dbqueuetypes.QueuePermit
+	permits        []queue.QueuePermit
 	permitsErr     error
 	permitsDeleted int
 	permitDelete   error
@@ -51,13 +50,13 @@ type QueueTestStore struct {
 	peekErr        error
 }
 
-func (s *QueueTestStore) BeginTransactionQueue(ctx context.Context, description string) (dbqueuetypes.QueueStore, error) {
+func (s *QueueTestStore) BeginTransactionQueue(ctx context.Context, description string) (queue.QueueStore, error) {
 	return s, nil
 }
 
 func (s *QueueTestStore) CompleteTransaction(ctx context.Context, err *error) {}
 
-func (s *QueueTestStore) QueuePermits(ctx context.Context, name string) ([]dbqueuetypes.QueuePermit, error) {
+func (s *QueueTestStore) QueuePermits(ctx context.Context, name string) ([]queue.QueuePermit, error) {
 	s.permitsCalled++
 	return s.permits, s.permitsErr
 }
@@ -200,7 +199,7 @@ func (s *QueuePermitMonitorSuite) TestRun(c *check.C) {
 	go m.Run(ctx, nb)
 
 	// Send a notification
-	ch <- dbqueuetypes.NewQueuePermitExtendNotification(123, 8)
+	ch <- queue.NewQueuePermitExtendNotification(123, 8)
 
 	// Set the monitor start time
 	m.started = time.Now().Add(-time.Hour)
@@ -218,7 +217,7 @@ func (s *QueuePermitMonitorSuite) TestRun(c *check.C) {
 	c.Assert(b, check.Equals, true)
 
 	// Send a notification
-	ch <- dbqueuetypes.NewQueuePermitExtendNotification(456, 8)
+	ch <- queue.NewQueuePermitExtendNotification(456, 8)
 	b = m.Check(ctx, 456, time.Time{}, time.Minute)
 	c.Assert(b, check.Equals, true)
 
@@ -322,7 +321,7 @@ func (s *QueuePermitMonitorSuite) TestRefreshPermitMap(c *check.C) {
 
 	// Map should acquire missing permits from the store
 	fakeStore := &QueueTestStore{
-		permits: []dbqueuetypes.QueuePermit{
+		permits: []queue.QueuePermit{
 			&fakePermit{permitId: 1},
 		},
 	}

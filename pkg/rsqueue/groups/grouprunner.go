@@ -166,7 +166,7 @@ func (r *QueueGroupRunner) Run(ctx context.Context, work queue.RecursableWork) e
 	// we won't continually use an agent concurrency slot while waiting
 	// for the queue group to complete.
 	r.recurser.OptionallyRecurse(queue.ContextWithExpectedRecursion(ctx), func() {
-		origErr := r.run(job)
+		origErr := r.run(ctx, job)
 		if origErr != nil {
 			slog.Debug(fmt.Sprintf("QueueGroupRunner run failure: %s", origErr))
 			// This will mark the queue group as `cancelled` and allow for re-runs of the same group later.
@@ -194,7 +194,7 @@ func (r *QueueGroupRunner) Run(ctx context.Context, work queue.RecursableWork) e
 	return err
 }
 
-func (r *QueueGroupRunner) run(job GroupQueueJob) error {
+func (r *QueueGroupRunner) run(ctx context.Context, job GroupQueueJob) error {
 	var err error
 
 	switch job.Flag() {
@@ -224,12 +224,12 @@ func (r *QueueGroupRunner) run(job GroupQueueJob) error {
 		// Completed with cancellation
 		if cancelled {
 			slog.Debug(fmt.Sprintf("Queue Group '%s' cancelled. Pushing QueueGroupFlagAbort work.\n", job.Name()))
-			return r.queue.Push(0, 0, job.AbortWork())
+			return r.queue.Push(ctx, 0, 0, job.AbortWork())
 		}
 
 		// Completed successfully
 		slog.Debug(fmt.Sprintf("Queue Group '%s' completed. Submitting QueueGroupFlagEnd work.\n", job.Name()))
-		return r.queue.Push(0, 0, job.EndWork())
+		return r.queue.Push(ctx, 0, 0, job.EndWork())
 
 	case QueueGroupFlagCancel:
 		// First, cancel the queue group

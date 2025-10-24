@@ -7,7 +7,6 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 )
 
@@ -37,7 +36,7 @@ type RecordingProducer struct {
 	PeekErr  error
 }
 
-func (q *RecordingProducer) WithDbTx(ctx context.Context, tx dbqueuetypes.QueueStore) Queue {
+func (q *RecordingProducer) WithDbTx(ctx context.Context, tx QueueStore) Queue {
 	return q
 }
 

@@ -12,7 +12,6 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
 	agenttypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent/types"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/metrics"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
@@ -50,11 +49,11 @@ func (f *fakeWrapper) Start(ctx context.Context, work *queue.QueueWork) (context
 	return ctx, nil, nil
 }
 
-func (f *fakeWrapper) Enqueue(queueName string, work queue.Work, err error) error {
+func (f *fakeWrapper) Enqueue(ctc context.Context, queueName string, work queue.Work, err error) error {
 	return nil
 }
 
-func (f *fakeWrapper) Dequeue(queueName string, work queue.Work, err error) error {
+func (f *fakeWrapper) Dequeue(ctx context.Context, queueName string, work queue.Work, err error) error {
 	return nil
 }
 
@@ -117,7 +116,7 @@ type FakeQueue struct {
 func (*FakeQueue) Push(ctx context.Context, priority uint64, groupId int64, work queue.Work) error {
 	return nil
 }
-func (f *FakeQueue) WithDbTx(ctx context.Context, tx dbqueuetypes.QueueStore) queue.Queue {
+func (f *FakeQueue) WithDbTx(ctx context.Context, tx queue.QueueStore) queue.Queue {
 	return f
 }
 func (*FakeQueue) Peek(ctx context.Context, filter func(work *queue.QueueWork) (bool, error), types ...uint64) ([]queue.QueueWork, error) {

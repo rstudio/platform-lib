@@ -7,7 +7,6 @@ import (
 	"errors"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/groups"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 	"gopkg.in/check.v1"
@@ -89,7 +88,7 @@ func (f *fakeQueue) Push(ctx context.Context, priority uint64, groupId int64, wo
 	f.queue = append(f.queue, work)
 	return f.result
 }
-func (f *fakeQueue) WithDbTx(ctx context.Context, tx dbqueuetypes.QueueStore) queue.Queue {
+func (f *fakeQueue) WithDbTx(ctx context.Context, tx queue.QueueStore) queue.Queue {
 	return f
 }
 func (f *fakeQueue) Peek(ctx context.Context, filter func(work *queue.QueueWork) (bool, error), types ...uint64) ([]queue.QueueWork, error) {
@@ -125,7 +124,7 @@ func (f *fakeQueue) Name() string {
 }
 
 type fakeStore struct {
-	returns   dbqueuetypes.QueueGroupRecord
+	returns   queue.QueueGroupRecord
 	errs      error
 	begin     error
 	complete  error
@@ -133,7 +132,7 @@ type fakeStore struct {
 	existsErr error
 }
 
-func (s *fakeStore) BeginTransactionQueue(ctx context.Context, description string) (dbqueuetypes.QueueGroupStore, error) {
+func (s *fakeStore) BeginTransactionQueue(ctx context.Context, description string) (queue.QueueGroupStore, error) {
 	return s, s.begin
 }
 

@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
@@ -108,7 +107,7 @@ func (f *fakeQueue) Push(ctx context.Context, priority uint64, groupId int64, wo
 	f.queue = append(f.queue, work)
 	return f.result
 }
-func (f *fakeQueue) WithDbTx(ctx context.Context, tx dbqueuetypes.QueueStore) queue.Queue {
+func (f *fakeQueue) WithDbTx(ctx context.Context, tx queue.QueueStore) queue.Queue {
 	return f
 }
 func (f *fakeQueue) Peek(ctx context.Context, filter func(work *queue.QueueWork) (bool, error), types ...uint64) ([]queue.QueueWork, error) {
@@ -321,82 +320,83 @@ func (s *QueueGroupRunnerSuite) TestRunInternal(c *check.C) {
 	factory := &fakeFactory{}
 	matcher := NewMatcher("type")
 	r := NewQueueGroupRunner(runnerCfg(q, p, matcher, factory, &queue.OptionalRecurser{}))
+	ctx := context.Background()
 
 	// Error on provider ready check
 	job := &fakeGroup{FlagVal: QueueGroupFlagStart}
 	p.readyErr = errors.New("ready error")
-	err := r.run(job)
+	err := r.run(ctx, job)
 	c.Assert(err, check.ErrorMatches, "ready error")
 
 	// Error on provider begin
 	p.readyErr = nil
 	p.beginErr = errors.New("begin error")
-	err = r.run(job)
+	err = r.run(ctx, job)
 	c.Assert(err, check.ErrorMatches, "begin error")
 
 	// Error on provider completion check
 	p.beginErr = nil
 	p.completeErr = errors.New("complete error")
-	err = r.run(job)
+	err = r.run(ctx, job)
 	c.Assert(err, check.ErrorMatches, "complete error")
 
 	// Error on push
 	p.completeErr = nil
 	q.result = errors.New("push error")
-	err = r.run(job)
+	err = r.run(ctx, job)
 	c.Assert(err, check.ErrorMatches, "push error")
 
 	// Error on cancelled push
 	p.completeResult = true
-	err = r.run(job)
+	err = r.run(ctx, job)
 	c.Assert(err, check.ErrorMatches, "push error")
 
 	// Error on provider cancel
 	q.result = nil
 	job.FlagVal = QueueGroupFlagCancel
 	p.cancelErr = errors.New("cancel error")
-	err = r.run(job)
+	err = r.run(ctx, job)
 	c.Assert(err, check.ErrorMatches, "cancel error")
 
 	// Error on provider clear after cancel
 	p.cancelErr = nil
 	p.clearErr = errors.New("clear error")
-	err = r.run(job)
+	err = r.run(ctx, job)
 	c.Assert(err, check.ErrorMatches, "clear error")
 
 	// Error on retrieving end runner
 	p.clearErr = nil
 	job.FlagVal = QueueGroupFlagEnd
 	factory.getErr = errors.New("get runner error")
-	err = r.run(job)
+	err = r.run(ctx, job)
 	c.Assert(err, check.ErrorMatches, "get runner error")
 
 	// Error on running end work
 	factory.getErr = nil
 	factory.get = &fakeRunner{err: errors.New("runner run error")}
-	err = r.run(job)
+	err = r.run(ctx, job)
 	c.Assert(err, check.ErrorMatches, "runner run error")
 
 	// Error on provider abort
 	factory.get = &fakeRunner{}
 	p.abortErr = errors.New("abort error")
 	job.FlagVal = QueueGroupFlagAbort
-	err = r.run(job)
+	err = r.run(ctx, job)
 	c.Assert(err, check.ErrorMatches, "abort error")
 
 	// Success
 	job.FlagVal = QueueGroupFlagStart
 	p.abortErr = nil
-	err = r.run(job)
+	err = r.run(ctx, job)
 	c.Assert(err, check.IsNil)
 	job.FlagVal = QueueGroupFlagCancel
-	err = r.run(job)
+	err = r.run(ctx, job)
 	c.Assert(err, check.IsNil)
 	job.FlagVal = QueueGroupFlagAbort
-	err = r.run(job)
+	err = r.run(ctx, job)
 	c.Assert(err, check.IsNil)
 	job.FlagVal = QueueGroupFlagEnd
-	err = r.run(job)
+	err = r.run(ctx, job)
 	c.Assert(err, check.IsNil)
 }
 
