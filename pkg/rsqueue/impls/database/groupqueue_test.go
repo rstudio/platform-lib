@@ -136,7 +136,7 @@ func (s *fakeStore) BeginTransactionQueue(ctx context.Context, description strin
 	return s, s.begin
 }
 
-func (s *fakeStore) CompleteTransaction(ctx context.Context, err *error) {
+func (s *fakeStore) CompleteTransaction(err *error) {
 	if s.complete != nil && *err == nil {
 		*err = s.complete
 	}

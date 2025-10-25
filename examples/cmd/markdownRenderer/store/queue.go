@@ -147,7 +147,7 @@ func (conn *store) BeginTransactionQueue(ctx context.Context, description string
 	return conn.BeginTransaction(ctx, description)
 }
 
-func (conn *store) CompleteTransaction(ctx context.Context, err *error) {
+func (conn *store) CompleteTransaction(err *error) {
 	if *err != nil {
 		conn.db.Rollback()
 	} else {
@@ -282,7 +282,7 @@ func (conn *store) QueueGroupStart(ctx context.Context, id int64) error {
 	if err != nil {
 		return err
 	}
-	defer tx.CompleteTransaction(ctx, &err)
+	defer tx.CompleteTransaction(&err)
 
 	err = tx.(*store).db.First(&QueueGroup{}, id).Update("started", true).Error
 	if err != nil {
@@ -327,7 +327,7 @@ func (conn *store) QueuePushAddressed(ctx context.Context, name string, groupId 
 	if err != nil {
 		return err
 	}
-	defer tx.CompleteTransaction(ctx, &err)
+	defer tx.CompleteTransaction(&err)
 
 	err = tx.(*store).db.Create(&workRecord).Error
 	if isUniqueIndexViolation(err) {
@@ -377,7 +377,7 @@ func (conn *store) QueuePush(ctx context.Context, name string, groupId sql.NullI
 	if err != nil {
 		return err
 	}
-	defer tx.CompleteTransaction(ctx, &err)
+	defer tx.CompleteTransaction(&err)
 
 	err = tx.(*store).db.Create(&workRecord).Error
 	if err != nil {

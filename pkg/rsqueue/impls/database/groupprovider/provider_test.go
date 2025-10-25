@@ -72,7 +72,7 @@ func (s *fakeProviderStore) QueueGroupStart(ctx context.Context, id int64) error
 	return s.groupStartErr
 }
 
-func (s *fakeProviderStore) CompleteTransaction(ctx context.Context, err *error) {
+func (s *fakeProviderStore) CompleteTransaction(err *error) {
 }
 
 type fakeGroup struct {

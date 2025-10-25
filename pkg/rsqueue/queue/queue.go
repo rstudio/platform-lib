@@ -186,7 +186,7 @@ type QueueGroupRecord interface {
 }
 
 type TransactionCompleter interface {
-	CompleteTransaction(ctx context.Context, err *error)
+	CompleteTransaction(err *error)
 }
 
 type DatabaseQueueChunkMatcher interface {

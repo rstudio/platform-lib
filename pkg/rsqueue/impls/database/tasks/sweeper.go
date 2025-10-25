@@ -52,7 +52,7 @@ func (q *DatabaseQueueSweeperTask) Run(ctx context.Context) {
 		slog.Debug(fmt.Sprintf("Error sweeping for expired queue permits. Error getting permits: %s", err))
 		return
 	}
-	defer tx.CompleteTransaction(ctx, &err)
+	defer tx.CompleteTransaction(&err)
 
 	// Sweep for expired nodes
 	permits, err := tx.QueuePermits(ctx, q.queueName)

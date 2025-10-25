@@ -54,7 +54,7 @@ func (s *QueueTestStore) BeginTransactionQueue(ctx context.Context, description 
 	return s, nil
 }
 
-func (s *QueueTestStore) CompleteTransaction(ctx context.Context, err *error) {}
+func (s *QueueTestStore) CompleteTransaction(err *error) {}
 
 func (s *QueueTestStore) QueuePermits(ctx context.Context, name string) ([]queue.QueuePermit, error) {
 	s.permitsCalled++
