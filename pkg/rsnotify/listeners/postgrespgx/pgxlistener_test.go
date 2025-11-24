@@ -3,6 +3,7 @@ package postgrespgx
 // Copyright (C) 2025 by Posit Software, PBC.
 
 import (
+	"context"
 	"log"
 	"strings"
 	"testing"
@@ -96,12 +97,12 @@ func (s *PgxNotifySuite) TestNewPgxListener(c *check.C) {
 }
 
 // This makes the suite fulfill the notifier.Provider interface
-func (s *PgxNotifySuite) Notify(channel string, msg []byte) error {
+func (s *PgxNotifySuite) Notify(ctx context.Context, channel string, msg []byte) error {
 	return Notify(channel, msg, s.pool)
 }
 
-func (s *PgxNotifySuite) notify(channel string, n interface{}, c *check.C) {
-	err := s.notifier.Notify(channel, n)
+func (s *PgxNotifySuite) notify(ctx context.Context, channel string, n interface{}, c *check.C) {
+	err := s.notifier.Notify(ctx, channel, n)
 	c.Assert(err, check.IsNil)
 }
 
@@ -112,6 +113,7 @@ func (s *PgxNotifySuite) notifyRaw(channel string, message string, c *check.C) {
 
 func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	defer leaktest.Check(c)()
+	ctx := context.Background()
 
 	matcher := listener.NewMatcher("NotifyType")
 	matcher.Register(2, &testNotification{})
@@ -174,16 +176,16 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	}()
 
 	// Send some data across the main test channel.
-	s.notify(chName, &tn, c)
+	s.notify(ctx, chName, &tn, c)
 	// Send some data across a different channel. This should not be seen
-	s.notify("test-wrong-channel", &testNotification{
+	s.notify(ctx, "test-wrong-channel", &testNotification{
 		GenericNotification: listener.GenericNotification{NotifyType: 2},
 		Val:                 "different-test",
 	}, c)
 	// Send more data across the main test channel.
-	s.notify(chName, &tn, c)
+	s.notify(ctx, chName, &tn, c)
 	// Send data of an alternate type across the main test channel
-	s.notify(chName, &testNotificationAlt{
+	s.notify(ctx, chName, &testNotificationAlt{
 		GenericNotification: listener.GenericNotification{NotifyType: 3},
 		Val:                 999,
 		Data: []string{
@@ -224,9 +226,9 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	l.Stop()
 
 	// Attempt more notifications after stopping. These should not be received.
-	s.notify(chName, &tn, c)
+	s.notify(ctx, chName, &tn, c)
 	c.Assert(err, check.IsNil)
-	s.notify(chName, &tn, c)
+	s.notify(ctx, chName, &tn, c)
 	c.Assert(err, check.IsNil)
 
 	// Start again, and listen for more notifications
@@ -248,7 +250,7 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 	}()
 
 	// This notification should be received.
-	s.notify(chName, &testNotification{
+	s.notify(ctx, chName, &testNotification{
 		GenericNotification: listener.GenericNotification{NotifyType: 2},
 		Val:                 "second-test",
 	}, c)
@@ -263,6 +265,7 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 
 func (s *PgxNotifySuite) TestNotificationsErrors(c *check.C) {
 	defer leaktest.Check(c)()
+	ctx := context.Background()
 
 	matcher := listener.NewMatcher("NotifyType")
 	matcher.Register(2, &testNotification{})
@@ -361,9 +364,9 @@ func (s *PgxNotifySuite) TestNotificationsErrors(c *check.C) {
 
 	// Send data across the main test channel. All should err.
 	s.notifyRaw(chName, tnBytesInvalid, c)
-	s.notify(chName, &tnNoTypeField, c)
+	s.notify(ctx, chName, &tnNoTypeField, c)
 	s.notifyRaw(chName, tnBytesInvalidTypeData, c)
-	s.notify(chName, &tnWrongType, c)
+	s.notify(ctx, chName, &tnWrongType, c)
 	s.notifyRaw(chName, tnBytesCannotUnmarshal1, c)
 	s.notifyRaw(chName, tnBytesCannotUnmarshal2, c)
 	s.notifyRaw(chName, tnBytesChunkHeader1, c)
@@ -380,6 +383,7 @@ func (s *PgxNotifySuite) TestNotificationsErrors(c *check.C) {
 
 func (s *PgxNotifySuite) TestNotificationsBlock(c *check.C) {
 	defer leaktest.Check(c)()
+	ctx := context.Background()
 
 	matcher := listener.NewMatcher("NotifyType")
 	matcher.Register(3, &testNotification{})
@@ -428,9 +432,9 @@ func (s *PgxNotifySuite) TestNotificationsBlock(c *check.C) {
 	// Send some data across the main test channel.
 	for i := 0; i < 100; i++ {
 		// Send some data across the main test channel.
-		s.notify(chName, &tn, c)
+		s.notify(ctx, chName, &tn, c)
 		// Send some data across a different channel. This should not be seen
-		s.notify("test-wrong-channel", &testNotification{
+		s.notify(ctx, "test-wrong-channel", &testNotification{
 			GenericNotification: listener.GenericNotification{NotifyType: 3},
 			Val:                 "different-test",
 		}, c)

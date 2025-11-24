@@ -40,7 +40,6 @@ func (*BaseRunner) Stop(timeout time.Duration) error {
 type RecursableWork struct {
 	Work     []byte
 	WorkType uint64
-	Context  context.Context
 }
 
 type CtxRecurseKey string
@@ -62,10 +61,6 @@ func ContextWithRecursion(ctx context.Context, workType uint64, recurseFunc Recu
 }
 
 func ContextWithExpectedRecursion(ctx context.Context) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
 	return context.WithValue(ctx, CtxAllowsRecursion, true)
 }
 

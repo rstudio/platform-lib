@@ -3,6 +3,7 @@ package storage
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"time"
 
 	"github.com/rstudio/platform-lib/v2/examples/cmd/markdownRenderer/notifytypes"
@@ -15,7 +16,7 @@ type ExampleChunkWaiter struct {
 	awb broadcaster.Broadcaster
 }
 
-func (cw *ExampleChunkWaiter) WaitForChunk(c *types.ChunkNotification) {
+func (cw *ExampleChunkWaiter) WaitForChunk(ctx context.Context, c *types.ChunkNotification) {
 	timeout := time.NewTimer(c.Timeout)
 	defer timeout.Stop()
 
@@ -46,15 +47,15 @@ func NewExampleChunkWaiter(awb broadcaster.Broadcaster) *ExampleChunkWaiter {
 }
 
 type ChunkNotifierStore interface {
-	Notify(channelName string, n interface{}) error
+	Notify(ctx context.Context, channelName string, n interface{}) error
 }
 
 type ExampleChunkNotifier struct {
 	store ChunkNotifierStore
 }
 
-func (cn *ExampleChunkNotifier) Notify(c *types.ChunkNotification) error {
-	return cn.store.Notify(notifytypes.ChannelMessages, notifytypes.NewChunkNotification(c.Address, c.Chunk))
+func (cn *ExampleChunkNotifier) Notify(ctx context.Context, c *types.ChunkNotification) error {
+	return cn.store.Notify(ctx, notifytypes.ChannelMessages, notifytypes.NewChunkNotification(c.Address, c.Chunk))
 }
 
 func NewExampleChunkNotifier(cstore ChunkNotifierStore) *ExampleChunkNotifier {

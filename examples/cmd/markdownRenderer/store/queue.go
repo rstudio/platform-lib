@@ -3,6 +3,7 @@ package store
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -21,7 +22,6 @@ import (
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/local"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listenerutils"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 	queuetypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/types"
@@ -29,13 +29,13 @@ import (
 
 type Store interface {
 	// QueueStore Use composition to include the database queue store interface
-	dbqueuetypes.QueueStore
-	dbqueuetypes.QueueGroupStore
+	queue.QueueStore
+	queue.QueueGroupStore
 
-	Notify(channelName string, n interface{}) error
+	Notify(ctx context.Context, channelName string, n interface{}) error
 
 	// QueueNewGroup creates a new queue group in the database
-	QueueNewGroup(name string) (dbqueuetypes.QueueGroupRecord, error)
+	QueueNewGroup(name string) (queue.QueueGroupRecord, error)
 }
 
 // QueueGroup represents a queue group
@@ -134,7 +134,7 @@ func Open(path string, llf *local.ListenerProvider) Store {
 	}
 }
 
-func (conn *store) BeginTransaction(description string) (Store, error) {
+func (conn *store) BeginTransaction(ctx context.Context, description string) (Store, error) {
 	return &store{
 		db:            conn.db.Begin(),
 		inTransaction: true,
@@ -143,8 +143,8 @@ func (conn *store) BeginTransaction(description string) (Store, error) {
 	}, nil
 }
 
-func (conn *store) BeginTransactionQueue(description string) (dbqueuetypes.QueueStore, error) {
-	return conn.BeginTransaction(description)
+func (conn *store) BeginTransactionQueue(ctx context.Context, description string) (queue.QueueStore, error) {
+	return conn.BeginTransaction(ctx, description)
 }
 
 func (conn *store) CompleteTransaction(err *error) {
@@ -165,11 +165,11 @@ func (conn *store) CompleteTransaction(err *error) {
 	}
 }
 
-func (conn *store) NotifyExtend(permit uint64) error {
-	return conn.Notify(notifytypes.ChannelLeader, dbqueuetypes.NewQueuePermitExtendNotification(permit, notifytypes.NotifyTypePermitExtend))
+func (conn *store) NotifyExtend(ctx context.Context, permit uint64) error {
+	return conn.Notify(ctx, notifytypes.ChannelLeader, queue.NewQueuePermitExtendNotification(permit, notifytypes.NotifyTypePermitExtend))
 }
 
-func (conn *store) QueueNewGroup(name string) (dbqueuetypes.QueueGroupRecord, error) {
+func (conn *store) QueueNewGroup(name string) (queue.QueueGroupRecord, error) {
 	newGroup := &QueueGroup{
 		Name:      name,
 		Cancelled: false,
@@ -182,7 +182,7 @@ func (conn *store) QueueNewGroup(name string) (dbqueuetypes.QueueGroupRecord, er
 	return newGroup, nil
 }
 
-func QueueUpdateGroup(conn *gorm.DB, group *QueueGroup) (dbqueuetypes.QueueGroupRecord, error) {
+func QueueUpdateGroup(conn *gorm.DB, group *QueueGroup) (queue.QueueGroupRecord, error) {
 	err := conn.Model(&QueueGroup{}).Where("name = ?", group.Name).Update("started", group.Started).Update("cancelled", group.Cancelled).Error
 	if err != nil {
 		return nil, err
@@ -196,7 +196,7 @@ func QueueUpdateGroup(conn *gorm.DB, group *QueueGroup) (dbqueuetypes.QueueGroup
 	return group, nil
 }
 
-func (conn *store) QueueGroupComplete(id int64) (done bool, cancelled bool, err error) {
+func (conn *store) QueueGroupComplete(ctx context.Context, id int64) (done bool, cancelled bool, err error) {
 	var count int64
 	err = conn.db.Transaction(func(tx *gorm.DB) error {
 		err = tx.Model(&Queue{}).Where("group_id = ?", id).Count(&count).Error
@@ -225,7 +225,8 @@ func (conn *store) QueueGroupComplete(id int64) (done bool, cancelled bool, err 
 	return count == 0, cancelled, err
 }
 
-func (conn *store) IsQueueAddressComplete(address string) (done bool, err error) {
+func (conn *store) IsQueueAddressComplete(ctx context.Context, address string) (done bool, err error) {
+
 	address = strings.TrimSpace(address)
 	if address == "" {
 		return false, errors.New("no address provided for IsQueueAddressComplete")
@@ -257,7 +258,7 @@ func (conn *store) IsQueueAddressComplete(address string) (done bool, err error)
 	return count == 0, err
 }
 
-func (conn *store) IsQueueAddressInProgress(address string) (bool, error) {
+func (conn *store) IsQueueAddressInProgress(ctx context.Context, address string) (bool, error) {
 	address = strings.TrimSpace(address)
 	if address == "" {
 		return false, errors.New("no address provided for IsQueueAddressInProgress")
@@ -274,10 +275,10 @@ func (conn *store) IsQueueAddressInProgress(address string) (bool, error) {
 	return count > 0, nil
 }
 
-func (conn *store) QueueGroupStart(id int64) error {
+func (conn *store) QueueGroupStart(ctx context.Context, id int64) error {
 	var tx Store
 	var err error
-	tx, err = conn.BeginTransaction("QueueGroupStart")
+	tx, err = conn.BeginTransaction(ctx, "QueueGroupStart")
 	if err != nil {
 		return err
 	}
@@ -288,19 +289,19 @@ func (conn *store) QueueGroupStart(id int64) error {
 		return err
 	}
 
-	err = tx.Notify(notifytypes.ChannelMessages, NewDbQueueNotify())
+	err = tx.Notify(ctx, notifytypes.ChannelMessages, NewDbQueueNotify())
 	return nil
 }
 
-func (conn *store) QueueGroupClear(id int64) error {
+func (conn *store) QueueGroupClear(ctx context.Context, id int64) error {
 	return conn.db.Delete(&Queue{}, "group_id = ?", id).Error
 }
 
-func (conn *store) QueueGroupCancel(id int64) error {
+func (conn *store) QueueGroupCancel(ctx context.Context, id int64) error {
 	return conn.db.First(&QueueGroup{}, id).Update("cancelled", true).Error
 }
 
-func (conn *store) QueuePushAddressed(name string, groupId sql.NullInt64, priority, workType uint64, address string, work interface{}, carrier []byte) (err error) {
+func (conn *store) QueuePushAddressed(ctx context.Context, name string, groupId sql.NullInt64, priority, workType uint64, address string, work interface{}, carrier []byte) (err error) {
 	item, err := json.Marshal(work)
 	if err != nil {
 		return err
@@ -322,7 +323,7 @@ func (conn *store) QueuePushAddressed(name string, groupId sql.NullInt64, priori
 	}
 
 	var tx Store
-	tx, err = conn.BeginTransaction("QueuePushAddressed")
+	tx, err = conn.BeginTransaction(ctx, "QueuePushAddressed")
 	if err != nil {
 		return err
 	}
@@ -336,7 +337,7 @@ func (conn *store) QueuePushAddressed(name string, groupId sql.NullInt64, priori
 		return err
 	}
 
-	err = tx.Notify(notifytypes.ChannelMessages, NewDbQueueNotify())
+	err = tx.Notify(ctx, notifytypes.ChannelMessages, NewDbQueueNotify())
 	return err
 }
 
@@ -350,7 +351,7 @@ func isUniqueIndexViolation(err error) bool {
 	return false
 }
 
-func (conn *store) QueuePush(name string, groupId sql.NullInt64, priority, workType uint64, work interface{}, carrier []byte) (err error) {
+func (conn *store) QueuePush(ctx context.Context, name string, groupId sql.NullInt64, priority, workType uint64, work interface{}, carrier []byte) (err error) {
 	item, err := json.Marshal(work)
 	if err != nil {
 		return err
@@ -372,7 +373,7 @@ func (conn *store) QueuePush(name string, groupId sql.NullInt64, priority, workT
 	}
 
 	var tx Store
-	tx, err = conn.BeginTransaction("QueuePush")
+	tx, err = conn.BeginTransaction(ctx, "QueuePush")
 	if err != nil {
 		return err
 	}
@@ -383,7 +384,7 @@ func (conn *store) QueuePush(name string, groupId sql.NullInt64, priority, workT
 		return err
 	}
 
-	err = tx.Notify(notifytypes.ChannelMessages, NewDbQueueNotify())
+	err = tx.Notify(ctx, notifytypes.ChannelMessages, NewDbQueueNotify())
 	return err
 }
 
@@ -506,7 +507,7 @@ func getWork(tx *gorm.DB, permitId uint) ([]byte, string, uint64, []byte, error)
 	return workRecord.Item, workRecord.Address.String, workRecord.Type, workRecord.Carrier, nil
 }
 
-func (conn *store) QueuePop(name string, maxPriority uint64, types []uint64) (*queue.QueueWork, error) {
+func (conn *store) QueuePop(ctx context.Context, name string, maxPriority uint64, types []uint64) (*queue.QueueWork, error) {
 
 	// Avoid empty slice errors or IN clauses
 	if len(types) == 0 {
@@ -560,7 +561,7 @@ func (conn *store) QueuePop(name string, maxPriority uint64, types []uint64) (*q
 	return result, nil
 }
 
-func (conn *store) QueueDelete(permitId permit.Permit) (err error) {
+func (conn *store) QueueDelete(ctx context.Context, permitId permit.Permit) (err error) {
 	return conn.db.Transaction(func(tx *gorm.DB) error {
 		err = tx.Delete(&Queue{}, "permit = ?", permitId).Error
 		if err != nil {
@@ -572,7 +573,7 @@ func (conn *store) QueueDelete(permitId permit.Permit) (err error) {
 	})
 }
 
-func (conn *store) QueueAddressedComplete(address string, failure error) (err error) {
+func (conn *store) QueueAddressedComplete(ctx context.Context, address string, failure error) (err error) {
 
 	var bytes []byte
 	if failure != nil {
@@ -653,7 +654,7 @@ func (conn *store) QueueAddressedCheck(address string) error {
 	return nil
 }
 
-func (conn *store) QueuePermits(name string) ([]dbqueuetypes.QueuePermit, error) {
+func (conn *store) QueuePermits(ctx context.Context, name string) ([]queue.QueuePermit, error) {
 	permits := make([]QueuePermit, 0)
 
 	// Get a list of permits that have expired
@@ -670,7 +671,7 @@ func (conn *store) QueuePermits(name string) ([]dbqueuetypes.QueuePermit, error)
 		return nil, err
 	}
 
-	result := make([]dbqueuetypes.QueuePermit, len(permits))
+	result := make([]queue.QueuePermit, len(permits))
 	for i := range permits {
 		result[i] = &permits[i]
 	}
@@ -678,7 +679,7 @@ func (conn *store) QueuePermits(name string) ([]dbqueuetypes.QueuePermit, error)
 	return result, nil
 }
 
-func (conn *store) QueuePermitDelete(permitId permit.Permit) error {
+func (conn *store) QueuePermitDelete(ctx context.Context, permitId permit.Permit) error {
 	// Delete the expired permit
 	err := conn.db.Delete(&QueuePermit{}, permitId).Error
 	if err != nil {
@@ -692,7 +693,7 @@ func (conn *store) QueuePermitDelete(permitId permit.Permit) error {
 	}
 
 	// Notify that work may be available.
-	err = conn.Notify(notifytypes.ChannelMessages, NewDbQueueNotify())
+	err = conn.Notify(ctx, notifytypes.ChannelMessages, NewDbQueueNotify())
 	if err != nil {
 		return err
 	}
@@ -700,7 +701,7 @@ func (conn *store) QueuePermitDelete(permitId permit.Permit) error {
 	return nil
 }
 
-func (conn *store) QueuePeek(types ...uint64) (results []queue.QueueWork, err error) {
+func (conn *store) QueuePeek(ctx context.Context, types ...uint64) (results []queue.QueueWork, err error) {
 
 	// Load a list of any queue group work in the queue
 	workRecords := make([]Queue, 0)
@@ -726,7 +727,7 @@ func (conn *store) QueueGroupGet(name string) (record *QueueGroup, err error) {
 	return
 }
 
-func (conn *store) Notify(channelName string, n interface{}) error {
+func (conn *store) Notify(ctx context.Context, channelName string, n interface{}) error {
 	msgbytes, err := json.Marshal(n)
 	if err != nil {
 		return err

@@ -3,6 +3,8 @@ package groups
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
+
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 )
 
@@ -43,14 +45,14 @@ import (
 //	see the QueueGroup struct.
 type GroupQueue interface {
 	// Push pushes work into the base queue
-	Push(priority uint64, work queue.Work) error
+	Push(ctx context.Context, priority uint64, work queue.Work) error
 
 	// SetEndWork sets the work to run when the group ends
-	SetEndWork(work interface{}, endWorkType uint8) error
+	SetEndWork(ctx context.Context, work interface{}, endWorkType uint8) error
 
 	// Start starts monitoring the base queue for completion
 	// of all queued work.
-	Start() error
+	Start(ctx context.Context) error
 
 	// Group returns the group info
 	Group() GroupQueueJob

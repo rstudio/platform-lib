@@ -13,7 +13,6 @@ import (
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/local"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 	"gopkg.in/check.v1"
@@ -43,7 +42,7 @@ type QueueTestStore struct {
 	hasAddressErr  error
 	enabled        []uint64
 	permitsCalled  int
-	permits        []dbqueuetypes.QueuePermit
+	permits        []queue.QueuePermit
 	permitsErr     error
 	permitsDeleted int
 	permitDelete   error
@@ -51,37 +50,37 @@ type QueueTestStore struct {
 	peekErr        error
 }
 
-func (s *QueueTestStore) BeginTransactionQueue(description string) (dbqueuetypes.QueueStore, error) {
+func (s *QueueTestStore) BeginTransactionQueue(ctx context.Context, description string) (queue.QueueStore, error) {
 	return s, nil
 }
 
 func (s *QueueTestStore) CompleteTransaction(err *error) {}
 
-func (s *QueueTestStore) QueuePermits(name string) ([]dbqueuetypes.QueuePermit, error) {
+func (s *QueueTestStore) QueuePermits(ctx context.Context, name string) ([]queue.QueuePermit, error) {
 	s.permitsCalled++
 	return s.permits, s.permitsErr
 }
 
-func (s *QueueTestStore) QueuePermitDelete(permitID permit.Permit) error {
+func (s *QueueTestStore) QueuePermitDelete(ctx context.Context, permitID permit.Permit) error {
 	if s.permitDelete == nil {
 		s.permitsDeleted++
 	}
 	return s.permitDelete
 }
 
-func (s *QueueTestStore) QueuePeek(types ...uint64) (results []queue.QueueWork, err error) {
+func (s *QueueTestStore) QueuePeek(ctx context.Context, types ...uint64) (results []queue.QueueWork, err error) {
 	return s.peek, s.peekErr
 }
 
-func (s *QueueTestStore) QueuePush(name string, groupId sql.NullInt64, priority, workType uint64, work interface{}, carrier []byte) error {
+func (s *QueueTestStore) QueuePush(ctx context.Context, name string, groupId sql.NullInt64, priority, workType uint64, work interface{}, carrier []byte) error {
 	return s.err
 }
 
-func (s *QueueTestStore) QueuePushAddressed(name string, groupId sql.NullInt64, priority, workType uint64, address string, work interface{}, carrier []byte) error {
+func (s *QueueTestStore) QueuePushAddressed(ctx context.Context, name string, groupId sql.NullInt64, priority, workType uint64, address string, work interface{}, carrier []byte) error {
 	return s.err
 }
 
-func (s *QueueTestStore) QueuePop(name string, maxPriority uint64, types []uint64) (*queue.QueueWork, error) {
+func (s *QueueTestStore) QueuePop(ctx context.Context, name string, maxPriority uint64, types []uint64) (*queue.QueueWork, error) {
 	// Simulate returning results on for maxPriority > 1
 	if s.err == nil {
 		s.enabled = types
@@ -94,24 +93,24 @@ func (s *QueueTestStore) QueuePop(name string, maxPriority uint64, types []uint6
 	return nil, s.err
 }
 
-func (s *QueueTestStore) IsQueueAddressInProgress(address string) (bool, error) {
+func (s *QueueTestStore) IsQueueAddressInProgress(ctx context.Context, address string) (bool, error) {
 	return s.hasAddress, s.hasAddressErr
 }
 
-func (s *QueueTestStore) IsQueueAddressComplete(address string) (bool, error) {
+func (s *QueueTestStore) IsQueueAddressComplete(ctx context.Context, address string) (bool, error) {
 	s.polled++
 	return s.poll, s.pollErr
 }
 
-func (s *QueueTestStore) NotifyExtend(permit uint64) error {
+func (s *QueueTestStore) NotifyExtend(ctx context.Context, permit uint64) error {
 	return s.err
 }
 
-func (s *QueueTestStore) QueueDelete(permit permit.Permit) error {
+func (s *QueueTestStore) QueueDelete(ctx context.Context, permit permit.Permit) error {
 	return s.err
 }
 
-func (s *QueueTestStore) QueueAddressedComplete(address string, failure error) error {
+func (s *QueueTestStore) QueueAddressedComplete(ctx context.Context, address string, failure error) error {
 	return s.err
 }
 
@@ -183,6 +182,7 @@ func (s *QueuePermitMonitorSuite) TestNew(c *check.C) {
 
 func (s *QueuePermitMonitorSuite) TestRun(c *check.C) {
 	defer leaktest.Check(c)
+	ctx := context.Background()
 
 	ch := make(chan listener.Notification)
 	nb := &fakeBroadcaster{
@@ -199,33 +199,33 @@ func (s *QueuePermitMonitorSuite) TestRun(c *check.C) {
 	go m.Run(ctx, nb)
 
 	// Send a notification
-	ch <- dbqueuetypes.NewQueuePermitExtendNotification(123, 8)
+	ch <- queue.NewQueuePermitExtendNotification(123, 8)
 
 	// Set the monitor start time
 	m.started = time.Now().Add(-time.Hour)
 
 	// Check the map
-	b := m.Check(context.Background(), 123, time.Time{}, time.Minute)
+	b := m.Check(ctx, 123, time.Time{}, time.Minute)
 	c.Assert(b, check.Equals, true)
 
 	// Check for a value that does not exist in the map
-	b = m.Check(context.Background(), 456, time.Time{}, time.Minute)
+	b = m.Check(ctx, 456, time.Time{}, time.Minute)
 	c.Assert(b, check.Equals, false)
 
 	// Check for a value that does not exist in the map, but was created recently
-	b = m.Check(context.Background(), 456, time.Now(), time.Minute)
+	b = m.Check(ctx, 456, time.Now(), time.Minute)
 	c.Assert(b, check.Equals, true)
 
 	// Send a notification
-	ch <- dbqueuetypes.NewQueuePermitExtendNotification(456, 8)
-	b = m.Check(context.Background(), 456, time.Time{}, time.Minute)
+	ch <- queue.NewQueuePermitExtendNotification(456, 8)
+	b = m.Check(ctx, 456, time.Time{}, time.Minute)
 	c.Assert(b, check.Equals, true)
 
 	// Check for a value that does not exist in the map, but right after the
 	// service started. This will return true since the service has not been
 	// running for as long as the 1 minute maxAge parameter.
 	m.started = time.Now().Add(-time.Second * 30)
-	b = m.Check(context.Background(), 789, time.Time{}, time.Minute)
+	b = m.Check(ctx, 789, time.Time{}, time.Minute)
 	c.Assert(b, check.Equals, true)
 }
 
@@ -311,22 +311,23 @@ func (s *QueuePermitMonitorSuite) TestSweep(c *check.C) {
 }
 
 func (s *QueuePermitMonitorSuite) TestRefreshPermitMap(c *check.C) {
+	ctx := context.Background()
 	m := &DatabaseQueueMonitorTask{
 		cstore: &QueueTestStore{},
 	}
 	fakePermitMap := map[uint64]time.Time{}
-	m.refreshPermitMap(fakePermitMap)
+	m.refreshPermitMap(ctx, fakePermitMap)
 	c.Check(len(fakePermitMap), check.Equals, 0)
 
 	// Map should acquire missing permits from the store
 	fakeStore := &QueueTestStore{
-		permits: []dbqueuetypes.QueuePermit{
+		permits: []queue.QueuePermit{
 			&fakePermit{permitId: 1},
 		},
 	}
 
 	m.cstore = fakeStore
-	m.refreshPermitMap(fakePermitMap)
+	m.refreshPermitMap(ctx, fakePermitMap)
 	c.Check(len(fakePermitMap), check.Equals, 1)
 
 	// Transient failure should not disrupt permitMap
@@ -335,6 +336,6 @@ func (s *QueuePermitMonitorSuite) TestRefreshPermitMap(c *check.C) {
 	}
 
 	m.cstore = fakeStore
-	m.refreshPermitMap(fakePermitMap)
+	m.refreshPermitMap(ctx, fakePermitMap)
 	c.Check(len(fakePermitMap), check.Equals, 1)
 }

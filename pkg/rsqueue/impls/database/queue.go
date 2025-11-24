@@ -3,6 +3,7 @@ package database
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -12,7 +13,6 @@ import (
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent"
 	agenttypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent/types"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/metrics"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
@@ -27,7 +27,7 @@ type DatabaseQueue struct {
 	name string
 
 	// A store
-	store dbqueuetypes.QueueStore
+	store queue.QueueStore
 
 	// Poll for addressed item completion at this interval
 	addressPollInterval time.Duration
@@ -43,7 +43,7 @@ type DatabaseQueue struct {
 	notifyTypeChunk        uint8
 
 	// Determines when a relevant chunk notification is received.
-	chunkMatcher dbqueuetypes.DatabaseQueueChunkMatcher
+	chunkMatcher queue.DatabaseQueueChunkMatcher
 
 	wrapper metrics.JobLifecycleWrapper
 
@@ -55,9 +55,9 @@ type DatabaseQueueConfig struct {
 	NotifyTypeWorkReady    uint8
 	NotifyTypeWorkComplete uint8
 	NotifyTypeChunk        uint8
-	ChunkMatcher           dbqueuetypes.DatabaseQueueChunkMatcher
+	ChunkMatcher           queue.DatabaseQueueChunkMatcher
 	CarrierFactory         metrics.CarrierFactory
-	QueueStore             dbqueuetypes.QueueStore
+	QueueStore             queue.QueueStore
 	QueueMsgsChan          <-chan listener.Notification
 	WorkMsgsChan           <-chan listener.Notification
 	ChunkMsgsChan          <-chan listener.Notification
@@ -93,10 +93,10 @@ func NewDatabaseQueue(cfg DatabaseQueueConfig) (queue.Queue, error) {
 	return rq, nil
 }
 
-func (q *DatabaseQueue) WithDbTx(tx interface{}) queue.Queue {
+func (q *DatabaseQueue) WithDbTx(ctx context.Context, tx queue.QueueStore) queue.Queue {
 	return &DatabaseQueue{
 		name:                q.name,
-		store:               tx.(dbqueuetypes.QueueStore),
+		store:               tx,
 		addressPollInterval: q.addressPollInterval,
 		subscribe:           q.subscribe,
 		unsubscribe:         q.unsubscribe,
@@ -229,29 +229,29 @@ func (q *DatabaseQueue) stop(sinks []broadcaster.Subscription) {
 	}
 }
 
-func (q *DatabaseQueue) AddressedPush(priority uint64, groupId int64, address string, work queue.Work) error {
+func (q *DatabaseQueue) AddressedPush(ctx context.Context, priority uint64, groupId int64, address string, work queue.Work) error {
 	group := sql.NullInt64{Int64: groupId, Valid: groupId > 0}
 	c := q.carrierFactory.GetCarrier("addressed-queue-push", q.name, address, priority, work.Type(), groupId)
-	err := q.store.QueuePushAddressed(q.name, group, priority, work.Type(), address, work, c)
-	_ = q.wrapper.Enqueue(q.name, work, err)
+	err := q.store.QueuePushAddressed(ctx, q.name, group, priority, work.Type(), address, work, c)
+	_ = q.wrapper.Enqueue(ctx, q.name, work, err)
 	return err
 }
 
-func (q *DatabaseQueue) RecordFailure(address string, failure error) error {
-	return q.store.QueueAddressedComplete(address, failure)
+func (q *DatabaseQueue) RecordFailure(ctx context.Context, address string, failure error) error {
+	return q.store.QueueAddressedComplete(ctx, address, failure)
 }
 
-func (q *DatabaseQueue) IsAddressInQueue(address string) (bool, error) {
-	return q.store.IsQueueAddressInProgress(address)
+func (q *DatabaseQueue) IsAddressInQueue(ctx context.Context, address string) (bool, error) {
+	return q.store.IsQueueAddressInProgress(ctx, address)
 }
 
-func (q *DatabaseQueue) PollAddress(address string) <-chan error {
+func (q *DatabaseQueue) PollAddress(ctx context.Context, address string) <-chan error {
 	errCh := make(chan error)
 
 	go func() {
 		var done, ticked bool
 		for {
-			isDone, err := q.store.IsQueueAddressComplete(address)
+			isDone, err := q.store.IsQueueAddressComplete(ctx, address)
 			if err != nil {
 				// Ignore lock errors
 				if !utils.IsSqliteLockError(err) {
@@ -310,14 +310,14 @@ func (q *DatabaseQueue) PollAddress(address string) <-chan error {
 	return errCh
 }
 
-func (q *DatabaseQueue) Push(priority uint64, groupId int64, work queue.Work) error {
+func (q *DatabaseQueue) Push(ctx context.Context, priority uint64, groupId int64, work queue.Work) error {
 	group := sql.NullInt64{}
 	if groupId > 0 {
 		group = sql.NullInt64{Int64: groupId, Valid: true}
 	}
 	c := q.carrierFactory.GetCarrier("queue-push", q.name, "", priority, work.Type(), groupId)
-	err := q.store.QueuePush(q.name, group, priority, work.Type(), work, c)
-	_ = q.wrapper.Enqueue(q.name, work, err)
+	err := q.store.QueuePush(ctx, q.name, group, priority, work.Type(), work, c)
+	_ = q.wrapper.Enqueue(ctx, q.name, work, err)
 	return err
 }
 
@@ -336,14 +336,14 @@ func (q *DatabaseQueue) Push(priority uint64, groupId int64, work queue.Work) er
 //   - Permit - A permit (uint64) for doing the work
 //   - Address - The work's address
 //   - error - An error (if error occurs); nil if successful
-func (q *DatabaseQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
+func (q *DatabaseQueue) Get(ctx context.Context, maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
 
 	start := time.Now()
 	slog.Debug("Queue Get() started")
 
 	// First, try to get a job to avoid waiting for a tick
 	// if jobs are waiting
-	queueWork, err := q.store.QueuePop(q.name, maxPriority, types.Enabled())
+	queueWork, err := q.store.QueuePop(ctx, q.name, maxPriority, types.Enabled())
 	defer func(queueWork *queue.QueueWork) {
 		t := time.Since(start).Nanoseconds() / 1000000
 		if queueWork != nil {
@@ -356,7 +356,7 @@ func (q *DatabaseQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, typ
 		}
 	}(queueWork)
 	if err != sql.ErrNoRows {
-		q.measureDequeue(queueWork, err)
+		q.measureDequeue(ctx, queueWork, err)
 		return queueWork, err
 	}
 
@@ -385,28 +385,28 @@ func (q *DatabaseQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, typ
 		if err != nil {
 			return queueWork, err
 		}
-		queueWork, err := q.store.QueuePop(q.name, maxPriority, types.Enabled())
+		queueWork, err := q.store.QueuePop(ctx, q.name, maxPriority, types.Enabled())
 		if err != sql.ErrNoRows {
-			q.measureDequeue(queueWork, err)
+			q.measureDequeue(ctx, queueWork, err)
 			return queueWork, err
 		}
 	}
 }
 
-func (q *DatabaseQueue) Extend(permit permit.Permit) error {
-	return q.store.NotifyExtend(uint64(permit))
+func (q *DatabaseQueue) Extend(ctx context.Context, permit permit.Permit) error {
+	return q.store.NotifyExtend(ctx, uint64(permit))
 }
 
-func (q *DatabaseQueue) Delete(permit permit.Permit) error {
-	return q.store.QueueDelete(permit)
+func (q *DatabaseQueue) Delete(ctx context.Context, permit permit.Permit) error {
+	return q.store.QueueDelete(ctx, permit)
 }
 
 func (q *DatabaseQueue) Name() string {
 	return q.name
 }
 
-func (q *DatabaseQueue) Peek(filter func(work *queue.QueueWork) (bool, error), types ...uint64) ([]queue.QueueWork, error) {
-	work, err := q.store.QueuePeek(types...)
+func (q *DatabaseQueue) Peek(ctx context.Context, filter func(work *queue.QueueWork) (bool, error), types ...uint64) ([]queue.QueueWork, error) {
+	work, err := q.store.QueuePeek(ctx, types...)
 	if err != nil {
 		return nil, err
 	}
@@ -426,9 +426,9 @@ func (q *DatabaseQueue) Peek(filter func(work *queue.QueueWork) (bool, error), t
 	return results, nil
 }
 
-func (q *DatabaseQueue) measureDequeue(queueWork *queue.QueueWork, err error) {
+func (q *DatabaseQueue) measureDequeue(ctx context.Context, queueWork *queue.QueueWork, err error) {
 	if queueWork == nil {
 		queueWork = &queue.QueueWork{WorkType: queuetypes.TYPE_NONE}
 	}
-	_ = q.wrapper.Dequeue(q.name, queueWork, err)
+	_ = q.wrapper.Dequeue(ctx, q.name, queueWork, err)
 }

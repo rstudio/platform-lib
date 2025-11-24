@@ -3,6 +3,7 @@ package storage
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -39,7 +40,7 @@ type dummyStore struct {
 	notify error
 }
 
-func (d *dummyStore) Notify(channel string, n interface{}) error {
+func (d *dummyStore) Notify(ctx context.Context, channel string, n interface{}) error {
 	return d.notify
 }
 
@@ -49,6 +50,7 @@ type ChunksSuite struct {
 var _ = check.Suite(&ChunksSuite{})
 
 func (s *ChunksSuite) TestWait(c *check.C) {
+	ctx := context.Background()
 	awb := &fakeBroadcaster{
 		l: make(chan listener.Notification),
 	}
@@ -63,28 +65,29 @@ func (s *ChunksSuite) TestWait(c *check.C) {
 	go func() {
 		awb.l <- notifytypes.NewChunkNotification("", 4)
 	}()
-	w.WaitForChunk(cn)
+	w.WaitForChunk(ctx, cn)
 
 	// Test waiting for chunk (timeout)
 	cn = &storagetypes.ChunkNotification{
 		Timeout: time.Millisecond,
 		Chunk:   3,
 	}
-	w.WaitForChunk(cn)
+	w.WaitForChunk(ctx, cn)
 }
 
 func (s *ChunksSuite) TestNotify(c *check.C) {
+	ctx := context.Background()
 	cstore := &dummyStore{
 		notify: errors.New("some error"),
 	}
 	cn := NewExampleChunkNotifier(cstore)
 	c.Assert(cn, check.DeepEquals, &ExampleChunkNotifier{store: cstore})
 
-	err := cn.Notify(&storagetypes.ChunkNotification{})
+	err := cn.Notify(ctx, &storagetypes.ChunkNotification{})
 	c.Assert(err, check.ErrorMatches, "some error")
 
 	cstore.notify = nil
-	err = cn.Notify(&storagetypes.ChunkNotification{})
+	err = cn.Notify(ctx, &storagetypes.ChunkNotification{})
 	c.Assert(err, check.IsNil)
 }
 

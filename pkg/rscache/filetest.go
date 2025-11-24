@@ -108,7 +108,7 @@ func NewDummyFileCache() *DummyMemoryBackedFileCache {
 	}
 }
 
-func (f *DummyMemoryBackedFileCache) Check(resolver ResolverSpec) (bool, error) {
+func (f *DummyMemoryBackedFileCache) Check(ctx context.Context, resolver ResolverSpec) (bool, error) {
 	f.GotSpec = resolver
 	if f.GotSpecs == nil {
 		f.GotSpecs = make([]ResolverSpec, 0)
@@ -233,7 +233,7 @@ func (f *DummyMemoryBackedFileCache) Head(ctx context.Context, resolver Resolver
 	return obj.GetSize(), obj.GetTimestamp(), f.HeadErr
 }
 
-func (f *DummyMemoryBackedFileCache) Uncache(resolver ResolverSpec) error {
+func (f *DummyMemoryBackedFileCache) Uncache(ctx context.Context, resolver ResolverSpec) error {
 	f.RemoveCount++
 	return f.UncacheErr
 }

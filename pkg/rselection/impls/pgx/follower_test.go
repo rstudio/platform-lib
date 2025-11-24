@@ -63,7 +63,7 @@ func generateKey(t time.Time) (key int) {
 	return
 }
 
-func (q *fakeQueue) Push(w electiontypes.AssumeLeader) error {
+func (q *fakeQueue) Push(ctx context.Context, w electiontypes.AssumeLeader) error {
 	key := generateKey(time.Now())
 	address := fmt.Sprintf("AssumeLeader-%d", key)
 	q.AddParams = append(q.AddParams, addParams{w, address})
@@ -104,7 +104,7 @@ type dummyNotifier struct {
 	wait chan bool
 }
 
-func (d *dummyNotifier) Notify(channel string, msgBytes []byte) error {
+func (d *dummyNotifier) Notify(ctx context.Context, channel string, msgBytes []byte) error {
 	d.msgs = append(d.msgs, notification{
 		ch:  channel,
 		msg: msgBytes,
@@ -117,6 +117,7 @@ func (d *dummyNotifier) Notify(channel string, msgBytes []byte) error {
 
 func (s *FollowerSuite) TestFollowNotify(c *check.C) {
 	defer leaktest.Check(c)
+	ctx := context.Background()
 
 	channel := c.TestName()
 	q := &fakeQueue{}
@@ -154,7 +155,7 @@ func (s *FollowerSuite) TestFollowNotify(c *check.C) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		follower.Follow()
+		follower.Follow(ctx)
 	}()
 
 	// Send a ping
@@ -167,7 +168,7 @@ func (s *FollowerSuite) TestFollowNotify(c *check.C) {
 	}
 	msgBytes, err := json.Marshal(ping)
 	c.Assert(err, check.IsNil)
-	err = realNotifier.Notify(channel+"_follower", msgBytes)
+	err = realNotifier.Notify(ctx, channel+"_follower", msgBytes)
 	c.Assert(err, check.IsNil)
 
 	// Wait for notification to be handled
@@ -221,7 +222,7 @@ func (s *FollowerSuite) TestFollowPromote(c *check.C) {
 	var result FollowResult
 	go func() {
 		defer close(done)
-		result = follower.Follow()
+		result = follower.Follow(context.Background())
 	}()
 
 	// Request promotion
@@ -264,7 +265,7 @@ func (s *FollowerSuite) TestFollowRequestLeader(c *check.C) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		follower.Follow()
+		follower.Follow(context.Background())
 	}()
 
 	// Wait for work to be pushed into the queue.
@@ -296,7 +297,7 @@ func (s *FollowerSuite) TestHandleNotify(c *check.C) {
 		address:  "follower-a",
 		awb:      awb,
 	}
-	follower.handleNotify(&electiontypes.ClusterPingRequest{
+	follower.handleNotify(context.Background(), &electiontypes.ClusterPingRequest{
 		ClusterNotification: electiontypes.ClusterNotification{
 			GuidVal:     "65db0d7d-8db1-4fa8-bc2a-58fad248507f",
 			MessageType: electiontypes.ClusterMessageTypePing,
@@ -318,7 +319,7 @@ func (s *FollowerSuite) TestRequestLeader(c *check.C) {
 		address: "follower-a",
 	}
 
-	follower.requestLeader()
+	follower.requestLeader(context.Background())
 	c.Assert(q.AddParams, check.HasLen, 1)
 	c.Assert(q.AddParams[0].Address, check.Matches, "AssumeLeader-[0-5]")
 	c.Assert(q.AddParams[0].Item, check.DeepEquals, electiontypes.AssumeLeader{

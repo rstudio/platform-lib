@@ -83,6 +83,7 @@ func (w *DefaultChunkUtils) WriteChunked(
 	resolverErrs := make(chan error)
 	go func() {
 		defer close(resolverErrs)
+		// TODO: Handle this error gracefully
 		defer pW.Close()
 		_, _, err = resolve(pW)
 		if err != nil {
@@ -101,7 +102,7 @@ func (w *DefaultChunkUtils) WriteChunked(
 			case err = <-errs:
 				return err
 			case count := <-results:
-				err = w.Notifier.Notify(&types.ChunkNotification{
+				err = w.Notifier.Notify(ctx, &types.ChunkNotification{
 					Address: address,
 					Chunk:   count,
 				})
@@ -261,7 +262,7 @@ func (w *DefaultChunkUtils) tryChunkRead(
 				return false, rsstorage.ErrNoChunk
 			}
 			// Wait for the next chunk, then retry in for loop.
-			w.Waiter.WaitForChunk(&types.ChunkNotification{
+			w.Waiter.WaitForChunk(ctx, &types.ChunkNotification{
 				Timeout: w.PollTimeout,
 				Address: address,
 				Chunk:   chunkIndex,

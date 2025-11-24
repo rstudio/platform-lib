@@ -3,6 +3,7 @@ package pgxelection
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -44,6 +45,7 @@ func (s *NotifierSuite) TestSafeChannelName(c *check.C) {
 }
 
 func (s *NotifierSuite) TestNotify(c *check.C) {
+	ctx := context.Background()
 	channel := c.TestName()
 	notifier := &PgxPgNotifier{
 		pool: s.pool,
@@ -78,8 +80,8 @@ func (s *NotifierSuite) TestNotify(c *check.C) {
 		c.Assert(err, check.IsNil)
 		b2, err := json.Marshal(ping2)
 		c.Assert(err, check.IsNil)
-		notifier.Notify("wrong-channel", b1)
-		notifier.Notify(channel, b2)
+		notifier.Notify(ctx, "wrong-channel", b1)
+		notifier.Notify(ctx, channel, b2)
 	}()
 
 	select {

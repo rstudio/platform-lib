@@ -3,6 +3,7 @@ package groupprovider
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -34,7 +35,7 @@ type fakeProviderStore struct {
 	mutex sync.Mutex
 }
 
-func (s *fakeProviderStore) QueueGroupComplete(groupId int64) (bool, bool, error) {
+func (s *fakeProviderStore) QueueGroupComplete(ctx context.Context, groupId int64) (bool, bool, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -47,7 +48,7 @@ func (s *fakeProviderStore) QueueGroupComplete(groupId int64) (bool, bool, error
 	return s.result, s.cancel, s.errs
 }
 
-func (s *fakeProviderStore) QueueGroupClear(groupId int64) error {
+func (s *fakeProviderStore) QueueGroupClear(ctx context.Context, groupId int64) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -55,7 +56,7 @@ func (s *fakeProviderStore) QueueGroupClear(groupId int64) error {
 	return s.clearErr
 }
 
-func (s *fakeProviderStore) QueueGroupCancel(groupId int64) error {
+func (s *fakeProviderStore) QueueGroupCancel(ctx context.Context, groupId int64) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -63,7 +64,7 @@ func (s *fakeProviderStore) QueueGroupCancel(groupId int64) error {
 	return s.cancelErr
 }
 
-func (s *fakeProviderStore) QueueGroupStart(id int64) error {
+func (s *fakeProviderStore) QueueGroupStart(ctx context.Context, id int64) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -131,7 +132,7 @@ func (s *DatabaseProviderSuite) TestPollOk(c *check.C) {
 	}
 	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore})
 	group := &fakeGroup{}
-	done, _ := p.poll(group)
+	done, _ := p.poll(context.Background(), group)
 	cancelled := <-done
 	c.Check(cancelled, check.Equals, false)
 }
@@ -143,7 +144,7 @@ func (s *DatabaseProviderSuite) TestPollCancelled(c *check.C) {
 	}
 	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore})
 	group := &fakeGroup{}
-	done, _ := p.poll(group)
+	done, _ := p.poll(context.Background(), group)
 	cancelled := <-done
 	c.Check(cancelled, check.Equals, true)
 }
@@ -170,7 +171,7 @@ func (s *DatabaseProviderSuite) TestPollFast(c *check.C) {
 	}()
 
 	// Start polling. Should not complete until done
-	done, _ := p.poll(group)
+	done, _ := p.poll(context.Background(), group)
 	<-done
 
 	c.Check(groupDone, check.Equals, true)
@@ -182,7 +183,7 @@ func (s *DatabaseProviderSuite) TestPollErr(c *check.C) {
 	}
 	p := NewQueueGroupProvider(QueueGroupProviderConfig{Store: cstore})
 	group := &fakeGroup{}
-	_, errCh := p.poll(group)
+	_, errCh := p.poll(context.Background(), group)
 	err := <-errCh
 	c.Assert(err, check.ErrorMatches, "db error")
 }
@@ -196,7 +197,7 @@ func (s *DatabaseProviderSuite) TestPollLockError(c *check.C) {
 	group := &fakeGroup{}
 	go func() {
 		p.pollInterval = time.Millisecond * 1
-		done, _ := p.poll(group)
+		done, _ := p.poll(context.Background(), group)
 		<-done
 		close(allDone)
 	}()

@@ -3,6 +3,7 @@ package store
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -53,32 +54,33 @@ type FakeJob struct {
 var nullInt64 = sql.NullInt64{}
 
 func testPush(store Store, c *check.C) {
-	err := store.QueuePush("test", nullInt64, 8, TypeTest, &FakeJob{Tag: "8-1"}, nil)
+	ctx := context.Background()
+	err := store.QueuePush(ctx, "test", nullInt64, 8, TypeTest, &FakeJob{Tag: "8-1"}, nil)
 	c.Assert(err, check.IsNil)
-	err = store.QueuePush("test", nullInt64, 8, TypeTest, &FakeJob{Tag: "8-2"}, nil)
+	err = store.QueuePush(ctx, "test", nullInt64, 8, TypeTest, &FakeJob{Tag: "8-2"}, nil)
 	c.Assert(err, check.IsNil)
-	err = store.QueuePush("test", nullInt64, 7, TypeTest, &FakeJob{Tag: "7-1"}, nil)
+	err = store.QueuePush(ctx, "test", nullInt64, 7, TypeTest, &FakeJob{Tag: "7-1"}, nil)
 	c.Assert(err, check.IsNil)
-	err = store.QueuePush("test", nullInt64, 4, TypeTest, &FakeJob{Tag: "4-1"}, nil)
+	err = store.QueuePush(ctx, "test", nullInt64, 4, TypeTest, &FakeJob{Tag: "4-1"}, nil)
 	c.Assert(err, check.IsNil)
-	err = store.QueuePush("test", nullInt64, 0, TypeTest, &FakeJob{Tag: "0-1"}, nil)
+	err = store.QueuePush(ctx, "test", nullInt64, 0, TypeTest, &FakeJob{Tag: "0-1"}, nil)
 	c.Assert(err, check.IsNil)
-	err = store.QueuePush("test", nullInt64, 0, TypeTest, &FakeJob{Tag: "0-2"}, nil)
+	err = store.QueuePush(ctx, "test", nullInt64, 0, TypeTest, &FakeJob{Tag: "0-2"}, nil)
 	c.Assert(err, check.IsNil)
-	err = store.QueuePushAddressed("test", nullInt64, 7, TypeTest, "abc", &FakeJob{Tag: "7-2"}, nil)
+	err = store.QueuePushAddressed(ctx, "test", nullInt64, 7, TypeTest, "abc", &FakeJob{Tag: "7-2"}, nil)
 	c.Assert(err, check.IsNil)
-	err = store.QueuePushAddressed("test", nullInt64, 5, TypeTest, "def", &FakeJob{Tag: "5-1"}, nil)
+	err = store.QueuePushAddressed(ctx, "test", nullInt64, 5, TypeTest, "def", &FakeJob{Tag: "5-1"}, nil)
 	c.Assert(err, check.IsNil)
-	err = store.QueuePushAddressed("test", nullInt64, 5, TypeTest, "def", &FakeJob{Tag: "5-1"}, nil)
+	err = store.QueuePushAddressed(ctx, "test", nullInt64, 5, TypeTest, "def", &FakeJob{Tag: "5-1"}, nil)
 	c.Assert(err, check.DeepEquals, queue.ErrDuplicateAddressedPush)
-	err = store.QueuePush("test", nullInt64, 8, TypeTest2, &FakeJob{Tag: "8-3"}, nil)
+	err = store.QueuePush(ctx, "test", nullInt64, 8, TypeTest2, &FakeJob{Tag: "8-3"}, nil)
 	c.Assert(err, check.IsNil)
 }
 
-func testPop(store Store, firstRun bool, delete bool, c *check.C) (returnPermit permit.Permit, address string) {
+func testPop(ctx context.Context, store Store, firstRun bool, delete bool, c *check.C) (returnPermit permit.Permit, address string) {
 	popOne := func(max uint64, expected interface{}, expectedType uint64) (permit.Permit, string) {
 		job := FakeJob{}
-		queueWork, err := store.QueuePop("test", max, []uint64{expectedType})
+		queueWork, err := store.QueuePop(ctx, "test", max, []uint64{expectedType})
 		c.Assert(err, check.IsNil)
 		c.Check(queueWork.Permit, check.Not(check.Equals), uint64(0))
 		c.Check(queueWork.WorkType, check.Equals, expectedType)
@@ -86,7 +88,7 @@ func testPop(store Store, firstRun bool, delete bool, c *check.C) (returnPermit 
 		c.Assert(err, check.IsNil)
 		c.Check(job, check.DeepEquals, expected)
 		if delete {
-			err := store.QueueDelete(queueWork.Permit)
+			err := store.QueueDelete(ctx, queueWork.Permit)
 			c.Assert(err, check.IsNil)
 		}
 		return queueWork.Permit, queueWork.Address
@@ -103,7 +105,7 @@ func testPop(store Store, firstRun bool, delete bool, c *check.C) (returnPermit 
 	popOne(2, FakeJob{Tag: "0-2"}, TypeTest)
 
 	// Should get nothing
-	queueWork, err := store.QueuePop("test", 1, []uint64{TypeTest, TypeTest2})
+	queueWork, err := store.QueuePop(ctx, "test", 1, []uint64{TypeTest, TypeTest2})
 	c.Assert(err, check.NotNil)
 	c.Check(queueWork, check.IsNil)
 
@@ -117,7 +119,7 @@ func testPop(store Store, firstRun bool, delete bool, c *check.C) (returnPermit 
 	popOne(8, FakeJob{Tag: "8-3"}, TypeTest2)
 
 	// Should get nothing
-	queueWork, err = store.QueuePop("test", 1, []uint64{TypeTest, TypeTest2})
+	queueWork, err = store.QueuePop(ctx, "test", 1, []uint64{TypeTest, TypeTest2})
 	c.Assert(err, check.NotNil)
 	c.Check(queueWork, check.IsNil)
 
@@ -125,124 +127,127 @@ func testPop(store Store, firstRun bool, delete bool, c *check.C) (returnPermit 
 }
 
 func (s *QueueSqliteSuite) TestQueue(c *check.C) {
+	ctx := context.Background()
 	// Push 9 items into the queue
 	testPush(s.store, c)
 
 	// Test popping the items.
-	pt, _ := testPop(s.store, true, false, c)
+	pt, _ := testPop(ctx, s.store, true, false, c)
 
 	// Enumerate permits
-	permits, err := s.store.QueuePermits("test")
+	permits, err := s.store.QueuePermits(ctx, "test")
 	c.Assert(err, check.IsNil)
 	c.Assert(permits, check.HasLen, 9)
 
 	// Delete the permits
 	for _, p := range permits {
 		if p.PermitId() != pt {
-			err = s.store.QueuePermitDelete(p.PermitId())
+			err = s.store.QueuePermitDelete(ctx, p.PermitId())
 			c.Assert(err, check.IsNil)
 		}
 	}
 
-	permits, err = s.store.QueuePermits("test")
+	permits, err = s.store.QueuePermits(ctx, "test")
 	c.Assert(err, check.IsNil)
 	c.Assert(permits, check.HasLen, 1)
 
 	// Pop everything again. Everything we popped before should be
 	// popped again, excepting `permit`.
-	testPop(s.store, false, true, c)
+	testPop(ctx, s.store, false, true, c)
 
 	// Delete last job
-	err = s.store.QueueDelete(pt)
+	err = s.store.QueueDelete(ctx, pt)
 	c.Assert(err, check.IsNil)
 
 	// Nothing should remain
-	queueWork, err := s.store.QueuePop("test", 999, []uint64{TypeTest, TypeTest2})
+	queueWork, err := s.store.QueuePop(ctx, "test", 999, []uint64{TypeTest, TypeTest2})
 	c.Assert(err, check.NotNil)
 	c.Check(queueWork, check.IsNil)
 
 	// Ensure an empty slice doesn't cause an expected error
-	queueWork, err = s.store.QueuePop("test", 999, []uint64{})
+	queueWork, err = s.store.QueuePop(ctx, "test", 999, []uint64{})
 	c.Assert(err, check.DeepEquals, sql.ErrNoRows)
 }
 
 func (s *QueueSqliteSuite) TestAddressedPush(c *check.C) {
-	err := s.store.QueuePushAddressed("test", nullInt64, 0, TypeTest, "abc", &FakeJob{Tag: "7-2"}, nil)
+	ctx := context.Background()
+	err := s.store.QueuePushAddressed(ctx, "test", nullInt64, 0, TypeTest, "abc", &FakeJob{Tag: "7-2"}, nil)
 	c.Assert(err, check.IsNil)
-	err = s.store.QueuePushAddressed("test", nullInt64, 0, TypeTest, "def", &FakeJob{Tag: "5-1"}, nil)
+	err = s.store.QueuePushAddressed(ctx, "test", nullInt64, 0, TypeTest, "def", &FakeJob{Tag: "5-1"}, nil)
 	c.Assert(err, check.IsNil)
 
 	// Duplicate errs
-	err = s.store.QueuePushAddressed("test", nullInt64, 0, TypeTest, "def", &FakeJob{Tag: "5-1"}, nil)
+	err = s.store.QueuePushAddressed(ctx, "test", nullInt64, 0, TypeTest, "def", &FakeJob{Tag: "5-1"}, nil)
 	c.Assert(err, check.DeepEquals, queue.ErrDuplicateAddressedPush)
 
 	// Addresses should not be completed
-	done, err := s.store.IsQueueAddressComplete("abc")
+	done, err := s.store.IsQueueAddressComplete(ctx, "abc")
 	c.Assert(err, check.IsNil)
 	c.Check(done, check.Equals, false)
-	done, err = s.store.IsQueueAddressComplete("def")
+	done, err = s.store.IsQueueAddressComplete(ctx, "def")
 	c.Assert(err, check.IsNil)
 	c.Check(done, check.Equals, false)
 
 	// Attempt to pop a type that doesn't exist in the queue
-	queueWork, err := s.store.QueuePop("test", 0, []uint64{888})
+	queueWork, err := s.store.QueuePop(ctx, "test", 0, []uint64{888})
 	c.Assert(err, check.DeepEquals, sql.ErrNoRows)
 
 	// Pop one item
 	job := FakeJob{}
-	queueWork, err = s.store.QueuePop("test", 0, []uint64{TypeTest, TypeTest2})
+	queueWork, err = s.store.QueuePop(ctx, "test", 0, []uint64{TypeTest, TypeTest2})
 	c.Assert(err, check.IsNil)
 	c.Check(queueWork.WorkType, check.Equals, TypeTest)
 	c.Check(queueWork.Address, check.Equals, "abc")
 	err = json.Unmarshal(queueWork.Work, &job)
 	c.Assert(err, check.IsNil)
 	c.Check(job, check.DeepEquals, FakeJob{Tag: "7-2"})
-	err = s.store.QueueDelete(queueWork.Permit)
+	err = s.store.QueueDelete(ctx, queueWork.Permit)
 	c.Assert(err, check.IsNil)
 
 	// First address should be completed
-	done, err = s.store.IsQueueAddressComplete("abc")
+	done, err = s.store.IsQueueAddressComplete(ctx, "abc")
 	c.Assert(err, check.IsNil)
 	c.Check(done, check.Equals, true)
-	done, err = s.store.IsQueueAddressComplete("def")
+	done, err = s.store.IsQueueAddressComplete(ctx, "def")
 	c.Assert(err, check.IsNil)
 	c.Check(done, check.Equals, false)
 
 	// Pop second item
-	queueWork, err = s.store.QueuePop("test", 0, []uint64{TypeTest, TypeTest2})
+	queueWork, err = s.store.QueuePop(ctx, "test", 0, []uint64{TypeTest, TypeTest2})
 	c.Assert(err, check.IsNil)
 	c.Check(queueWork.WorkType, check.Equals, TypeTest)
 	c.Check(queueWork.Address, check.Equals, "def")
 	err = json.Unmarshal(queueWork.Work, &job)
 	c.Assert(err, check.IsNil)
 	c.Check(job, check.DeepEquals, FakeJob{Tag: "5-1"})
-	err = s.store.QueueDelete(queueWork.Permit)
+	err = s.store.QueueDelete(ctx, queueWork.Permit)
 	c.Assert(err, check.IsNil)
 
 	// Second address should be completed
-	done, err = s.store.IsQueueAddressComplete("def")
+	done, err = s.store.IsQueueAddressComplete(ctx, "def")
 	c.Assert(err, check.IsNil)
 	c.Check(done, check.Equals, true)
 
 	// Record error for second address
-	err = s.store.QueueAddressedComplete("def", errors.New("some error"))
+	err = s.store.QueueAddressedComplete(ctx, "def", errors.New("some error"))
 	c.Assert(err, check.IsNil)
 
 	// Second address should be completed, but with error
-	done, err = s.store.IsQueueAddressComplete("def")
+	done, err = s.store.IsQueueAddressComplete(ctx, "def")
 	c.Assert(err, check.ErrorMatches, "some error")
 	c.Check(done, check.Equals, true)
 
 	// Cannot check for empty address
-	_, err = s.store.IsQueueAddressComplete("   ")
+	_, err = s.store.IsQueueAddressComplete(ctx, "   ")
 	c.Check(err, check.ErrorMatches, "no address provided for IsQueueAddressComplete")
 }
 
 func (s *QueueSqliteSuite) TestQueueGroups(c *check.C) {
+	ctx := context.Background()
 	// Push some items without a group
-	err := s.store.QueuePush("test", nullInt64, 1, TypeTest, &FakeJob{Tag: "0-1"}, nil)
+	err := s.store.QueuePush(ctx, "test", nullInt64, 1, TypeTest, &FakeJob{Tag: "0-1"}, nil)
 	c.Assert(err, check.IsNil)
-	err = s.store.QueuePush("test", nullInt64, 1, TypeTest, &FakeJob{Tag: "0-2"}, nil)
+	err = s.store.QueuePush(ctx, "test", nullInt64, 1, TypeTest, &FakeJob{Tag: "0-2"}, nil)
 	c.Assert(err, check.IsNil)
 
 	// Now, create a queue group
@@ -258,24 +263,24 @@ func (s *QueueSqliteSuite) TestQueueGroups(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "UNIQUE constraint failed.+")
 
 	// Mark the queue group as started
-	err = s.store.QueueGroupStart(g.GroupId())
+	err = s.store.QueueGroupStart(ctx, g.GroupId())
 	c.Assert(err, check.IsNil)
 
 	// Push some items with our new group. Give them a zero
 	// priority so we can guarantee they'll be popped first
 	var groupInt64 = sql.NullInt64{Int64: int64(g.ID), Valid: true}
-	err = s.store.QueuePush("test", groupInt64, 0, TypeTest, &FakeJob{Tag: "0-3"}, nil)
+	err = s.store.QueuePush(ctx, "test", groupInt64, 0, TypeTest, &FakeJob{Tag: "0-3"}, nil)
 	c.Assert(err, check.IsNil)
-	err = s.store.QueuePush("test", groupInt64, 0, TypeTest2, &FakeJob{Tag: "0-4"}, nil)
+	err = s.store.QueuePush(ctx, "test", groupInt64, 0, TypeTest2, &FakeJob{Tag: "0-4"}, nil)
 	c.Assert(err, check.IsNil)
 
 	// Queue group should not be done. It just started
-	done, _, err := s.store.QueueGroupComplete(int64(g.ID))
+	done, _, err := s.store.QueueGroupComplete(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 	c.Check(done, check.Equals, false)
 
 	// Peek for the scheduled work
-	peek, err := s.store.QueuePeek(TypeTest)
+	peek, err := s.store.QueuePeek(ctx, TypeTest)
 	c.Assert(err, check.IsNil)
 	c.Assert(peek, check.DeepEquals, []queue.QueueWork{
 		{
@@ -297,32 +302,32 @@ func (s *QueueSqliteSuite) TestQueueGroups(c *check.C) {
 
 	// Pop one item
 	job := FakeJob{}
-	queueWork, err := s.store.QueuePop("test", 0, []uint64{TypeTest, TypeTest2})
+	queueWork, err := s.store.QueuePop(ctx, "test", 0, []uint64{TypeTest, TypeTest2})
 	c.Assert(err, check.IsNil)
 	c.Check(queueWork.WorkType, check.Equals, TypeTest)
 	err = json.Unmarshal(queueWork.Work, &job)
 	c.Assert(err, check.IsNil)
 	c.Check(job, check.DeepEquals, FakeJob{Tag: "0-3"})
-	err = s.store.QueueDelete(queueWork.Permit)
+	err = s.store.QueueDelete(ctx, queueWork.Permit)
 	c.Assert(err, check.IsNil)
 
 	// Queue group should still not be done.
-	done, _, err = s.store.QueueGroupComplete(int64(g.ID))
+	done, _, err = s.store.QueueGroupComplete(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 	c.Check(done, check.Equals, false)
 
 	// Pop another item
-	queueWork, err = s.store.QueuePop("test", 0, []uint64{TypeTest, TypeTest2})
+	queueWork, err = s.store.QueuePop(ctx, "test", 0, []uint64{TypeTest, TypeTest2})
 	c.Assert(err, check.IsNil)
 	c.Check(queueWork.WorkType, check.Equals, TypeTest2)
 	err = json.Unmarshal(queueWork.Work, &job)
 	c.Assert(err, check.IsNil)
 	c.Check(job, check.DeepEquals, FakeJob{Tag: "0-4"})
-	err = s.store.QueueDelete(queueWork.Permit)
+	err = s.store.QueueDelete(ctx, queueWork.Permit)
 	c.Assert(err, check.IsNil)
 
 	// Queue group should now be done
-	done, cancelled, err := s.store.QueueGroupComplete(int64(g.ID))
+	done, cancelled, err := s.store.QueueGroupComplete(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 	c.Check(done, check.Equals, true)
 	c.Check(cancelled, check.Equals, false)
@@ -351,11 +356,11 @@ func (s *QueueSqliteSuite) TestQueueGroups(c *check.C) {
 
 	// Push a queue group job into the queue. This will prevent QueueGroupExists from returning
 	// false since it also evaluates work for the group.
-	err = s.store.QueuePush("test", sql.NullInt64{}, 0, TypeGroupEvent, &groupWork, nil)
+	err = s.store.QueuePush(ctx, "test", sql.NullInt64{}, 0, TypeGroupEvent, &groupWork, nil)
 	c.Assert(err, check.IsNil)
 
 	// Peek for the group event
-	peek, err = s.store.QueuePeek(TypeGroupEvent)
+	peek, err = s.store.QueuePeek(ctx, TypeGroupEvent)
 	c.Assert(err, check.IsNil)
 	c.Assert(peek, check.DeepEquals, []queue.QueueWork{
 		{
@@ -366,14 +371,14 @@ func (s *QueueSqliteSuite) TestQueueGroups(c *check.C) {
 	})
 
 	// Remove the work for the queue group
-	queueWork, err = s.store.QueuePop("test", 0, []uint64{TypeGroupEvent})
+	queueWork, err = s.store.QueuePop(ctx, "test", 0, []uint64{TypeGroupEvent})
 	c.Assert(err, check.IsNil)
 	c.Check(queueWork.WorkType, check.Equals, TypeGroupEvent)
-	err = s.store.QueueDelete(queueWork.Permit)
+	err = s.store.QueueDelete(ctx, queueWork.Permit)
 	c.Assert(err, check.IsNil)
 
 	// Peek for the group event
-	peek, err = s.store.QueuePeek(TypeGroupEvent)
+	peek, err = s.store.QueuePeek(ctx, TypeGroupEvent)
 	c.Assert(err, check.IsNil)
 	c.Assert(peek, check.DeepEquals, []queue.QueueWork{})
 
@@ -388,14 +393,14 @@ func (s *QueueSqliteSuite) TestQueueGroups(c *check.C) {
 		StatId:   123,
 		SourceId: 3,
 	}
-	err = s.store.QueuePush("test", sql.NullInt64{}, 0, TypeGroupWork, &prep, nil)
+	err = s.store.QueuePush(ctx, "test", sql.NullInt64{}, 0, TypeGroupWork, &prep, nil)
 	c.Assert(err, check.IsNil)
 
 	// Remove the work for the queue group
-	queueWork, err = s.store.QueuePop("test", 0, []uint64{TypeGroupWork})
+	queueWork, err = s.store.QueuePop(ctx, "test", 0, []uint64{TypeGroupWork})
 	c.Assert(err, check.IsNil)
 	c.Check(queueWork.WorkType, check.Equals, TypeGroupWork)
-	err = s.store.QueueDelete(queueWork.Permit)
+	err = s.store.QueueDelete(ctx, queueWork.Permit)
 	c.Assert(err, check.IsNil)
 }
 
@@ -409,7 +414,7 @@ func (s *QueueSqliteSuite) TestQueueGroupStart(c *check.C) {
 	c.Check(g.Started, check.Equals, false)
 
 	// Start
-	err = s.store.QueueGroupStart(int64(g.ID))
+	err = s.store.QueueGroupStart(context.Background(), int64(g.ID))
 	c.Assert(err, check.IsNil)
 
 	// Get group
@@ -444,6 +449,7 @@ func (s *QueueSqliteSuite) TestQueueUpdateGroup(c *check.C) {
 }
 
 func (s *QueueSqliteSuite) TestQueueGroupPopStarted(c *check.C) {
+	ctx := context.Background()
 
 	// Create a queue group
 	group, err := s.store.QueueNewGroup("test-group")
@@ -454,66 +460,68 @@ func (s *QueueSqliteSuite) TestQueueGroupPopStarted(c *check.C) {
 
 	// Push some items with our new group.
 	var groupInt64 = sql.NullInt64{Int64: int64(g.ID), Valid: true}
-	err = s.store.QueuePush("test", groupInt64, 0, TypeTest, &FakeJob{Tag: "0-3"}, nil)
+	err = s.store.QueuePush(ctx, "test", groupInt64, 0, TypeTest, &FakeJob{Tag: "0-3"}, nil)
 	c.Assert(err, check.IsNil)
-	err = s.store.QueuePush("test", groupInt64, 0, TypeTest2, &FakeJob{Tag: "0-4"}, nil)
+	err = s.store.QueuePush(ctx, "test", groupInt64, 0, TypeTest2, &FakeJob{Tag: "0-4"}, nil)
 	c.Assert(err, check.IsNil)
 
-	// Push one items without a group
-	err = s.store.QueuePush("test", nullInt64, 1, TypeTest, &FakeJob{Tag: "0-1"}, nil)
+	// Push one item without a group
+	err = s.store.QueuePush(ctx, "test", nullInt64, 1, TypeTest, &FakeJob{Tag: "0-1"}, nil)
 	c.Assert(err, check.IsNil)
 
 	// Pop one item. Should get the item without a queue group, even
 	// though it has a lower priority
 	job := FakeJob{}
-	queueWork, err := s.store.QueuePop("test", 100, []uint64{TypeTest, TypeTest2})
+	queueWork, err := s.store.QueuePop(ctx, "test", 100, []uint64{TypeTest, TypeTest2})
 	c.Assert(err, check.IsNil)
 	c.Check(queueWork.WorkType, check.Equals, TypeTest)
 	err = json.Unmarshal(queueWork.Work, &job)
 	c.Assert(err, check.IsNil)
 	c.Assert(queueWork.Permit, check.Equals, permit.Permit(1))
 	c.Check(job, check.DeepEquals, FakeJob{Tag: "0-1"})
-	err = s.store.QueueDelete(queueWork.Permit)
+	err = s.store.QueueDelete(ctx, queueWork.Permit)
 	c.Assert(err, check.IsNil)
 
 	// Attempt to pop another item. Nothing should be returned since the group
 	// hasn't been started
-	_, err = s.store.QueuePop("test", 100, []uint64{TypeTest, TypeTest2})
+	_, err = s.store.QueuePop(ctx, "test", 100, []uint64{TypeTest, TypeTest2})
 	c.Assert(err, check.DeepEquals, sql.ErrNoRows)
 
 	// Mark the queue group as started
-	err = s.store.QueueGroupStart(int64(g.ID))
+	err = s.store.QueueGroupStart(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 
 	// Pop one item
 	job = FakeJob{}
-	queueWork, err = s.store.QueuePop("test", 100, []uint64{TypeTest, TypeTest2})
+	queueWork, err = s.store.QueuePop(ctx, "test", 100, []uint64{TypeTest, TypeTest2})
 	c.Assert(err, check.IsNil)
 	c.Check(queueWork.WorkType, check.Equals, TypeTest)
 	err = json.Unmarshal(queueWork.Work, &job)
 	c.Assert(err, check.IsNil)
 	c.Check(job, check.DeepEquals, FakeJob{Tag: "0-3"})
-	err = s.store.QueueDelete(queueWork.Permit)
+	err = s.store.QueueDelete(ctx, queueWork.Permit)
 	c.Assert(err, check.IsNil)
 
 	// Pop another item
-	queueWork, err = s.store.QueuePop("test", 100, []uint64{TypeTest, TypeTest2})
+	queueWork, err = s.store.QueuePop(ctx, "test", 100, []uint64{TypeTest, TypeTest2})
 	c.Assert(err, check.IsNil)
 	c.Check(queueWork.WorkType, check.Equals, TypeTest2)
 	err = json.Unmarshal(queueWork.Work, &job)
 	c.Assert(err, check.IsNil)
 	c.Check(job, check.DeepEquals, FakeJob{Tag: "0-4"})
-	err = s.store.QueueDelete(queueWork.Permit)
+	err = s.store.QueueDelete(ctx, queueWork.Permit)
 	c.Assert(err, check.IsNil)
 
 	// Queue group should now be done
-	done, cancelled, err := s.store.QueueGroupComplete(int64(g.ID))
+	done, cancelled, err := s.store.QueueGroupComplete(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 	c.Check(done, check.Equals, true)
 	c.Check(cancelled, check.Equals, false)
 }
 
 func (s *QueueSqliteSuite) TestQueueGroupClear(c *check.C) {
+	ctx := context.Background()
+
 	// Create a queue group
 	group, err := s.store.QueueNewGroup("test-group")
 	c.Assert(err, check.IsNil)
@@ -523,32 +531,34 @@ func (s *QueueSqliteSuite) TestQueueGroupClear(c *check.C) {
 
 	// Push some items with our new group.
 	var groupInt64 = sql.NullInt64{Int64: int64(g.ID), Valid: true}
-	err = s.store.QueuePush("test", groupInt64, 0, TypeTest, &FakeJob{Tag: "0-3"}, nil)
+	err = s.store.QueuePush(ctx, "test", groupInt64, 0, TypeTest, &FakeJob{Tag: "0-3"}, nil)
 	c.Assert(err, check.IsNil)
-	err = s.store.QueuePush("test", groupInt64, 0, TypeTest, &FakeJob{Tag: "0-4"}, nil)
+	err = s.store.QueuePush(ctx, "test", groupInt64, 0, TypeTest, &FakeJob{Tag: "0-4"}, nil)
 	c.Assert(err, check.IsNil)
 
 	// Mark the queue group as started
-	err = s.store.QueueGroupStart(int64(g.ID))
+	err = s.store.QueueGroupStart(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 
 	// Queue group should not be done. It just started
-	done, _, err := s.store.QueueGroupComplete(int64(g.ID))
+	done, _, err := s.store.QueueGroupComplete(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 	c.Check(done, check.Equals, false)
 
 	// Clear the group queue
-	err = s.store.QueueGroupClear(int64(g.ID))
+	err = s.store.QueueGroupClear(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 
 	// Queue group should now be done
-	done, cancelled, err := s.store.QueueGroupComplete(int64(g.ID))
+	done, cancelled, err := s.store.QueueGroupComplete(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 	c.Check(done, check.Equals, true)
 	c.Check(cancelled, check.Equals, false)
 }
 
 func (s *QueueSqliteSuite) TestQueueGroupCancel(c *check.C) {
+	ctx := context.Background()
+
 	// Create a queue group
 	group, err := s.store.QueueNewGroup("test-group")
 	c.Assert(err, check.IsNil)
@@ -559,40 +569,41 @@ func (s *QueueSqliteSuite) TestQueueGroupCancel(c *check.C) {
 	// Push some items with our new group. Give them a zero
 	// priority so we can guarantee they'll be popped first
 	var groupInt64 = sql.NullInt64{Int64: int64(g.ID), Valid: true}
-	err = s.store.QueuePush("test", groupInt64, 0, TypeTest, &FakeJob{Tag: "0-3"}, nil)
+	err = s.store.QueuePush(ctx, "test", groupInt64, 0, TypeTest, &FakeJob{Tag: "0-3"}, nil)
 	c.Assert(err, check.IsNil)
-	err = s.store.QueuePush("test", groupInt64, 0, TypeTest, &FakeJob{Tag: "0-4"}, nil)
+	err = s.store.QueuePush(ctx, "test", groupInt64, 0, TypeTest, &FakeJob{Tag: "0-4"}, nil)
 	c.Assert(err, check.IsNil)
 
 	// Mark the queue group as started
-	err = s.store.QueueGroupStart(int64(g.ID))
+	err = s.store.QueueGroupStart(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 
 	// Queue group should not be done. It just started
-	done, _, err := s.store.QueueGroupComplete(int64(g.ID))
+	done, _, err := s.store.QueueGroupComplete(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 	c.Check(done, check.Equals, false)
 
 	// Cancel the queue group
-	err = s.store.QueueGroupCancel(int64(g.ID))
+	err = s.store.QueueGroupCancel(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 
 	// Clear the group queue
-	err = s.store.QueueGroupClear(int64(g.ID))
+	err = s.store.QueueGroupClear(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 
 	// Queue group should now be done
-	done, cancelled, err := s.store.QueueGroupComplete(int64(g.ID))
+	done, cancelled, err := s.store.QueueGroupComplete(ctx, int64(g.ID))
 	c.Assert(err, check.IsNil)
 	c.Check(done, check.Equals, true)
 	c.Check(cancelled, check.Equals, true)
 }
 
 func (s *QueueSqliteSuite) TestAddressFailure(c *check.C) {
+	ctx := context.Background()
 	// Fail
 	address := "abcdefg"
 	// Pass a generic error
-	err := s.store.QueueAddressedComplete(address, errors.New("first error"))
+	err := s.store.QueueAddressedComplete(ctx, address, errors.New("first error"))
 	c.Assert(err, check.IsNil)
 	err = s.store.(*store).QueueAddressedCheck(address)
 	c.Check(err, check.ErrorMatches, "first error")
@@ -606,7 +617,7 @@ func (s *QueueSqliteSuite) TestAddressFailure(c *check.C) {
 	})
 
 	// Fail again, but pass a typed error
-	err = s.store.QueueAddressedComplete(address, &queue.QueueError{Code: 404, Message: "second error"})
+	err = s.store.QueueAddressedComplete(ctx, address, &queue.QueueError{Code: 404, Message: "second error"})
 	c.Assert(err, check.IsNil)
 	err = s.store.(*store).QueueAddressedCheck(address)
 	c.Check(err, check.ErrorMatches, "second error")
@@ -620,30 +631,32 @@ func (s *QueueSqliteSuite) TestAddressFailure(c *check.C) {
 	})
 
 	// Don't fail
-	err = s.store.QueueAddressedComplete(address, nil)
+	err = s.store.QueueAddressedComplete(ctx, address, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(s.store.(*store).QueueAddressedCheck(address), check.IsNil)
 }
 
 func (s *QueueSqliteSuite) TestIsQueueAddressInProgress(c *check.C) {
+	ctx := context.Background()
+
 	// Is a non-existing address in the queue?
-	found, err := s.store.IsQueueAddressInProgress("def")
+	found, err := s.store.IsQueueAddressInProgress(ctx, "def")
 	c.Assert(err, check.IsNil)
 	c.Assert(found, check.Equals, false)
 
 	// Add the address to the queue
-	err = s.store.QueuePushAddressed("test", nullInt64, 0, TypeTest, "def", &FakeJob{Tag: "5-1"}, nil)
+	err = s.store.QueuePushAddressed(ctx, "test", nullInt64, 0, TypeTest, "def", &FakeJob{Tag: "5-1"}, nil)
 	c.Assert(err, check.IsNil)
 
 	// Now it should be found
-	found, err = s.store.IsQueueAddressInProgress("def")
+	found, err = s.store.IsQueueAddressInProgress(ctx, "def")
 	c.Assert(err, check.IsNil)
 	c.Assert(found, check.Equals, true)
 
 	// Complete the work
-	err = s.store.QueueAddressedComplete("def", nil)
+	err = s.store.QueueAddressedComplete(ctx, "def", nil)
 	c.Assert(err, check.IsNil)
-	found, err = s.store.IsQueueAddressInProgress("def")
+	found, err = s.store.IsQueueAddressInProgress(ctx, "def")
 
 	// Now it should not be found
 	c.Assert(err, check.IsNil)

@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 	"gopkg.in/check.v1"
 )
 
@@ -27,7 +27,7 @@ func (s *SweeperSuite) SetUpTest(c *check.C) {
 
 func (s *SweeperSuite) TestSweepOk(c *check.C) {
 	cstore := &QueueTestStore{
-		permits: []dbqueuetypes.QueuePermit{
+		permits: []queue.QueuePermit{
 			&fakePermit{
 				permitId: 23,
 			},

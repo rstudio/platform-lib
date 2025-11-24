@@ -4,9 +4,13 @@ package queue
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"sync"
+	"time"
 
+	"github.com/google/uuid"
+	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
 )
 
@@ -15,17 +19,17 @@ var ErrDuplicateAddressedPush = errors.New("Duplicate address")
 type Queue interface {
 	// WithDbTx returns a queue that operates in the context of a database
 	// transaction.
-	WithDbTx(tx interface{}) Queue
+	WithDbTx(ctx context.Context, tx QueueStore) Queue
 
 	// Peek at work in the queue
 	// * types the types of work to peek at
-	Peek(filter func(work *QueueWork) (bool, error), types ...uint64) ([]QueueWork, error)
+	Peek(ctx context.Context, filter func(work *QueueWork) (bool, error), types ...uint64) ([]QueueWork, error)
 
 	// Push new work into the queue
 	//  * priority the priority for this work. Lower number are higher priority
 	//  * groupId the group id for this work. Use zero (0) if not grouped
 	//  * work the work to push into the queue. Must be JSON-serializable
-	Push(priority uint64, groupId int64, work Work) error
+	Push(ctx context.Context, priority uint64, groupId int64, work Work) error
 
 	// AddressedPush pushes uniquely addressed new work into the queue
 	//  * priority the priority for this work. Lower number are higher priority
@@ -33,21 +37,21 @@ type Queue interface {
 	//  * address the address for this work. Must be unique. Address can be reused,
 	//      but only one occurrence of any address may be in the queue at any time.
 	//  * work the work to push into the queue. Must be JSON-serializable
-	AddressedPush(priority uint64, groupId int64, address string, work Work) error
+	AddressedPush(ctx context.Context, priority uint64, groupId int64, address string, work Work) error
 
 	// RecordFailure records a failure of addressed work in the queue
 	//  * address the address of the work the failed
 	//  * failure the error that occurred. Overwrites any previous error information
 	//    from earlier runs of the same work. If `failure==nil`, the error is cleared.
-	RecordFailure(address string, failure error) error
+	RecordFailure(ctx context.Context, address string, failure error) error
 
 	// PollAddress polls addressed work in the queue, and an `errs` channels
 	// to report when the work is done and/or an error has occurred. We pass
 	// `nil` over the errs channel when the poll has completed without errors
-	PollAddress(address string) (errs <-chan error)
+	PollAddress(ctx context.Context, address string) (errs <-chan error)
 
 	// IsAddressInQueue checks to see if work with the provided address is in the queue
-	IsAddressInQueue(address string) (bool, error)
+	IsAddressInQueue(ctx context.Context, address string) (bool, error)
 
 	// Get attempts to get a job from the queue. Blocks until a job is found and returned
 	// Parameters:
@@ -65,14 +69,14 @@ type Queue interface {
 	// Returns:
 	//  * *QueueWork - A pointer to a QueueWork struct
 	//  * error - An error (if error occurs); nil if successful
-	Get(maxPriority uint64, maxPriorityChan chan uint64, types QueueSupportedTypes, stop chan bool) (*QueueWork, error)
+	Get(ctx context.Context, maxPriority uint64, maxPriorityChan chan uint64, types QueueSupportedTypes, stop chan bool) (*QueueWork, error)
 
 	// Extend (heartbeat) a queue permit while work is in progress.
-	Extend(permit.Permit) error
+	Extend(ctx context.Context, permit permit.Permit) error
 
 	// Delete a queue permit and its associated work. This is typically called when
 	// the work is complete.
-	Delete(permit.Permit) error
+	Delete(ctx context.Context, permit permit.Permit) error
 
 	// Name returns the name of the queue.
 	Name() string
@@ -146,9 +150,6 @@ type QueueWork struct {
 	// A byte array representing the work that can be unmarshaled to JSON
 	Work []byte
 
-	// A context for tracking recursive work
-	Context context.Context
-
 	// Byte array for persisting tracing data across the work lifecycle.
 	Carrier []byte
 }
@@ -173,4 +174,126 @@ type QueueError struct {
 
 func (q *QueueError) Error() string {
 	return q.Message
+}
+
+type QueuePermit interface {
+	PermitId() permit.Permit
+	PermitCreated() time.Time
+}
+
+type QueueGroupRecord interface {
+	GroupId() int64
+}
+
+type TransactionCompleter interface {
+	CompleteTransaction(err *error)
+}
+
+type DatabaseQueueChunkMatcher interface {
+	Match(n listener.Notification, address string) bool
+}
+
+type QueueStore interface {
+	TransactionCompleter
+	BeginTransactionQueue(ctx context.Context, description string) (QueueStore, error)
+
+	NotifyExtend(ctx context.Context, permit uint64) error
+
+	// QueuePush pushes work into a queue. Pass a queue name, a priority (0 is the highest),
+	// and some work.
+	QueuePush(ctx context.Context, name string, groupId sql.NullInt64, priority, workType uint64, work interface{}, carrier []byte) error
+
+	// QueuePushAddressed pushes work into a queue. Pass a queue name, a priority (0 is the highest),
+	// a type, a unique address, and some work.
+	QueuePushAddressed(ctx context.Context, name string, groupId sql.NullInt64, priority, workType uint64, address string, work interface{}, carrier []byte) error
+
+	// QueuePop pops work from the queue. Pass a queue name and a maximum priority, along with
+	// a []uint64 slice to indicate what types of work you're willing to grab.
+	//
+	// Returns a QueueWork pointer
+	QueuePop(ctx context.Context, name string, maxPriority uint64, types []uint64) (*QueueWork, error)
+
+	// QueueDelete deletes claimed work from the queue. Called after the work is completed.
+	QueueDelete(ctx context.Context, permitId permit.Permit) error
+
+	// QueuePermits returns permits for a given queue
+	QueuePermits(ctx context.Context, name string) ([]QueuePermit, error)
+
+	// QueuePermitDelete clears a permit
+	QueuePermitDelete(ctx context.Context, permitId permit.Permit) error
+
+	// QueuePeek checks to see whether a queue has any outstanding work.
+	// for a particular list of types.
+	// Expects:
+	//  * types - the work types
+	// Returns:
+	//  * results - the work
+	//  * error - errors
+	QueuePeek(ctx context.Context, types ...uint64) (results []QueueWork, err error)
+
+	// IsQueueAddressComplete checks to see if an address is done/gone
+	// Expects:
+	//  * id - the queue item address
+	// Returns:
+	//  * bool - is the item done/gone?
+	//  * error - errors
+	IsQueueAddressComplete(ctx context.Context, address string) (bool, error)
+
+	// IsQueueAddressInProgress checks to see if an address is still in progress
+	// Expects:
+	//  * id - the queue item address
+	// Returns:
+	//  * bool - is the item still in progress?
+	//  * error - errors
+	IsQueueAddressInProgress(ctx context.Context, address string) (bool, error)
+
+	// QueueAddressedComplete saves or clears failure information for an addressed item
+	QueueAddressedComplete(ctx context.Context, address string, failure error) error
+}
+
+type QueueGroupStore interface {
+	TransactionCompleter
+
+	// QueueGroupStart marks a queue group as started. Work for this queue group
+	// will not be retrieved by `QueuePop` until the group has
+	// been marked as started
+	QueueGroupStart(ctx context.Context, id int64) error
+
+	// QueueGroupComplete checks to see if a queue group is complete/empty
+	// Expects:
+	//  * id - the queue group id
+	// Returns:
+	//  * bool - is the group complete/empty?
+	//  * bool - was the group cancelled?
+	//  * error - errors
+	QueueGroupComplete(ctx context.Context, id int64) (bool, bool, error)
+
+	// QueueGroupCancel cancels a queue group
+	QueueGroupCancel(ctx context.Context, id int64) error
+
+	// QueueGroupClear cancels/deletes the work in a queue group
+	QueueGroupClear(ctx context.Context, id int64) error
+}
+
+// QueuePermitExtendNotification A notification that indicates a queue work permit extension
+type QueuePermitExtendNotification struct {
+	PermitID    uint64
+	GuidVal     string
+	MessageType uint8
+}
+
+func (n *QueuePermitExtendNotification) Type() uint8 {
+	return n.MessageType
+}
+
+func (n *QueuePermitExtendNotification) Guid() string {
+	return n.GuidVal
+}
+
+func NewQueuePermitExtendNotification(permitID uint64, notifyType uint8) *QueuePermitExtendNotification {
+	return &QueuePermitExtendNotification{
+		GuidVal:     uuid.New().String(),
+		MessageType: notifyType,
+		PermitID:    permitID,
+	}
 }

@@ -3,6 +3,7 @@ package database
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/groups"
@@ -56,15 +57,15 @@ type DefaultGroupQueue struct {
 	group      groups.GroupQueueJob
 }
 
-func (q *DefaultGroupQueue) Push(priority uint64, work queue.Work) error {
-	return q.BaseQueue.Push(priority, q.group.GroupId(), work)
+func (q *DefaultGroupQueue) Push(ctx context.Context, priority uint64, work queue.Work) error {
+	return q.BaseQueue.Push(ctx, priority, q.group.GroupId(), work)
 }
 
-func (q *DefaultGroupQueue) Start() error {
-	return q.GroupQueue.Push(0, 0, q.group)
+func (q *DefaultGroupQueue) Start(ctx context.Context) error {
+	return q.GroupQueue.Push(ctx, 0, 0, q.group)
 }
 
-func (q *DefaultGroupQueue) SetEndWork(work interface{}, endWorkType uint8) error {
+func (q *DefaultGroupQueue) SetEndWork(ctx context.Context, work interface{}, endWorkType uint8) error {
 	b, err := json.Marshal(work)
 	if err != nil {
 		return err

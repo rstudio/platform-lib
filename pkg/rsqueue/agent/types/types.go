@@ -3,6 +3,7 @@ package agenttypes
 // Copyright (C) 2022 by RStudio, PBC
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,9 +11,9 @@ import (
 )
 
 type Agent interface {
-	Run(notify Notify)
+	Run(ctx context.Context, notify Notify)
 	Stop(timeout time.Duration) error
-	Wait(runningJobs int64, jobDone chan int64) uint64
+	Wait(ctx context.Context, runningJobs int64, jobDone chan int64) uint64
 }
 
 type Notify func(n listener.Notification)

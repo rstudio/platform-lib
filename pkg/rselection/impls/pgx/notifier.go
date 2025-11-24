@@ -14,7 +14,7 @@ import (
 const MaxChannelLen = 63
 
 type PgNotifier interface {
-	Notify(channel string, msgBytes []byte) error
+	Notify(ctx context.Context, channel string, msgBytes []byte) error
 }
 
 type PgxPgNotifier struct {
@@ -44,10 +44,10 @@ func safeChannelName(channel string) string {
 	return channel
 }
 
-func (p *PgxPgNotifier) Notify(channel string, msgBytes []byte) error {
+func (p *PgxPgNotifier) Notify(ctx context.Context, channel string, msgBytes []byte) error {
 	msg := string(msgBytes)
 
-	conn, err := p.pool.Acquire(context.Background())
+	conn, err := p.pool.Acquire(ctx)
 	if err != nil {
 		return err
 	}
@@ -58,6 +58,6 @@ func (p *PgxPgNotifier) Notify(channel string, msgBytes []byte) error {
 	// Ensure that the channel name is safe for PostgreSQL
 	channel = safeChannelName(channel)
 	query := fmt.Sprintf("select pg_notify('%s', $1)", channel)
-	_, err = conn.Exec(context.Background(), query, msg)
+	_, err = conn.Exec(ctx, query, msg)
 	return err
 }

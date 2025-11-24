@@ -160,7 +160,7 @@ func (a *DefaultAgent) Stop(timeout time.Duration) error {
 //
 // Returns:
 //   - uint64 - The maximum job priority for which we have capacity
-func (a *DefaultAgent) Wait(runningJobs int64, jobDone chan int64) uint64 {
+func (a *DefaultAgent) Wait(ctx context.Context, runningJobs int64, jobDone chan int64) uint64 {
 	// Flush notifications while the waiting. If the agent is not calling the
 	// queue's `Get` function due to no available concurrency slots, then any
 	// jobs that complete won't be able to send their work complete notifications
@@ -176,9 +176,9 @@ func (a *DefaultAgent) Wait(runningJobs int64, jobDone chan int64) uint64 {
 			return priority
 
 		} else {
-			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Concurrency limit reached. Waiting for a job to complete..."))
+			slog.Log(ctx, LevelTrace, "Concurrency limit reached. Waiting for a job to complete...")
 			runningJobs = <-jobDone
-			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Job completed. Checking for capacity again."))
+			slog.Log(ctx, LevelTrace, "Job completed. Checking for capacity again.")
 		}
 	}
 }
@@ -194,7 +194,7 @@ func (a *DefaultAgent) flushNotifications(stop chan struct{}) {
 	}
 }
 
-func (a *DefaultAgent) Run(notify agenttypes.Notify) {
+func (a *DefaultAgent) Run(ctx context.Context, notify agenttypes.Notify) {
 	defer close(a.stop)
 
 	// When a job completes, we send the new job count to this channel
@@ -212,14 +212,14 @@ func (a *DefaultAgent) Run(notify agenttypes.Notify) {
 
 		// Wait until we have capacity to run a job. `maxPriority` is the
 		// maximum priority we have capacity to handle.
-		maxPriority := a.Wait(runningJobs, jobDone)
+		maxPriority := a.Wait(ctx, runningJobs, jobDone)
 
 		// Get a job from the queue (blocks)
-		queueWork, err := a.queue.Get(maxPriority, maxPriorityChan, a.types, a.stop)
+		queueWork, err := a.queue.Get(ctx, maxPriority, maxPriorityChan, a.types, a.stop)
 		if utils.IsSqliteLockError(err) {
 			// Do nothing, but sleep a bit to allow competing work through.
 			// Only log if tracing.
-			slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Database lock error during queue Get(): %s", err))
+			slog.Log(ctx, LevelTrace, fmt.Sprintf("Database lock error during queue Get(): %s", err))
 			time.Sleep(100 * time.Millisecond)
 			continue
 		} else if err == ErrAgentStopped {
@@ -235,26 +235,28 @@ func (a *DefaultAgent) Run(notify agenttypes.Notify) {
 			continue
 		}
 
+		// TODO: This seems to undo the retry logic. Look into returning an error
+		// 	after number of retires
 		retry = 0
 
 		slog.Log(
-			context.Background(),
+			ctx,
 			LevelTrace,
-			fmt.Sprintf(
-				"Grabbed a new job with a maxPriority of '%d', type '%d', address '%s', and permit '%d'",
-				maxPriority,
-				queueWork.WorkType,
-				queueWork.Address,
-				queueWork.Permit,
-			),
+			"Grabbed a new job",
+			"max_priority", maxPriority,
+			"work_type", queueWork.WorkType,
+			"address", queueWork.Address,
+			"permit", queueWork.Permit,
 		)
 		jsonDst := bytes.Buffer{}
-		// TODO: Handle this error
-		json.Indent(&jsonDst, queueWork.Work, "", "  ")
-		slog.Log(context.Background(), LevelTrace, jsonDst.String())
+		// TODO: Better handle this error, or possibly remove logging this
+		indentErr := json.Indent(&jsonDst, queueWork.Work, "", "  ")
+		if indentErr == nil {
+			slog.Log(ctx, LevelTrace, jsonDst.String())
+		}
 
 		// Create a context for the work
-		ctx := queue.ContextWithRecursion(context.Background(), queueWork.WorkType, a.getRecurseFn(jobDone))
+		ctx = queue.ContextWithRecursion(ctx, queueWork.WorkType, a.getRecurseFn(ctx, jobDone))
 
 		// Increment job count
 		a.mutex.Lock()
@@ -291,7 +293,7 @@ func (a *DefaultAgent) Run(notify agenttypes.Notify) {
 //	}
 //
 // ```
-func (a *DefaultAgent) getRecurseFn(jobDone chan int64) queue.RecurseFunc {
+func (a *DefaultAgent) getRecurseFn(ctx context.Context, jobDone chan int64) queue.RecurseFunc {
 	return func(run func()) {
 
 		// Track recursions
@@ -309,7 +311,7 @@ func (a *DefaultAgent) getRecurseFn(jobDone chan int64) queue.RecurseFunc {
 		// during the recursive call.
 		a.mutex.Lock()
 		a.runningJobs -= 1
-		slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Recursion function reduced running job count from %d to %d", a.runningJobs+1, a.runningJobs))
+		slog.Log(ctx, LevelTrace, fmt.Sprintf("Recursion function reduced running job count from %d to %d", a.runningJobs+1, a.runningJobs))
 		a.mutex.Unlock()
 
 		// Notify the runner that we've freed up capacity due to recursion
@@ -377,7 +379,7 @@ func (a *DefaultAgent) runJob(
 							queueWork.Permit,
 						),
 					)
-					err := a.queue.Extend(queueWork.Permit)
+					err := a.queue.Extend(ctx, queueWork.Permit)
 					if err != nil {
 						slog.Debug(fmt.Sprintf("Error extending job for work type %d: %s", queueWork.WorkType, err))
 					}
@@ -403,7 +405,6 @@ func (a *DefaultAgent) runJob(
 			queue.RecursableWork{
 				Work:     queueWork.Work,
 				WorkType: queueWork.WorkType,
-				Context:  ctx,
 			},
 		)
 		if err != nil {
@@ -422,7 +423,7 @@ func (a *DefaultAgent) runJob(
 		if queueWork.Address != "" {
 			// Note, `RecordFailure` will record the error if err != nil. If
 			// err == nil, then it clears any recorded error for the address.
-			err = a.queue.RecordFailure(queueWork.Address, err)
+			err = a.queue.RecordFailure(ctx, queueWork.Address, err)
 			if err != nil {
 				slog.Debug(fmt.Sprintf("Failed while recording addressed work success/failure: %s\n", err))
 			}
@@ -451,7 +452,7 @@ func (a *DefaultAgent) runJob(
 	// Delete the job from the queue
 	slog.Log(ctx, LevelTrace, fmt.Sprintf("Deleting job from queue: %d\n", queueWork.Permit))
 
-	if err := a.queue.Delete(queueWork.Permit); err != nil {
+	if err := a.queue.Delete(ctx, queueWork.Permit); err != nil {
 		slog.Debug(fmt.Sprintf("queue Delete() returned error: %s", err))
 	}
 

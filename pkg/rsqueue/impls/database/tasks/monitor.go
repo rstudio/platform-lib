@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 )
 
 type DatabaseQueueMonitor interface {
@@ -25,7 +25,7 @@ type DatabaseQueueMonitor interface {
 type DatabaseQueueMonitorTask struct {
 	check    chan permitCheck
 	sweepAge time.Duration
-	cstore   dbqueuetypes.QueueStore
+	cstore   queue.QueueStore
 	started  time.Time
 
 	queueName string
@@ -51,7 +51,7 @@ type permitCheck struct {
 type DatabaseQueueMonitorTaskConfig struct {
 	QueueName                 string
 	SweepAge                  time.Duration
-	QueueStore                dbqueuetypes.QueueStore
+	QueueStore                queue.QueueStore
 	NotifyTypePermitExtension uint8
 }
 
@@ -89,7 +89,7 @@ func (t *DatabaseQueueMonitorTask) Run(ctx context.Context, b broadcaster.Broadc
 	permitMap := make(map[uint64]time.Time)
 
 	// Refresh the queue permits on boot to avoid any race condition of not having received an extension notification
-	t.refreshPermitMap(permitMap)
+	t.refreshPermitMap(ctx, permitMap)
 
 	// Record start time
 	t.started = time.Now()
@@ -116,7 +116,7 @@ func (t *DatabaseQueueMonitorTask) Run(ctx context.Context, b broadcaster.Broadc
 			drain()
 			return
 		case n := <-sub:
-			if cn, ok := n.(*dbqueuetypes.QueuePermitExtendNotification); ok {
+			if cn, ok := n.(*queue.QueuePermitExtendNotification); ok {
 				permitMap[cn.PermitID] = time.Now()
 			}
 		case in := <-t.check:
@@ -146,8 +146,8 @@ func (t *DatabaseQueueMonitorTask) Run(ctx context.Context, b broadcaster.Broadc
 	}
 }
 
-func (t *DatabaseQueueMonitorTask) refreshPermitMap(permitMap map[uint64]time.Time) {
-	permits, err := t.cstore.QueuePermits(t.queueName)
+func (t *DatabaseQueueMonitorTask) refreshPermitMap(ctx context.Context, permitMap map[uint64]time.Time) {
+	permits, err := t.cstore.QueuePermits(ctx, t.queueName)
 	if err != nil {
 		slog.Debug(fmt.Sprintf("Error: DatabaseQueueMonitorTask failed to refresh queue permits map"))
 		return

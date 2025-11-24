@@ -18,8 +18,8 @@ type QueueWork interface {
 }
 
 type Queue interface {
-	AddressedPush(priority uint64, groupId int64, address string, work QueueWork) error
-	PollAddress(address string) (errs <-chan error)
+	AddressedPush(ctx context.Context, priority uint64, groupId int64, address string, work QueueWork) error
+	PollAddress(ctx context.Context, address string) (errs <-chan error)
 }
 
 type DuplicateMatcher interface {
@@ -181,7 +181,7 @@ func (o *fileCache) Head(ctx context.Context, resolver ResolverSpec) (size int64
 
 		// Push a job into the queue. AddressedPush is a no-op if the queue
 		// already contains an item with the same address.
-		err = o.queue.AddressedPush(resolver.Priority, resolver.GroupId, resolver.Address(), resolver.Work)
+		err = o.queue.AddressedPush(ctx, resolver.Priority, resolver.GroupId, resolver.Address(), resolver.Work)
 		if o.duplicateMatcher.IsDuplicate(err) {
 			// Do nothing since; someone else has already inserted the work we need.
 			slog.Debug(fmt.Sprintf("FileCache: duplicate address push for '%s'", resolver.Address()))
@@ -190,7 +190,7 @@ func (o *fileCache) Head(ctx context.Context, resolver ResolverSpec) (size int64
 		}
 
 		// Find out when the job in the queue is done
-		errCh := o.queue.PollAddress(resolver.Address())
+		errCh := o.queue.PollAddress(ctx, resolver.Address())
 
 		// Wait
 		for {
@@ -274,7 +274,7 @@ func (o *fileCache) Get(ctx context.Context, resolver ResolverSpec) (value *Cach
 
 		// Push a job into the queue. AddressedPush is a no-op if the queue
 		// already contains an item with the same address.
-		err = o.queue.AddressedPush(resolver.Priority, resolver.GroupId, address, resolver.Work)
+		err = o.queue.AddressedPush(ctx, resolver.Priority, resolver.GroupId, address, resolver.Work)
 		if o.duplicateMatcher.IsDuplicate(err) {
 			// Do nothing since; someone else has already inserted the work we need.
 			slog.Debug(fmt.Sprintf("FileCache: duplicate address push for '%s'", address))
@@ -287,7 +287,7 @@ func (o *fileCache) Get(ctx context.Context, resolver ResolverSpec) (value *Cach
 		}
 
 		// Find out when the job in the queue is done
-		errCh := o.queue.PollAddress(address)
+		errCh := o.queue.PollAddress(ctx, address)
 
 		// Wait
 		for {

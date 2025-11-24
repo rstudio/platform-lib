@@ -49,11 +49,11 @@ func (f *fakeWrapper) Start(ctx context.Context, work *queue.QueueWork) (context
 	return ctx, nil, nil
 }
 
-func (f *fakeWrapper) Enqueue(queueName string, work queue.Work, err error) error {
+func (f *fakeWrapper) Enqueue(ctc context.Context, queueName string, work queue.Work, err error) error {
 	return nil
 }
 
-func (f *fakeWrapper) Dequeue(queueName string, work queue.Work, err error) error {
+func (f *fakeWrapper) Dequeue(ctx context.Context, queueName string, work queue.Work, err error) error {
 	return nil
 }
 
@@ -113,34 +113,34 @@ type FakeQueue struct {
 	errs     []error
 }
 
-func (*FakeQueue) Push(priority uint64, groupId int64, work queue.Work) error {
+func (*FakeQueue) Push(ctx context.Context, priority uint64, groupId int64, work queue.Work) error {
 	return nil
 }
-func (f *FakeQueue) WithDbTx(tx interface{}) queue.Queue {
+func (f *FakeQueue) WithDbTx(ctx context.Context, tx queue.QueueStore) queue.Queue {
 	return f
 }
-func (*FakeQueue) Peek(filter func(work *queue.QueueWork) (bool, error), types ...uint64) ([]queue.QueueWork, error) {
+func (*FakeQueue) Peek(ctx context.Context, filter func(work *queue.QueueWork) (bool, error), types ...uint64) ([]queue.QueueWork, error) {
 	return nil, nil
 }
-func (*FakeQueue) AddressedPush(priority uint64, groupId int64, address string, work queue.Work) error {
+func (*FakeQueue) AddressedPush(ctx context.Context, priority uint64, groupId int64, address string, work queue.Work) error {
 	return nil
 }
-func (*FakeQueue) IsAddressInQueue(address string) (bool, error) {
+func (*FakeQueue) IsAddressInQueue(ctx context.Context, address string) (bool, error) {
 	return false, nil
 }
-func (f *FakeQueue) PollAddress(address string) (errs <-chan error) {
+func (f *FakeQueue) PollAddress(ctx context.Context, address string) (errs <-chan error) {
 	return f.pollErrs
 }
-func (f *FakeQueue) RecordFailure(address string, failure error) error {
+func (f *FakeQueue) RecordFailure(ctx context.Context, address string, failure error) error {
 	if f.record == nil {
 		f.errs = append(f.errs, failure)
 	}
 	return f.record
 }
-func (*FakeQueue) Get(maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
+func (*FakeQueue) Get(ctx context.Context, maxPriority uint64, maxPriorityChan chan uint64, types queue.QueueSupportedTypes, stop chan bool) (*queue.QueueWork, error) {
 	return nil, nil
 }
-func (f *FakeQueue) Extend(p permit.Permit) error {
+func (f *FakeQueue) Extend(ctx context.Context, p permit.Permit) error {
 	if f.extend == nil {
 		f.mutex.Lock()
 		defer f.mutex.Unlock()
@@ -148,7 +148,7 @@ func (f *FakeQueue) Extend(p permit.Permit) error {
 	}
 	return f.extend
 }
-func (f *FakeQueue) Delete(permit.Permit) error {
+func (f *FakeQueue) Delete(ctx context.Context, permit permit.Permit) error {
 	f.deleted += 1
 	return nil
 }
@@ -182,7 +182,7 @@ func (s *AgentSuite) TestWaitImmediate(c *check.C) {
 	msgs := make(chan listener.Notification)
 	a := NewAgent(agentCfg(&FakeRunner{}, &FakeQueue{}, s.cEnforcer, supportedTypes, msgs, 10, &fakeWrapper{}))
 	done := make(chan int64)
-	result := a.Wait(50, done)
+	result := a.Wait(context.Background(), 50, done)
 	// If there are already 50 jobs running, we can only take a new job
 	// if it's priority is 9 or greater
 	c.Check(result, check.Equals, uint64(1))
@@ -197,7 +197,7 @@ func (s *AgentSuite) TestWaitBlocked(c *check.C) {
 	done := make(chan bool)
 
 	go func() {
-		result := a.Wait(99, jobDone)
+		result := a.Wait(context.Background(), 99, jobDone)
 		c.Check(result, check.Equals, uint64(1))
 		completed = true
 		done <- true
@@ -595,12 +595,13 @@ func (s *AgentSuite) TestCheckForJobsWithRecursionTimeout(c *check.C) {
 
 func (s *AgentSuite) TestRecurseFn(c *check.C) {
 	defer leaktest.Check(c)
+	ctx := context.Background()
 
 	a := &DefaultAgent{
 		runningJobs: 2,
 	}
 	jobDone := make(chan int64)
-	recurse := a.getRecurseFn(jobDone)
+	recurse := a.getRecurseFn(ctx, jobDone)
 	workDone := make(chan bool)
 	work := func() {
 		defer close(workDone)
@@ -626,7 +627,7 @@ func (s *AgentSuite) TestRecurseFn(c *check.C) {
 
 	// Start the work again
 	jobDone = make(chan int64)
-	recurse = a.getRecurseFn(jobDone)
+	recurse = a.getRecurseFn(ctx, jobDone)
 	workDone = make(chan bool)
 	work = func() {
 		defer close(workDone)

@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/impls/database/dbqueuetypes"
+	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
 )
 
 type DatabaseQueueSweeper interface {
@@ -19,7 +19,7 @@ type DatabaseQueueSweeper interface {
 // Intended to be called by the task manager of your choice. This is a scheduled task that runs
 // periodically when called by a scheduler.
 type DatabaseQueueSweeperTask struct {
-	store     dbqueuetypes.QueueStore
+	store     queue.QueueStore
 	queueName string
 	monitor   DatabaseQueueMonitor
 
@@ -29,7 +29,7 @@ type DatabaseQueueSweeperTask struct {
 
 type DatabaseQueueSweeperTaskConfig struct {
 	QueueName  string
-	QueueStore dbqueuetypes.QueueStore
+	QueueStore queue.QueueStore
 	SweepFor   time.Duration
 	Monitor    DatabaseQueueMonitor
 }
@@ -45,9 +45,9 @@ func NewDatabaseQueueSweeperTask(cfg DatabaseQueueSweeperTaskConfig) *DatabaseQu
 
 func (q *DatabaseQueueSweeperTask) Run(ctx context.Context) {
 	var err error
-	var tx dbqueuetypes.QueueStore
+	var tx queue.QueueStore
 
-	tx, err = q.store.BeginTransactionQueue("DatabaseQueueSweeperTask.Run")
+	tx, err = q.store.BeginTransactionQueue(ctx, "DatabaseQueueSweeperTask.Run")
 	if err != nil {
 		slog.Debug(fmt.Sprintf("Error sweeping for expired queue permits. Error getting permits: %s", err))
 		return
@@ -55,7 +55,7 @@ func (q *DatabaseQueueSweeperTask) Run(ctx context.Context) {
 	defer tx.CompleteTransaction(&err)
 
 	// Sweep for expired nodes
-	permits, err := tx.QueuePermits(q.queueName)
+	permits, err := tx.QueuePermits(ctx, q.queueName)
 	if err != nil {
 		slog.Debug(fmt.Sprintf("Error sweeping for expired queue permits: %s", err))
 		return
@@ -64,7 +64,7 @@ func (q *DatabaseQueueSweeperTask) Run(ctx context.Context) {
 	for _, permit := range permits {
 		if !q.monitor.Check(ctx, uint64(permit.PermitId()), permit.PermitCreated(), q.sweepFor) {
 			slog.Debug(fmt.Sprintf("Sweeping expired queue permit %d", permit.PermitId()))
-			err := tx.QueuePermitDelete(permit.PermitId())
+			err := tx.QueuePermitDelete(ctx, permit.PermitId())
 			if err != nil {
 				slog.Debug(fmt.Sprintf("Error removing expired queue permit with id %d: %s", permit.PermitId(), err))
 				return

@@ -24,14 +24,14 @@ const (
 )
 
 type Follower interface {
-	Follow() FollowResult
+	Follow(ctx context.Context) FollowResult
 	Promote()
 }
 
 // Queue is not provided by the election library. Implement this interface. When new leadership
 // is needed, an `electiontypes.AssumeLeader` job will be pushed to the queue.
 type Queue interface {
-	Push(assumeLeader electiontypes.AssumeLeader) error
+	Push(ctx context.Context, assumeLeader electiontypes.AssumeLeader) error
 }
 
 type PgxFollower struct {
@@ -81,7 +81,7 @@ func NewPgxFollower(cfg PgxFollowerConfig) *PgxFollower {
 	}
 }
 
-func (p *PgxFollower) Follow() (result FollowResult) {
+func (p *PgxFollower) Follow(ctx context.Context) (result FollowResult) {
 	l := p.awb.Subscribe(electiontypes.ClusterMessageTypePing)
 	defer p.awb.Unsubscribe(l)
 
@@ -100,13 +100,13 @@ func (p *PgxFollower) Follow() (result FollowResult) {
 			// Follower has received a notification. For example, the follower receives
 			// periodic "pings" from the leader.
 			if cn, ok := n.(*electiontypes.ClusterPingRequest); ok {
-				go p.handleNotify(cn)
+				go p.handleNotify(ctx, cn)
 			}
 		case <-timeout.C:
 			// Follower has received no pings for the timeout duration. It is time to
 			// ask for a new leader.
 			slog.Debug(fmt.Sprintf("Follower '%s' ping receipt timeout. Requesting a new leader", p.address))
-			go p.requestLeader()
+			go p.requestLeader(ctx)
 		}
 		return
 	}() {
@@ -118,22 +118,22 @@ func (p *PgxFollower) Promote() {
 	p.promote <- true
 }
 
-func (p *PgxFollower) handleNotify(cn *electiontypes.ClusterPingRequest) {
+func (p *PgxFollower) handleNotify(ctx context.Context, cn *electiontypes.ClusterPingRequest) {
 	resp := electiontypes.NewClusterPingResponse(p.address, cn.SrcAddr, p.awb.IP())
 	b, err := json.Marshal(resp)
 	if err != nil {
 		log.Printf("Error marshaling notification to JSON: %s", err)
 		return
 	}
-	slog.Log(context.Background(), LevelTrace, fmt.Sprintf("Follower %s responding to ping from leader %s", p.address, cn.SrcAddr))
-	err = p.notify.Notify(p.chLeader, b)
+	slog.Log(ctx, LevelTrace, fmt.Sprintf("Follower %s responding to ping from leader %s", p.address, cn.SrcAddr))
+	err = p.notify.Notify(ctx, p.chLeader, b)
 	if err != nil {
 		log.Printf("Follower error responding to leader ping: %s", err)
 	}
 }
 
-func (p *PgxFollower) requestLeader() {
-	err := p.queue.Push(electiontypes.AssumeLeader{SrcAddr: p.address})
+func (p *PgxFollower) requestLeader(ctx context.Context) {
+	err := p.queue.Push(ctx, electiontypes.AssumeLeader{SrcAddr: p.address})
 	if err != nil {
 		now := time.Now()
 		// Limit how often this message logs to avoid too much spam
