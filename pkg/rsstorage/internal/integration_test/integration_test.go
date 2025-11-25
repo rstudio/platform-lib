@@ -27,13 +27,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"gopkg.in/check.v1"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal/servertest"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/servers/file"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/servers/postgres"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/servers/s3server"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/internal"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/internal/servertest"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/servers/file"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/servers/postgres"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/servers/s3server"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/types"
 )
 
 type Resolver struct {
@@ -50,7 +50,7 @@ func TestPackage(t *testing.T) { check.TestingT(t) }
 
 // This suite will be skipped when running tests with SQLite only. To test, use
 // the `test-integration` target. To run these tests only, use:
-// `MODULE=pkg/rsstorage/internal/integration_test just test-integration -v github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal/integration_test -check.f=StorageIntegrationSuite`
+// `MODULE=pkg/rsstorage/internal/integration_test just test-integration -v github.com/rstudio/platform-lib/v3/pkg/rsstorage/internal/integration_test -check.f=StorageIntegrationSuite`
 type StorageIntegrationSuite struct {
 	pool          *pgxpool.Pool
 	tempdirhelper servertest.TempDirHelper

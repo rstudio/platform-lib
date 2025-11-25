@@ -15,9 +15,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rselection"
-	"github.com/rstudio/platform-lib/v2/pkg/rselection/electiontypes"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v3/pkg/rselection"
+	"github.com/rstudio/platform-lib/v3/pkg/rselection/electiontypes"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/broadcaster"
 )
 
 // ClusterPgStore provides an interface that is used to enumerate a secondary

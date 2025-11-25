@@ -1,4 +1,4 @@
-module github.com/rstudio/platform-lib/pkg/rslog
+module github.com/rstudio/platform-lib/v3/pkg/rslog
 
 go 1.22
 

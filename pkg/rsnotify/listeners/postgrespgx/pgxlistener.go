@@ -16,8 +16,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/notifier"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/notifier"
 )
 
 type PgxIPReporter struct {

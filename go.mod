@@ -1,4 +1,4 @@
-module github.com/rstudio/platform-lib/v2
+module github.com/rstudio/platform-lib/v3
 
 go 1.23.0
 

@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rstudio/platform-lib/v2/pkg/rselection/electiontypes"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/postgrespgx"
+	"github.com/rstudio/platform-lib/v3/pkg/rselection/electiontypes"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listeners/postgrespgx"
 	"gopkg.in/check.v1"
 )
 

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/utils"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/utils"
 	"gopkg.in/check.v1"
 )
 

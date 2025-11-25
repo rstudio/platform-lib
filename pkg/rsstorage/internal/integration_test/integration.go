@@ -10,10 +10,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/servers/file"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/servers/postgres"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/servers/s3server"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/servers/file"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/servers/postgres"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/servers/s3server"
 )
 
 // GetStorageServer wraps getStorageServerAttempt, fatally erring if something goes wrong

@@ -11,7 +11,7 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/types"
 )
 
 type DummyChunkUtils struct {

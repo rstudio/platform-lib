@@ -13,7 +13,7 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listenerutils"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listenerutils"
 )
 
 // ErrMessageToLarge Breaking the message into chunks will result in

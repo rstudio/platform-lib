@@ -7,7 +7,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/types"
 )
 
 const (

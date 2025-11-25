@@ -6,10 +6,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/rstudio/platform-lib/v2/examples/cmd/markdownRenderer/notifytypes"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v3/examples/cmd/markdownRenderer/notifytypes"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/types"
 )
 
 type ExampleChunkWaiter struct {

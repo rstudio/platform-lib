@@ -5,7 +5,7 @@ package agenttypes
 import (
 	"testing"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
 	"gopkg.in/check.v1"
 )
 

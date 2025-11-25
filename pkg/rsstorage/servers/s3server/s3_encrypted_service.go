@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/internal"
 )
 
 type encryptedS3Service struct {

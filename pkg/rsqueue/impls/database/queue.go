@@ -9,15 +9,15 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent"
-	agenttypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent/types"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/metrics"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
-	queuetypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/types"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/utils"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/agent"
+	agenttypes "github.com/rstudio/platform-lib/v3/pkg/rsqueue/agent/types"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/metrics"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/queue"
+	queuetypes "github.com/rstudio/platform-lib/v3/pkg/rsqueue/types"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/utils"
 )
 
 type DatabaseQueue struct {

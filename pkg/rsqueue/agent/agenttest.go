@@ -6,7 +6,7 @@ import (
 	"context"
 	"time"
 
-	agenttypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent/types"
+	agenttypes "github.com/rstudio/platform-lib/v3/pkg/rsqueue/agent/types"
 )
 
 type FakeAgent struct {

@@ -13,12 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
-	agenttypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent/types"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/metrics"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/utils"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
+	agenttypes "github.com/rstudio/platform-lib/v3/pkg/rsqueue/agent/types"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/metrics"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/utils"
 )
 
 const LevelTrace = slog.Level(-8)

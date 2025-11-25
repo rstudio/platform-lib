@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/rstudio/platform-lib/v2/examples/cmd/markdownRenderer/runners"
-	"github.com/rstudio/platform-lib/v2/pkg/rscache"
+	"github.com/rstudio/platform-lib/v3/examples/cmd/markdownRenderer/runners"
+	"github.com/rstudio/platform-lib/v3/pkg/rscache"
 )
 
 type HttpHandler struct {
