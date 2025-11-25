@@ -12,7 +12,7 @@ import (
 	"github.com/lib/pq"
 	"gopkg.in/check.v1"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
 )
 
 type PqNotifySuite struct {

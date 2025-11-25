@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/dgraph-io/ristretto"
-	"github.com/rstudio/platform-lib/v2/pkg/rscache"
-	"github.com/rstudio/platform-lib/v2/pkg/rscache/test"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/servers/file"
+	"github.com/rstudio/platform-lib/v3/pkg/rscache"
+	"github.com/rstudio/platform-lib/v3/pkg/rscache/test"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/servers/file"
 	"gopkg.in/check.v1"
 )
 

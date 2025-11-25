@@ -5,8 +5,8 @@ package postgrespgx
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listenerutils"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listenerutils"
 )
 
 type ListenerFactory struct {

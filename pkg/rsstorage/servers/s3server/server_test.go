@@ -18,9 +18,9 @@ import (
 	"github.com/fortytw2/leaktest"
 	"gopkg.in/check.v1"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage"
-	"github.com/rstudio/platform-lib/v2/pkg/rsstorage/internal/servertest"
-	rtypes "github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/internal/servertest"
+	rtypes "github.com/rstudio/platform-lib/v3/pkg/rsstorage/types"
 )
 
 func TestPackage(t *testing.T) { check.TestingT(t) }

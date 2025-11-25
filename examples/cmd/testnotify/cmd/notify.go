@@ -12,18 +12,18 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jmoiron/sqlx"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
 	"github.com/spf13/cobra"
 
 	// Must import github.com/jackc/pgx/v5/stdlib for sqlx support.
 	_ "github.com/jackc/pgx/v5/stdlib"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listenerfactory"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/local"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/postgrespgx"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/postgrespq"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listenerutils"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listenerfactory"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listeners/local"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listeners/postgrespgx"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listeners/postgrespq"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listenerutils"
 )
 
 var (

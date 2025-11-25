@@ -1,4 +1,4 @@
-module github.com/rstudio/platform-lib/v2
+module github.com/rstudio/platform-lib/v3
 
 go 1.23.0
 
@@ -25,8 +25,9 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/pkg/errors v0.9.1
-	github.com/rstudio/platform-lib/pkg/rslog v1.6.3
+	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.1
+	github.com/stretchr/testify v1.10.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gorm.io/driver/sqlite v1.3.1
 	gorm.io/gorm v1.23.2
@@ -47,6 +48,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.9 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -56,11 +58,13 @@ require (
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	golang.org/x/crypto v0.38.0 // indirect
 	golang.org/x/sync v0.14.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

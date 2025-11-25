@@ -11,13 +11,13 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/google/uuid"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/local"
-	agenttypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/agent/types"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/utils"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listeners/local"
+	agenttypes "github.com/rstudio/platform-lib/v3/pkg/rsqueue/agent/types"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/utils"
 	"gopkg.in/check.v1"
 )
 

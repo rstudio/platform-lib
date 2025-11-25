@@ -5,7 +5,7 @@ package cmd
 import (
 	"log"
 
-	"github.com/rstudio/platform-lib/pkg/rslog"
+	"github.com/rstudio/platform-lib/v3/pkg/rslog"
 	"github.com/spf13/cobra"
 )
 

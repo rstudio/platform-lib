@@ -6,7 +6,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"gopkg.in/check.v1"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
 )
 
 type ListenerFactorySuite struct{}

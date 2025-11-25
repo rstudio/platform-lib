@@ -18,13 +18,13 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	"github.com/rstudio/platform-lib/v2/examples/cmd/markdownRenderer/notifytypes"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/local"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listenerutils"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
-	queuetypes "github.com/rstudio/platform-lib/v2/pkg/rsqueue/types"
+	"github.com/rstudio/platform-lib/v3/examples/cmd/markdownRenderer/notifytypes"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listeners/local"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listenerutils"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/queue"
+	queuetypes "github.com/rstudio/platform-lib/v3/pkg/rsqueue/types"
 )
 
 type Store interface {

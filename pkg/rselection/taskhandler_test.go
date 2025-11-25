@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/broadcaster"
 	"gopkg.in/check.v1"
 )
 

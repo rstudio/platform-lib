@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/rstudio/platform-lib/pkg/rslog"
+	"github.com/rstudio/platform-lib/v3/pkg/rslog"
 	"github.com/stretchr/testify/mock"
 )
 

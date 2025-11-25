@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/rstudio/platform-lib/v2/examples/cmd/markdownRenderer/notifytypes"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
-	storagetypes "github.com/rstudio/platform-lib/v2/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v3/examples/cmd/markdownRenderer/notifytypes"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
+	storagetypes "github.com/rstudio/platform-lib/v3/pkg/rsstorage/types"
 	"gopkg.in/check.v1"
 )
 

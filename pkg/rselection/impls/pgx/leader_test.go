@@ -13,11 +13,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"gopkg.in/check.v1"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rselection"
-	"github.com/rstudio/platform-lib/v2/pkg/rselection/electiontypes"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/postgrespgx"
+	"github.com/rstudio/platform-lib/v3/pkg/rselection"
+	"github.com/rstudio/platform-lib/v3/pkg/rselection/electiontypes"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listeners/postgrespgx"
 )
 
 type fakeTaskHandler struct {

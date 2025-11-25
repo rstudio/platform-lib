@@ -8,9 +8,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/groups"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/utils"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/groups"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/utils"
 )
 
 type QueueGroupProvider struct {

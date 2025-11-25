@@ -13,9 +13,9 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/listeners/local"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/permit"
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listeners/local"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/queue"
 )
 
 const (

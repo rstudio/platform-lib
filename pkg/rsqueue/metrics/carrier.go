@@ -5,7 +5,7 @@ package metrics
 import (
 	"context"
 
-	"github.com/rstudio/platform-lib/v2/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/queue"
 )
 
 // CarrierFactory provides a method for retrieving a byte array of tracing data. This
