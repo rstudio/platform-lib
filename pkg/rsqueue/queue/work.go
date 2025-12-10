@@ -88,9 +88,9 @@ func (a *OptionalRecurser) OptionallyRecurse(ctx context.Context, run func()) {
 			if allowed == nil {
 				msg := fmt.Sprintf("Work with type %d attempted recursion without being marked for recursion", r.WorkType)
 				if a.fatalRecurseCheck {
-					log.Fatalf(msg)
+					log.Fatal(msg)
 				} else {
-					log.Printf(msg)
+					log.Println(msg)
 				}
 			}
 

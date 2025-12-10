@@ -179,7 +179,7 @@ func (p *PgxLeader) lead(ctx context.Context, pingTick, sweepTick <-chan time.Ti
 		case vCh := <-p.taskHandler.Verify():
 			p.verify(vCh)
 		case <-logTickCh:
-			slog.Debug(fmt.Sprintf(p.info()))
+			slog.Debug(p.info())
 		}
 	}
 }

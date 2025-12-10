@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"log/slog"
 	"os"
@@ -269,7 +268,6 @@ func main() {
 	// capacity (remember, higher priority numbers mean lower priority).
 	cEnforcer, err := agent.Concurrencies(concurrencyMap, concurrencyMap, []int64{0, 1})
 	if err != nil {
-		err = fmt.Errorf(err.Error())
 		return
 	}
 
