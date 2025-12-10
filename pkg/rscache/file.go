@@ -300,7 +300,7 @@ func (o *fileCache) Get(ctx context.Context, resolver ResolverSpec) (value *Cach
 					return
 				} else {
 					err = fmt.Errorf("error: FileCache reported address '%s' complete, but item was not found in cache", address)
-					slog.Debug(fmt.Sprintf(err.Error()))
+					slog.Debug(err.Error())
 					return
 				}
 			}
