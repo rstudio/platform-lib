@@ -351,9 +351,6 @@ func (q *DatabaseQueue) Get(ctx context.Context, maxPriority uint64, maxPriority
 		} else {
 			slog.Debug(fmt.Sprintf("Queue Get() returned in %d ms", t))
 		}
-		if t/1000 >= 60 {
-			slog.Warn("Queue Get() process slow", "time", fmt.Sprintf("%vs", t/1000))
-		}
 	}(queueWork)
 	if err != sql.ErrNoRows {
 		q.measureDequeue(ctx, queueWork, err)
