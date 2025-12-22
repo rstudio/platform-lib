@@ -30,6 +30,27 @@ func (*FakeReadCloser) Close() error {
 	return nil
 }
 
+// FakeFileCache implements the FileCache interface for testing
+type FakeFileCache struct {
+	GetResult *CacheReturn
+}
+
+func (f *FakeFileCache) Get(ctx context.Context, resolver ResolverSpec) *CacheReturn {
+	return f.GetResult
+}
+
+func (f *FakeFileCache) Check(ctx context.Context, resolver ResolverSpec) (bool, error) {
+	return false, nil
+}
+
+func (f *FakeFileCache) Head(ctx context.Context, resolver ResolverSpec) (int64, time.Time, error) {
+	return 0, time.Time{}, nil
+}
+
+func (f *FakeFileCache) Uncache(ctx context.Context, resolver ResolverSpec) error {
+	return nil
+}
+
 func (s *MemoryBackedFileCacheSuite) SetUpSuite(c *check.C) {
 	c.Assert(s.tempdirhelper.SetUp(), check.IsNil)
 }
@@ -67,6 +88,66 @@ func (s *MemoryBackedFileCacheSuite) TestGetInMemory(c *check.C) {
 	obj, err := st.GetObject(context.Background(), spec, &testItem{}).AsObject()
 	c.Assert(err, check.IsNil)
 	c.Check(obj.(*testItem), check.DeepEquals, &testItem{"one"})
+}
+
+func (s *MemoryBackedFileCacheSuite) TestGetDoesNotCacheErrors(c *check.C) {
+	defer leaktest.Check(c)
+
+	m := NewFakeMemoryCache(true)
+	fc := &FakeFileCache{
+		GetResult: &CacheReturn{
+			Err:      errors.New("some cache error"),
+			CacheKey: "error-key",
+			Size:     10,
+		},
+	}
+	st := NewMemoryBackedFileCache(memCfg(fc, m, 10000000))
+
+	spec := ResolverSpec{
+		CacheInMemory: true,
+		Work: &FakeWork{
+			address: "error-key",
+		},
+	}
+
+	// Call Get which should return the error
+	result := st.Get(context.Background(), spec)
+	c.Assert(result.Err, check.ErrorMatches, "some cache error")
+
+	// Verify the error result was NOT cached in memory
+	cached := m.Get("error-key")
+	c.Check(cached.IsNull(), check.Equals, true)
+}
+
+func (s *MemoryBackedFileCacheSuite) TestGetCachesSuccessfulResults(c *check.C) {
+	defer leaktest.Check(c)
+
+	m := NewFakeMemoryCache(true)
+	fc := &FakeFileCache{
+		GetResult: &CacheReturn{
+			Value:    []byte("success data"),
+			CacheKey: "success-key",
+			Size:     10,
+			Complete: true,
+		},
+	}
+	st := NewMemoryBackedFileCache(memCfg(fc, m, 10000000))
+
+	spec := ResolverSpec{
+		CacheInMemory: true,
+		Work: &FakeWork{
+			address: "success-key",
+		},
+	}
+
+	// Call Get which should return successful result
+	result := st.Get(context.Background(), spec)
+	c.Assert(result.Err, check.IsNil)
+
+	// Verify the successful result WAS cached in memory
+	cached := m.Get("success-key")
+	c.Check(cached.IsNull(), check.Equals, false)
+	c.Check(cached.ReturnedFrom, check.Equals, "memory")
 }
 
 func (s *MemoryBackedFileCacheSuite) TestGetNotInMemoryErrs(c *check.C) {
