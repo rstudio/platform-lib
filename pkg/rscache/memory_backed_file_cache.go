@@ -89,7 +89,7 @@ func (mbfc *MemoryBackedFileCache) Get(ctx context.Context, resolver ResolverSpe
 
 	ptr = mbfc.fc.Get(ctx, resolver)
 
-	if resolver.CacheInMemory && mbfc.mc != nil && mbfc.mc.Enabled() && ptr.GetSize() < mbfc.maxMemoryPerObject {
+	if resolver.CacheInMemory && mbfc.mc != nil && mbfc.mc.Enabled() && ptr.Err == nil && ptr.GetSize() < mbfc.maxMemoryPerObject {
 		err = mbfc.mc.Put(address, ptr)
 		if err != nil {
 			slog.Debug(fmt.Sprintf("error caching to memory: %s", err.Error()))
