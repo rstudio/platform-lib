@@ -196,11 +196,8 @@ func (o *fileCache) Head(ctx context.Context, resolver ResolverSpec) (size int64
 		for {
 			select {
 			case <-ctx.Done():
+				err = ctx.Err()
 				return
-			default:
-
-			}
-			select {
 			case err = <-errCh:
 				if err != nil {
 					return
@@ -292,6 +289,9 @@ func (o *fileCache) Get(ctx context.Context, resolver ResolverSpec) (value *Cach
 		// Wait
 		for {
 			select {
+			case <-ctx.Done():
+				err = ctx.Err()
+				return
 			case err = <-errCh:
 				if err != nil {
 					return
