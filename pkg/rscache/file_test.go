@@ -448,6 +448,29 @@ func (s *FileCacheSuite) TestHeadResolveOkDuplicateResolver(c *check.C) {
 	<-testDone
 }
 
+func (s *FileCacheSuite) TestHeadResolveContextCancelled(c *check.C) {
+	defer leaktest.Check(c)
+
+	errCh := make(chan error)
+	q := &fakeQueue{
+		PollErrs: errCh,
+	}
+	server := &rsstorage.DummyStorageServer{}
+	dup := &fakeDupMatcher{}
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
+	spec := ResolverSpec{
+		Work: &FakeWork{
+			address: "two",
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, _, err := st.Head(ctx, spec)
+	c.Assert(err, check.ErrorMatches, "context canceled")
+}
+
 func (s *FileCacheSuite) TestGetAlreadyCached(c *check.C) {
 	f, err := os.Create(filepath.Join(s.tempdirhelper.Dir(), "test"))
 	c.Assert(err, check.IsNil)
@@ -693,6 +716,29 @@ func (s *FileCacheSuite) TestGetResolveOkDuplicateResolver(c *check.C) {
 	}()
 
 	<-testDone
+}
+
+func (s *FileCacheSuite) TestGetResolveContextCancelled(c *check.C) {
+	defer leaktest.Check(c)
+
+	errCh := make(chan error)
+	q := &fakeQueue{
+		PollErrs: errCh,
+	}
+	server := &rsstorage.DummyStorageServer{}
+	dup := &fakeDupMatcher{}
+	st := NewFileCache(fileCfg(q, dup, server, &fakeRecurser{}, time.Second*30))
+	spec := ResolverSpec{
+		Work: &FakeWork{
+			address: "two",
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := st.Get(ctx, spec).AsReader()
+	c.Assert(err, check.ErrorMatches, "context canceled")
 }
 
 func (s *FileCacheSuite) TestUncacheError(c *check.C) {
