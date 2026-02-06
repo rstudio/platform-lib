@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
 	"reflect"
@@ -39,16 +38,16 @@ func (p *PgxIPReporter) IP() string {
 		var ipNet net.IPNet
 		err := p.pool.QueryRow(context.Background(), query).Scan(&ipNet)
 		if err != nil {
-			log.Printf("Unable to determine client IP with inet_client_addr(). %s", err)
+			slog.Error(fmt.Sprintf("Unable to determine client IP with inet_client_addr(). %s", err))
 			return ip
 		}
 		if ipNet.IP != nil {
 			ip = ipNet.IP.String()
 		} else {
-			log.Printf("Unable to determine client IP with inet_client_addr().")
+			slog.Error("Unable to determine client IP with inet_client_addr().")
 		}
 	} else {
-		log.Printf("Invalid pool")
+		slog.Error("Invalid pool")
 	}
 	return ip
 }
@@ -219,7 +218,7 @@ func (l *PgxListener) acquire(ready chan struct{}) (err error) {
 	select {
 	case <-ready:
 		// Already closed. This means that we are reconnecting
-		log.Printf("successfully reconnected listener %s", l.name)
+		slog.Info(fmt.Sprintf("successfully reconnected listener %s", l.name))
 	default:
 		// Close the `ready` channel to signal that `Listen()` can return.
 		close(ready)

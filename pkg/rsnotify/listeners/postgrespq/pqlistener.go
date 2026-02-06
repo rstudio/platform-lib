@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 	"reflect"
 	"time"
@@ -141,7 +140,7 @@ func (l *PqListener) acquire(ready chan struct{}) (err error) {
 	select {
 	case <-ready:
 		// Already closed. This means that we are reconnecting
-		log.Printf("successfully reconnected listener %s", l.name)
+		slog.Info(fmt.Sprintf("successfully reconnected listener %s", l.name))
 	default:
 		// Close the `ready` channel to signal that `Listen()` can return.
 		close(ready)

@@ -5,7 +5,6 @@ package local
 import (
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"sync"
 	"time"
@@ -97,17 +96,17 @@ func (l *Listener) wait(msgs chan listener.Notification, errs chan error, stop c
 	// channel is signaled or closed.
 	//
 	// This path is currently run only in the unit tests, so I included some
-	// `log.Printf` usages are for the benefit of verbose testing output.
+	// `slog.Debug` usages are for the benefit of verbose testing output.
 	if l.deferredStart != nil {
 		// First, wait for the test to notify that it's time to start listening. This
 		// gives us a chance to set up a deadlock condition in the test.
-		log.Printf("Waiting for test notification to start")
+		slog.Debug("Waiting for test notification to start")
 		<-l.deferredStart
 		// Next, simulate an unexpected stop by waiting for a stop signal after
 		// which we return without ever receiving from the `l.items` channel.
-		log.Printf("Proceeding with wait by waiting for stop signal")
+		slog.Debug("Proceeding with wait by waiting for stop signal")
 		<-stop
-		log.Printf("Stopped. Returning without receiving from l.items.")
+		slog.Debug("Stopped. Returning without receiving from l.items.")
 		return
 	}
 	for {

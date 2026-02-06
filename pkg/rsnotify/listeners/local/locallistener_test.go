@@ -4,7 +4,7 @@ package local
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -62,7 +62,7 @@ func (s *LocalNotifySuite) TestNotifications(c *check.C) {
 					return
 				}
 			case e := <-errs:
-				log.Printf("error received: %s", e)
+				slog.Error(fmt.Sprintf("error received: %s", e))
 				testError = e
 				return
 			}
@@ -109,7 +109,7 @@ func (s *LocalNotifySuite) TestNotifications(c *check.C) {
 				c.Assert(i.(*listener.TestNotification).Val, check.Equals, "second-test")
 				return
 			case e := <-errs:
-				log.Printf("error received: %s", e)
+				slog.Error(fmt.Sprintf("error received: %s", e))
 				c.FailNow()
 			}
 		}
@@ -125,7 +125,7 @@ func (s *LocalNotifySuite) TestNotifications(c *check.C) {
 				c.Assert(i.(*listener.TestNotification).Val, check.Equals, "second-test-bb")
 				return
 			case e := <-errs2:
-				log.Printf("error received: %s", e)
+				slog.Error(fmt.Sprintf("error received: %s", e))
 				c.FailNow()
 			}
 		}
@@ -177,7 +177,7 @@ func (s *LocalNotifySuite) TestNotificationsBlock(c *check.C) {
 		defer close(done)
 		// Block a while before receiving each message
 		<-blocker
-		log.Printf("Unblocked. Starting to receive.")
+		slog.Info("Unblocked. Starting to receive.")
 		for {
 			select {
 			case i := <-data:
@@ -190,7 +190,7 @@ func (s *LocalNotifySuite) TestNotificationsBlock(c *check.C) {
 					return
 				}
 			case e := <-errs:
-				log.Printf("error received: %s", e)
+				slog.Error(fmt.Sprintf("error received: %s", e))
 				testError = e
 				return
 			}
@@ -205,7 +205,7 @@ func (s *LocalNotifySuite) TestNotificationsBlock(c *check.C) {
 	}
 
 	// Block receiving any notifications until all have been sent
-	log.Printf("All messages have been sent")
+	slog.Info("All messages have been sent")
 	c.Assert(f.listeners, check.HasLen, 1)
 	close(blocker)
 
@@ -241,7 +241,7 @@ func (s *LocalNotifySuite) TestNotificationsErrs(c *check.C) {
 		defer close(done)
 		// Block a while before receiving each message
 		<-blocker
-		log.Printf("Unblocked. Starting to receive.")
+		slog.Info("Unblocked. Starting to receive.")
 		for {
 			select {
 			case i := <-data:
@@ -251,7 +251,7 @@ func (s *LocalNotifySuite) TestNotificationsErrs(c *check.C) {
 				}
 				count++
 			case e := <-errs:
-				log.Printf("error received: %s", e)
+				slog.Error(fmt.Sprintf("error received: %s", e))
 				if e.Error() != "a notification must be of type listener.Notification" {
 					testError = fmt.Errorf("invalid error received: %s", e.Error())
 					return
@@ -270,7 +270,7 @@ func (s *LocalNotifySuite) TestNotificationsErrs(c *check.C) {
 	f.Notify("test-a", struct{ name string }{"testA"})
 
 	// Block receiving any notifications until all have been sent
-	log.Printf("All messages have been sent")
+	slog.Info("All messages have been sent")
 	close(blocker)
 
 	// Wait for test to complete
@@ -319,9 +319,9 @@ func (s *LocalNotifySuite) TestNotificationsDeadlockOnClose(c *check.C) {
 	var testError error
 	go func() {
 		defer close(done)
-		log.Printf("ready to notify")
+		slog.Info("ready to notify")
 		f.Notify("test-deadlock", &tn)
-		log.Printf("done notifying")
+		slog.Info("done notifying")
 	}()
 
 	// Stop the channel. This will block until we start listening, below. The idea
@@ -337,13 +337,13 @@ func (s *LocalNotifySuite) TestNotificationsDeadlockOnClose(c *check.C) {
 	// Since we're stopping the channel, the notification attempt should time out and
 	// be re-attempted. However, the listener is gone by the second attempt and isn't
 	// retried.
-	log.Printf("notifying start channel that wait can proceed")
+	slog.Info("notifying start channel that wait can proceed")
 	close(starter)
 
 	// Make sure we know we stopped
 	<-stopped
 	c.Assert(f.listeners, check.HasLen, 0)
-	log.Printf("Stop completed. No listeners")
+	slog.Info("Stop completed. No listeners")
 
 	// Finally, wait for the notification to complete. The timeout/retry mechanism
 	// ensures that we don't block here forever.
