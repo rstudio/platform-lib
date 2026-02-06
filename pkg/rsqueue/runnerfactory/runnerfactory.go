@@ -5,7 +5,7 @@ package runnerfactory
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -63,7 +63,7 @@ func (r *RunnerFactory) Stop(timeout time.Duration) error {
 			defer wg.Done()
 			err := runner.Stop(timeout)
 			if err != nil {
-				log.Printf("Error stopping runner for type %d: %s", key, err)
+				slog.Error(fmt.Sprintf("Error stopping runner for type %d: %s", key, err))
 			}
 			r.types.SetEnabled(key, false)
 		}(key, runner)

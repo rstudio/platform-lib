@@ -9,7 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -217,7 +217,7 @@ func (s *MemoryCacheIntegrationSuite) TestInMemoryCaching(c *check.C) {
 
 	// Create an in-memory cache that is just large enough to hold 64 entries
 	maxCost := entrySize * 64
-	log.Printf("Creating cache with MaxCost=%d", maxCost)
+	slog.Info(fmt.Sprintf("Creating cache with MaxCost=%d", maxCost))
 	rc, err := ristretto.NewCache(&ristretto.Config{
 		NumCounters: 1000,
 		MaxCost:     maxCost,
