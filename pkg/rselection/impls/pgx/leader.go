@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 	"sort"
 	"strings"
@@ -218,7 +217,11 @@ func (p *PgxLeader) verify(vCh chan bool) {
 	// Upon exit, notify channel with `true` or `false` depending upon error status
 	defer func(err *error) {
 		if *err != nil {
-			log.Printf("Error verifying cluster integrity: %s", *err)
+			// TODO this should be worded better because sometimes this error is normal and expected,
+			// e.g. when restarting a cluster node and the node list is temporarily out of sync:
+			// Error verifying cluster integrity: node list length differs. Store node count 3 does not match leader count 2
+			// It would be great to be able to distinguish between expected/unexpected errors here and log accordingly.
+			slog.Error(fmt.Sprintf("Error verifying cluster integrity: %s", *err))
 			vCh <- false
 		} else {
 			vCh <- true
@@ -262,7 +265,7 @@ func (p *PgxLeader) pingNodes(ctx context.Context) {
 	}
 	b, err := json.Marshal(req)
 	if err != nil {
-		log.Printf("Error marshaling notification to JSON: %s", err)
+		slog.Error(fmt.Sprintf("Error marshaling notification to JSON: %s", err))
 		return
 	}
 
@@ -274,7 +277,7 @@ func (p *PgxLeader) pingNodes(ctx context.Context) {
 	err = p.notify.Notify(ctx, p.chFollower, b)
 	if err != nil {
 		p.pingSuccess = false
-		log.Printf("Leader error pinging followers: %s", err)
+		slog.Error(fmt.Sprintf("Leader error pinging followers: %s", err))
 		return
 	}
 
@@ -284,7 +287,7 @@ func (p *PgxLeader) pingNodes(ctx context.Context) {
 	err = p.notify.Notify(ctx, p.chLeader, b)
 	if err != nil {
 		p.pingSuccess = false
-		log.Printf("Leader error pinging leaders: %s", err)
+		slog.Error(fmt.Sprintf("Leader error pinging leaders: %s", err))
 		return
 	}
 }
@@ -308,14 +311,14 @@ func (p *PgxLeader) handleNodesRequest(ctx context.Context, cn *electiontypes.Cl
 	resp := electiontypes.NewClusterNodesNotification(nodes, cn.Guid())
 	b, err := json.Marshal(resp)
 	if err != nil {
-		log.Printf("Error marshaling notification to JSON: %s", err)
+		slog.Error(fmt.Sprintf("Error marshaling notification to JSON: %s", err))
 		return
 	}
 
 	// Broadcast the response on the generic channel
 	err = p.notify.Notify(ctx, p.chMessages, b)
 	if err != nil {
-		log.Printf("Leader error notifying of cluster nodes: %s", err)
+		slog.Error(fmt.Sprintf("Leader error notifying of cluster nodes: %s", err))
 		return
 	}
 }

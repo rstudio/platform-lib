@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 	"time"
 
@@ -122,13 +121,13 @@ func (p *PgxFollower) handleNotify(ctx context.Context, cn *electiontypes.Cluste
 	resp := electiontypes.NewClusterPingResponse(p.address, cn.SrcAddr, p.awb.IP())
 	b, err := json.Marshal(resp)
 	if err != nil {
-		log.Printf("Error marshaling notification to JSON: %s", err)
+		slog.Error(fmt.Sprintf("Error marshaling notification to JSON: %s", err))
 		return
 	}
 	slog.Log(ctx, LevelTrace, fmt.Sprintf("Follower %s responding to ping from leader %s", p.address, cn.SrcAddr))
 	err = p.notify.Notify(ctx, p.chLeader, b)
 	if err != nil {
-		log.Printf("Follower error responding to leader ping: %s", err)
+		slog.Error(fmt.Sprintf("Follower error responding to leader ping: %s", err))
 	}
 }
 
@@ -138,7 +137,7 @@ func (p *PgxFollower) requestLeader(ctx context.Context) {
 		now := time.Now()
 		// Limit how often this message logs to avoid too much spam
 		if p.lastRequestLeaderErr.IsZero() || p.lastRequestLeaderErr.Add(5*time.Minute).Before(now) {
-			log.Printf("Error pushing leader assumption work to queue: %s", err)
+			slog.Error(fmt.Sprintf("Error pushing leader assumption work to queue: %s", err))
 			p.lastRequestLeaderErr = now
 		}
 	}
