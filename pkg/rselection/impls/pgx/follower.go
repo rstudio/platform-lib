@@ -5,8 +5,6 @@ package pgxelection
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"log"
 	"log/slog"
 	"time"
 
@@ -105,7 +103,7 @@ func (p *PgxFollower) Follow(ctx context.Context) (result FollowResult) {
 		case <-timeout.C:
 			// Follower has received no pings for the timeout duration. It is time to
 			// ask for a new leader.
-			slog.Debug(fmt.Sprintf("Follower '%s' ping receipt timeout. Requesting a new leader", p.address))
+			slog.Debug("Follower ping receipt timeout. Requesting a new leader", "address", p.address)
 			go p.requestLeader(ctx)
 		}
 		return
@@ -122,13 +120,13 @@ func (p *PgxFollower) handleNotify(ctx context.Context, cn *electiontypes.Cluste
 	resp := electiontypes.NewClusterPingResponse(p.address, cn.SrcAddr, p.awb.IP())
 	b, err := json.Marshal(resp)
 	if err != nil {
-		log.Printf("Error marshaling notification to JSON: %s", err)
+		slog.Error("Error marshaling notification to JSON", "error", err)
 		return
 	}
-	slog.Log(ctx, LevelTrace, fmt.Sprintf("Follower %s responding to ping from leader %s", p.address, cn.SrcAddr))
+	slog.Log(ctx, LevelTrace, "Follower responding to ping from leader", "follower", p.address, "leader", cn.SrcAddr)
 	err = p.notify.Notify(ctx, p.chLeader, b)
 	if err != nil {
-		log.Printf("Follower error responding to leader ping: %s", err)
+		slog.Error("Follower error responding to leader ping", "error", err)
 	}
 }
 
@@ -138,7 +136,7 @@ func (p *PgxFollower) requestLeader(ctx context.Context) {
 		now := time.Now()
 		// Limit how often this message logs to avoid too much spam
 		if p.lastRequestLeaderErr.IsZero() || p.lastRequestLeaderErr.Add(5*time.Minute).Before(now) {
-			log.Printf("Error pushing leader assumption work to queue: %s", err)
+			slog.Error("Error pushing leader assumption work to queue", "error", err)
 			p.lastRequestLeaderErr = now
 		}
 	}

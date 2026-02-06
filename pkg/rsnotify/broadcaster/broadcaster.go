@@ -3,7 +3,7 @@ package broadcaster
 // Copyright (C) 2022 by RStudio, PBC.
 
 import (
-	"log"
+	"log/slog"
 
 	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
 )
@@ -96,7 +96,7 @@ func (b *NotificationBroadcaster) broadcast() {
 			}
 		case err, more := <-b.errs:
 			if more {
-				log.Printf("Received error on queue addressed work notification channel: %s", err)
+				slog.Error("Received error on queue addressed work notification channel", "error", err)
 			}
 		case sink := <-b.subscribe:
 			sinks = append(sinks, sink)

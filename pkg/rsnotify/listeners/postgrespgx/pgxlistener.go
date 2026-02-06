@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
 	"reflect"
@@ -39,16 +38,16 @@ func (p *PgxIPReporter) IP() string {
 		var ipNet net.IPNet
 		err := p.pool.QueryRow(context.Background(), query).Scan(&ipNet)
 		if err != nil {
-			log.Printf("Unable to determine client IP with inet_client_addr(). %s", err)
+			slog.Error("Unable to determine client IP with inet_client_addr()", "error", err)
 			return ip
 		}
 		if ipNet.IP != nil {
 			ip = ipNet.IP.String()
 		} else {
-			log.Printf("Unable to determine client IP with inet_client_addr().")
+			slog.Error("Unable to determine client IP with inet_client_addr().")
 		}
 	} else {
-		log.Printf("Invalid pool")
+		slog.Error("Invalid pool")
 	}
 	return ip
 }
@@ -219,7 +218,7 @@ func (l *PgxListener) acquire(ready chan struct{}) (err error) {
 	select {
 	case <-ready:
 		// Already closed. This means that we are reconnecting
-		log.Printf("successfully reconnected listener %s", l.name)
+		slog.Info("successfully reconnected listener", "name", l.name)
 	default:
 		// Close the `ready` channel to signal that `Listen()` can return.
 		close(ready)
@@ -327,10 +326,10 @@ func (l *PgxListener) notify(n *pgconn.Notification, errs chan error, items chan
 }
 
 func (l *PgxListener) Stop() {
-	slog.Debug(fmt.Sprintf("Signaling context to cancel listener %s", l.name))
+	slog.Debug("Signaling context to cancel listener", "name", l.name)
 	l.cancel()
 	// Wait for stop
-	slog.Debug(fmt.Sprintf("Waiting for listener %s to stop...", l.name))
+	slog.Debug("Waiting for listener to stop...", "name", l.name)
 	<-l.exit
 
 	// Clean up connection
@@ -340,5 +339,5 @@ func (l *PgxListener) Stop() {
 		l.conn = nil
 	}
 
-	slog.Debug(fmt.Sprintf("Listener %s closed.", l.name))
+	slog.Debug("Listener closed.", "name", l.name)
 }
