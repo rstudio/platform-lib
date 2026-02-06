@@ -268,7 +268,7 @@ func (s *StorageIntegrationSuite) CheckFile(
 	sz int64,
 	chunked bool,
 ) {
-	slog.Info(fmt.Sprintf("(%s) Verifying existence of %s on server=%s (with dir=%s)", test, address, class, dir))
+	slog.Info("Verifying existence", "test", test, "address", address, "server", class, "dir", dir)
 
 	// Next, get it
 	r, ch, sz, _, ok, err := server.Get(context.Background(), dir, address)
@@ -297,7 +297,7 @@ func (s *StorageIntegrationSuite) CheckFile(
 
 // Verifies that a given asset does not exist
 func (s *StorageIntegrationSuite) CheckFileGone(c *check.C, server rsstorage.StorageServer, test, dir, address, classSource string) {
-	slog.Info(fmt.Sprintf("(%s) Verifying removal of %s on server=%s (with dir=%s)", test, address, classSource, dir))
+	slog.Info("Verifying removal", "test", test, "address", address, "server", classSource, "dir", dir)
 
 	ok, _, _, _, err := server.Check(context.Background(), "", address)
 	c.Check(err, check.IsNil)
@@ -326,7 +326,7 @@ func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
 
 	// Verify
 	for classSource := range sources {
-		slog.Info(fmt.Sprintf("\nVerify that files were successfully moved from %s to each destination server:", classSource))
+		slog.Info("Verify that files were successfully moved to each destination server", "source", classSource)
 		for classDest, dest := range dests {
 			// Files exist on destination
 			s.CheckFile(
@@ -367,7 +367,7 @@ func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
 
 	// Verify that files do not exist on source
 	for classSource, source := range sources {
-		slog.Info(fmt.Sprintf("\nVerify that moved files were deleted from the %s server:", classSource))
+		slog.Info("Verify that moved files were deleted from the server", "source", classSource)
 		for classDest := range dests {
 			s.CheckFileGone(c, source, "MoveSrc", "", fmt.Sprintf("%s--%s", classSource, classDest), classSource)
 			s.CheckFileGone(c, source, "MoveSrc", "dir", fmt.Sprintf("%s--%s", classSource, classDest), classSource)
@@ -397,7 +397,7 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 
 	// Verify files have been copied to destination
 	for classSource := range sources {
-		slog.Info(fmt.Sprintf("\nVerify that files were successfully copied from %s to each destination server:", classSource))
+		slog.Info("Verify that files were successfully copied to each destination server", "source", classSource)
 		for classDest, dest := range dests {
 			// Files exist on destination
 			s.CheckFile(
@@ -438,7 +438,7 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 
 	// Verify files are still on source
 	for classSource, source := range sources {
-		slog.Info(fmt.Sprintf("\nVerify that original files still remain on the %s server:", classSource))
+		slog.Info("Verify that original files still remain on the server", "source", classSource)
 		for classDest := range dests {
 			// Files still exist on source
 			s.CheckFile(
@@ -479,14 +479,14 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 
 	// Test Enumeration
 	for classSource, source := range sources {
-		slog.Info(fmt.Sprintf("\nVerify enumeration on the %s source server:", classSource))
+		slog.Info("Verify enumeration on the source server", "source", classSource)
 		items, err := source.Enumerate(ctx)
 		c.Assert(err, check.IsNil)
 		// Each source should have three files for each destination
 		c.Assert(items, check.HasLen, len(dests)*3)
 	}
 	for classDest, dest := range dests {
-		slog.Info(fmt.Sprintf("\nVerify enumeration on the %s destination server:", classDest))
+		slog.Info("Verify enumeration on the destination server", "dest", classDest)
 		items, err := dest.Enumerate(ctx)
 		c.Assert(err, check.IsNil)
 		// Each destination should have three files from each source
@@ -495,7 +495,7 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 
 	// Test Removal
 	for classSource, source := range sources {
-		slog.Info(fmt.Sprintf("\nVerify forced removal of assets on the %s source server:", classSource))
+		slog.Info("Verify forced removal of assets on the source server", "source", classSource)
 		for classDest := range dests {
 			err := source.Remove(ctx, "", fmt.Sprintf("%s--%s", classSource, classDest))
 			c.Assert(err, check.IsNil)

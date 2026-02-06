@@ -62,7 +62,7 @@ func (s *LocalNotifySuite) TestNotifications(c *check.C) {
 					return
 				}
 			case e := <-errs:
-				slog.Error(fmt.Sprintf("error received: %s", e))
+				slog.Error("error received", "error", e)
 				testError = e
 				return
 			}
@@ -109,7 +109,7 @@ func (s *LocalNotifySuite) TestNotifications(c *check.C) {
 				c.Assert(i.(*listener.TestNotification).Val, check.Equals, "second-test")
 				return
 			case e := <-errs:
-				slog.Error(fmt.Sprintf("error received: %s", e))
+				slog.Error("error received", "error", e)
 				c.FailNow()
 			}
 		}
@@ -125,7 +125,7 @@ func (s *LocalNotifySuite) TestNotifications(c *check.C) {
 				c.Assert(i.(*listener.TestNotification).Val, check.Equals, "second-test-bb")
 				return
 			case e := <-errs2:
-				slog.Error(fmt.Sprintf("error received: %s", e))
+				slog.Error("error received", "error", e)
 				c.FailNow()
 			}
 		}
@@ -190,7 +190,7 @@ func (s *LocalNotifySuite) TestNotificationsBlock(c *check.C) {
 					return
 				}
 			case e := <-errs:
-				slog.Error(fmt.Sprintf("error received: %s", e))
+				slog.Error("error received", "error", e)
 				testError = e
 				return
 			}
@@ -251,7 +251,7 @@ func (s *LocalNotifySuite) TestNotificationsErrs(c *check.C) {
 				}
 				count++
 			case e := <-errs:
-				slog.Error(fmt.Sprintf("error received: %s", e))
+				slog.Error("error received", "error", e)
 				if e.Error() != "a notification must be of type listener.Notification" {
 					testError = fmt.Errorf("invalid error received: %s", e.Error())
 					return

@@ -63,7 +63,7 @@ func (r *RunnerFactory) Stop(timeout time.Duration) error {
 			defer wg.Done()
 			err := runner.Stop(timeout)
 			if err != nil {
-				slog.Error(fmt.Sprintf("Error stopping runner for type %d: %s", key, err))
+				slog.Error("Error stopping runner", "type", key, "error", err)
 			}
 			r.types.SetEnabled(key, false)
 		}(key, runner)

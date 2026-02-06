@@ -140,7 +140,7 @@ func (l *PqListener) acquire(ready chan struct{}) (err error) {
 	select {
 	case <-ready:
 		// Already closed. This means that we are reconnecting
-		slog.Info(fmt.Sprintf("successfully reconnected listener %s", l.name))
+		slog.Info("successfully reconnected listener", "name", l.name)
 	default:
 		// Close the `ready` channel to signal that `Listen()` can return.
 		close(ready)
@@ -196,10 +196,10 @@ func (l *PqListener) notify(n *pq.Notification, errs chan error, items chan list
 }
 
 func (l *PqListener) Stop() {
-	slog.Debug(fmt.Sprintf("Signaling context to cancel listener %s", l.name))
+	slog.Debug("Signaling context to cancel listener", "name", l.name)
 	l.cancel()
 	// Wait for stop
-	slog.Debug(fmt.Sprintf("Waiting for listener %s to stop...", l.name))
+	slog.Debug("Waiting for listener to stop...", "name", l.name)
 	<-l.exit
 
 	// Clean up connection
@@ -209,5 +209,5 @@ func (l *PqListener) Stop() {
 		l.conn = nil
 	}
 
-	slog.Debug(fmt.Sprintf("Listener %s closed.", l.name))
+	slog.Debug("Listener closed.", "name", l.name)
 }

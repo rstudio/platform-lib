@@ -3,7 +3,6 @@ package postgrespq
 // Copyright (C) 2022 by RStudio, PBC.
 
 import (
-	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -137,7 +136,7 @@ func (s *PqNotifySuite) TestNotificationsNormal(c *check.C) {
 					return
 				}
 			case e := <-errs:
-				slog.Error(fmt.Sprintf("error received: %s", e))
+				slog.Error("error received", "error", e)
 				c.FailNow()
 			}
 		}
@@ -189,7 +188,7 @@ func (s *PqNotifySuite) TestNotificationsNormal(c *check.C) {
 				c.Assert(i.(*testNotification).Val, check.Equals, "second-test")
 				return
 			case e := <-errs:
-				slog.Error(fmt.Sprintf("error received: %s", e))
+				slog.Error("error received", "error", e)
 				c.FailNow()
 			}
 		}
@@ -329,7 +328,7 @@ func (s *PqNotifySuite) TestNotificationsBlock(c *check.C) {
 					return
 				}
 			case e := <-errs:
-				slog.Error(fmt.Sprintf("error received: %s", e))
+				slog.Error("error received", "error", e)
 				c.FailNow()
 			}
 		}

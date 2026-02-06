@@ -4,7 +4,6 @@ package postgrespgx
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -170,7 +169,7 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 					return
 				}
 			case e := <-errs:
-				slog.Error(fmt.Sprintf("error received: %s", e))
+				slog.Error("error received", "error", e)
 				c.FailNow()
 			}
 		}
@@ -244,7 +243,7 @@ func (s *PgxNotifySuite) TestNotificationsNormal(c *check.C) {
 				c.Assert(i.(*testNotification).Val, check.Equals, "second-test")
 				return
 			case e := <-errs:
-				slog.Error(fmt.Sprintf("error received: %s", e))
+				slog.Error("error received", "error", e)
 				c.FailNow()
 			}
 		}
@@ -424,7 +423,7 @@ func (s *PgxNotifySuite) TestNotificationsBlock(c *check.C) {
 					return
 				}
 			case e := <-errs:
-				slog.Error(fmt.Sprintf("error received: %s", e))
+				slog.Error("error received", "error", e)
 				c.FailNow()
 			}
 		}

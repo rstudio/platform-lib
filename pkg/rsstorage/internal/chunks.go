@@ -108,7 +108,7 @@ func (w *DefaultChunkUtils) WriteChunked(
 				})
 				if err != nil {
 					// TODO: Update DefaultChunkUtils to acceptable a logger
-					slog.Error(fmt.Sprintf("Error notifying store of chunk completion for address=%s; chunk=%d: %s", address, count, err))
+					slog.Error("Error notifying store of chunk completion", "address", address, "chunk", count, "error", err)
 				}
 				if count == numChunks {
 					return nil

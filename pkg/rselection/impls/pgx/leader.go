@@ -221,7 +221,7 @@ func (p *PgxLeader) verify(vCh chan bool) {
 			// e.g. when restarting a cluster node and the node list is temporarily out of sync:
 			// Error verifying cluster integrity: node list length differs. Store node count 3 does not match leader count 2
 			// It would be great to be able to distinguish between expected/unexpected errors here and log accordingly.
-			slog.Error(fmt.Sprintf("Error verifying cluster integrity: %s", *err))
+			slog.Error("Error verifying cluster integrity", "error", *err)
 			vCh <- false
 		} else {
 			vCh <- true
@@ -265,7 +265,7 @@ func (p *PgxLeader) pingNodes(ctx context.Context) {
 	}
 	b, err := json.Marshal(req)
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error marshaling notification to JSON: %s", err))
+		slog.Error("Error marshaling notification to JSON", "error", err)
 		return
 	}
 
@@ -277,7 +277,7 @@ func (p *PgxLeader) pingNodes(ctx context.Context) {
 	err = p.notify.Notify(ctx, p.chFollower, b)
 	if err != nil {
 		p.pingSuccess = false
-		slog.Error(fmt.Sprintf("Leader error pinging followers: %s", err))
+		slog.Error("Leader error pinging followers", "error", err)
 		return
 	}
 
@@ -287,7 +287,7 @@ func (p *PgxLeader) pingNodes(ctx context.Context) {
 	err = p.notify.Notify(ctx, p.chLeader, b)
 	if err != nil {
 		p.pingSuccess = false
-		slog.Error(fmt.Sprintf("Leader error pinging leaders: %s", err))
+		slog.Error("Leader error pinging leaders", "error", err)
 		return
 	}
 }
@@ -311,14 +311,14 @@ func (p *PgxLeader) handleNodesRequest(ctx context.Context, cn *electiontypes.Cl
 	resp := electiontypes.NewClusterNodesNotification(nodes, cn.Guid())
 	b, err := json.Marshal(resp)
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error marshaling notification to JSON: %s", err))
+		slog.Error("Error marshaling notification to JSON", "error", err)
 		return
 	}
 
 	// Broadcast the response on the generic channel
 	err = p.notify.Notify(ctx, p.chMessages, b)
 	if err != nil {
-		slog.Error(fmt.Sprintf("Leader error notifying of cluster nodes: %s", err))
+		slog.Error("Leader error notifying of cluster nodes", "error", err)
 		return
 	}
 }
@@ -326,7 +326,7 @@ func (p *PgxLeader) handleNodesRequest(ctx context.Context, cn *electiontypes.Cl
 func (p *PgxLeader) handleLeaderPing(cn *electiontypes.ClusterPingRequest) {
 	// If we received a ping from another leader, then stop leading
 	if cn.SrcAddr != p.address {
-		slog.Debug(fmt.Sprintf("Leader received ping from another leader. Stopping and moving back to the follower loop."))
+		slog.Debug("Leader received ping from another leader. Stopping and moving back to the follower loop.")
 		p.stop <- true
 	} else {
 		resp := electiontypes.NewClusterPingResponse(p.address, cn.SrcAddr, p.awb.IP())
@@ -370,7 +370,7 @@ func (p *PgxLeader) sweepNodes() {
 	defer p.mutex.Unlock()
 
 	if p.unsuccessfulPing() {
-		slog.Debug(fmt.Sprintf("Skipping cluster sweep due to unsuccessful pings"))
+		slog.Debug("Skipping cluster sweep due to unsuccessful pings")
 		return
 	}
 
@@ -381,7 +381,7 @@ func (p *PgxLeader) sweepNodes() {
 		}
 
 		if node.Ping.Before(time.Now().Add(-p.maxPingAge)) {
-			slog.Debug(fmt.Sprintf("Leader sweep removing cluster node %s", key))
+			slog.Debug("Leader sweep removing cluster node", "node", key)
 			delete(p.nodes, key)
 		}
 	}

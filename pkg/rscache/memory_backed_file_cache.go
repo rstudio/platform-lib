@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"time"
@@ -92,7 +91,7 @@ func (mbfc *MemoryBackedFileCache) Get(ctx context.Context, resolver ResolverSpe
 	if resolver.CacheInMemory && mbfc.mc != nil && mbfc.mc.Enabled() && ptr.Err == nil && ptr.GetSize() < mbfc.maxMemoryPerObject {
 		err = mbfc.mc.Put(address, ptr)
 		if err != nil {
-			slog.Debug(fmt.Sprintf("error caching to memory: %s", err.Error()))
+			slog.Debug("error caching to memory", "error", err)
 		}
 	}
 	return *ptr
@@ -131,7 +130,7 @@ func (mbfc *MemoryBackedFileCache) GetObject(ctx context.Context, resolver Resol
 	if resolver.CacheInMemory && mbfc.mc != nil && mbfc.mc.Enabled() && ptr.GetSize() < mbfc.maxMemoryPerObject {
 		err = mbfc.mc.Put(address, ptr)
 		if err != nil {
-			slog.Debug(fmt.Sprintf("error caching to memory: %s", err.Error()))
+			slog.Debug("error caching to memory", "error", err)
 		}
 	}
 

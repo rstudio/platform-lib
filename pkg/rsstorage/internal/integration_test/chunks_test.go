@@ -8,7 +8,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -141,9 +140,9 @@ func (s *ChunksIntegrationSuite) TestWriteChunked(c *check.C) {
 	serverSet := s.NewServerSet(c, "chunks", "")
 	for key, server := range serverSet {
 		if testing.Short() && key != "file" {
-			slog.Info(fmt.Sprintf("skipping chunks integration tests for %s because -short was provided", key))
+			slog.Info("skipping chunks integration tests because -short was provided", "server", key)
 		} else {
-			slog.Info(fmt.Sprintf("testing chunks integration tests for %s", key))
+			slog.Info("testing chunks integration tests", "server", key)
 			s.check(c, server)
 		}
 	}
@@ -249,7 +248,7 @@ func (s *ChunksPartialReadSuite) TearDownSuite(c *check.C) {
 
 func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 	ctx := context.Background()
-	slog.Info(fmt.Sprintf("Starting test %s", c.TestName()))
+	slog.Info("Starting test", "name", c.TestName())
 	defer leaktest.Check(c)
 
 	sz := uint64(len(servertest.TestDESC))
@@ -314,7 +313,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 	resolve := func(writer io.Writer) (dir, address string, err error) {
 		defer pR.Close()
 		n, err := io.Copy(writer, pR)
-		slog.Info(fmt.Sprintf("Done resolving %d bytes", n))
+		slog.Info("Done resolving", "bytes", n)
 		return
 	}
 
@@ -417,7 +416,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 	resolve := func(writer io.Writer) (dir, address string, err error) {
 		defer pR.Close()
 		n, err := io.Copy(writer, pR)
-		slog.Info(fmt.Sprintf("Done resolving %d bytes", n))
+		slog.Info("Done resolving", "bytes", n)
 		return
 	}
 

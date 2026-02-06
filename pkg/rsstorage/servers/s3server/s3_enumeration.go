@@ -136,7 +136,7 @@ func (a *DefaultAwsOps) BucketObjects(
 					atomic.AddUint64(&ops, uint64(len(bm)))
 					if ops > 1000 {
 						atomic.AddUint64(&total, atomic.LoadUint64(&ops))
-						slog.Info(fmt.Sprintf("For S3 prefix %s parsed %d files", s3Prefix, atomic.LoadUint64(&total)))
+						slog.Info("Parsed S3 files", "prefix", s3Prefix, "fileCount", atomic.LoadUint64(&total))
 						atomic.SwapUint64(&ops, 0)
 					}
 
@@ -249,7 +249,7 @@ func (a *DefaultAwsOps) BucketObjectsETagMap(
 					atomic.AddUint64(&ops, uint64(len(bm)))
 					if ops > 1000 {
 						atomic.AddUint64(&total, atomic.LoadUint64(&ops))
-						slog.Info(fmt.Sprintf("For S3 prefix %s parsed %d files", s3Prefix, atomic.LoadUint64(&total)))
+						slog.Info("Parsed S3 files", "prefix", s3Prefix, "fileCount", atomic.LoadUint64(&total))
 						atomic.SwapUint64(&ops, 0)
 					}
 
