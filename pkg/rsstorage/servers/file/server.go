@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -362,7 +361,7 @@ func (s *StorageServer) Remove(ctx context.Context, dir, address string) error {
 func (s *StorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, error) {
 	items, err := enumerate(s.dir, s.walkTimeout)
 	if err != nil {
-		log.Printf("Error enumerating storage: %s", err)
+		slog.Error(fmt.Sprintf("Error enumerating storage: %s", err))
 
 		return nil, err
 	}
@@ -384,7 +383,7 @@ func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error
 
 		err := filepath.WalkDir(dir, func(path string, info fs.DirEntry, err error) error {
 			if err != nil {
-				log.Printf("Error enumerating storage for directory %s: %s", dir, err)
+				slog.Error(fmt.Sprintf("Error enumerating storage for directory %s: %s", dir, err))
 				return nil
 			}
 

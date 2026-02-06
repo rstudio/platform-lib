@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/url"
 	"os"
 	"strings"
@@ -268,7 +268,7 @@ func (s *StorageIntegrationSuite) CheckFile(
 	sz int64,
 	chunked bool,
 ) {
-	log.Printf("(%s) Verifying existence of %s on server=%s (with dir=%s)", test, address, class, dir)
+	slog.Info(fmt.Sprintf("(%s) Verifying existence of %s on server=%s (with dir=%s)", test, address, class, dir))
 
 	// Next, get it
 	r, ch, sz, _, ok, err := server.Get(context.Background(), dir, address)
@@ -297,7 +297,7 @@ func (s *StorageIntegrationSuite) CheckFile(
 
 // Verifies that a given asset does not exist
 func (s *StorageIntegrationSuite) CheckFileGone(c *check.C, server rsstorage.StorageServer, test, dir, address, classSource string) {
-	log.Printf("(%s) Verifying removal of %s on server=%s (with dir=%s)", test, address, classSource, dir)
+	slog.Info(fmt.Sprintf("(%s) Verifying removal of %s on server=%s (with dir=%s)", test, address, classSource, dir))
 
 	ok, _, _, _, err := server.Check(context.Background(), "", address)
 	c.Check(err, check.IsNil)
@@ -326,7 +326,7 @@ func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
 
 	// Verify
 	for classSource := range sources {
-		log.Printf("\nVerify that files were successfully moved from %s to each destination server:", classSource)
+		slog.Info(fmt.Sprintf("\nVerify that files were successfully moved from %s to each destination server:", classSource))
 		for classDest, dest := range dests {
 			// Files exist on destination
 			s.CheckFile(
@@ -367,7 +367,7 @@ func (s *StorageIntegrationSuite) TestMoving(c *check.C) {
 
 	// Verify that files do not exist on source
 	for classSource, source := range sources {
-		log.Printf("\nVerify that moved files were deleted from the %s server:", classSource)
+		slog.Info(fmt.Sprintf("\nVerify that moved files were deleted from the %s server:", classSource))
 		for classDest := range dests {
 			s.CheckFileGone(c, source, "MoveSrc", "", fmt.Sprintf("%s--%s", classSource, classDest), classSource)
 			s.CheckFileGone(c, source, "MoveSrc", "dir", fmt.Sprintf("%s--%s", classSource, classDest), classSource)
@@ -397,7 +397,7 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 
 	// Verify files have been copied to destination
 	for classSource := range sources {
-		log.Printf("\nVerify that files were successfully copied from %s to each destination server:", classSource)
+		slog.Info(fmt.Sprintf("\nVerify that files were successfully copied from %s to each destination server:", classSource))
 		for classDest, dest := range dests {
 			// Files exist on destination
 			s.CheckFile(
@@ -438,7 +438,7 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 
 	// Verify files are still on source
 	for classSource, source := range sources {
-		log.Printf("\nVerify that original files still remain on the %s server:", classSource)
+		slog.Info(fmt.Sprintf("\nVerify that original files still remain on the %s server:", classSource))
 		for classDest := range dests {
 			// Files still exist on source
 			s.CheckFile(
@@ -479,14 +479,14 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 
 	// Test Enumeration
 	for classSource, source := range sources {
-		log.Printf("\nVerify enumeration on the %s source server:", classSource)
+		slog.Info(fmt.Sprintf("\nVerify enumeration on the %s source server:", classSource))
 		items, err := source.Enumerate(ctx)
 		c.Assert(err, check.IsNil)
 		// Each source should have three files for each destination
 		c.Assert(items, check.HasLen, len(dests)*3)
 	}
 	for classDest, dest := range dests {
-		log.Printf("\nVerify enumeration on the %s destination server:", classDest)
+		slog.Info(fmt.Sprintf("\nVerify enumeration on the %s destination server:", classDest))
 		items, err := dest.Enumerate(ctx)
 		c.Assert(err, check.IsNil)
 		// Each destination should have three files from each source
@@ -495,7 +495,7 @@ func (s *StorageIntegrationSuite) TestCopying(c *check.C) {
 
 	// Test Removal
 	for classSource, source := range sources {
-		log.Printf("\nVerify forced removal of assets on the %s source server:", classSource)
+		slog.Info(fmt.Sprintf("\nVerify forced removal of assets on the %s source server:", classSource))
 		for classDest := range dests {
 			err := source.Remove(ctx, "", fmt.Sprintf("%s--%s", classSource, classDest))
 			c.Assert(err, check.IsNil)
@@ -610,13 +610,13 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 			//w.Write([]byte(fmt.Sprintf(testAssetData, class)))
 			gzw := gzip.NewWriter(w)
 
-			log.Printf("resolver: wrote some data, instructing test to continue, but waiting for instruction to err")
+			slog.Info("resolver: wrote some data, instructing test to continue, but waiting for instruction to err")
 			// Notify that we've started to write some data
 			close(writing)
 
 			// Wait until the test is ready for us to fail, then fail
 			<-end
-			log.Printf("resolver: returning error")
+			slog.Info("resolver: returning error")
 			// Emulates the behavior of returning an error before the deferred
 			// call to close the gzip writer
 			if true {
@@ -634,7 +634,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	go func() {
 		// Notify that we're done with the Put call
 		defer close(failed)
-		log.Printf("put: adding an item to S3 in a separate goroutine")
+		slog.Info("put: adding an item to S3 in a separate goroutine")
 		// Put an item into S3. This will fail
 		_, _, err = s3Server.Put(ctx, resolver("test-failure"), "", itemAddress)
 		c.Assert(err, check.NotNil)
@@ -642,11 +642,11 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	}()
 
 	// Don't attempt anything until we've started attempting to write to S3
-	log.Printf("get: waiting for write to start")
+	slog.Info("get: waiting for write to start")
 	<-writing
 
 	// Check to see if we can find the item that we're writing
-	log.Printf("get: attempting to get item that is being written")
+	slog.Info("get: attempting to get item that is being written")
 	_, _, _, _, ok, err := s3Server.Get(ctx, "", itemAddress)
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, false)
@@ -744,13 +744,13 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 			w.Write([]byte(fmt.Sprintf(testAssetData, class)))
 			gzw := gzip.NewWriter(w)
 
-			log.Printf("resolver: wrote some data, instructing test to continue, but waiting for instruction to err")
+			slog.Info("resolver: wrote some data, instructing test to continue, but waiting for instruction to err")
 			// Notify that we've started to write some data
 			close(writing)
 
 			// Wait until the test is ready for us to fail, then fail
 			//<-end
-			log.Printf("resolver: returning error")
+			slog.Info("resolver: returning error")
 			// Emulates the behavior of returning an error before the deferred
 			// call to close the gzip writer
 			if true {
@@ -768,19 +768,19 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 	go func() {
 		// Notify that we're done with the Put call
 		defer close(failed)
-		log.Printf("put: adding a chunked item to S3 in a separate goroutine")
+		slog.Info("put: adding a chunked item to S3 in a separate goroutine")
 		// Put an item into S3. This will fail
 		_, _, err = s3Server.PutChunked(ctx, resolver("test-failure"), "", itemAddress, 100*1024)
 		c.Assert(err, check.ErrorMatches, "failure resolving data")
 	}()
 
 	// Don't attempt anything until we've started attempting to write to S3
-	log.Printf("get: waiting for write to start")
+	slog.Info("get: waiting for write to start")
 	<-writing
 
 	// Check to see if we can find the item that we're writing. Since this
 	// is chunked data, it should appear now, even though it is incomplete.
-	log.Printf("get: attempting to get item that is being written")
+	slog.Info("get: attempting to get item that is being written")
 	_, _, _, _, ok, err := s3Server.Get(ctx, "", itemAddress)
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, true)

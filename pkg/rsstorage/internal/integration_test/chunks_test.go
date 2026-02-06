@@ -8,8 +8,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
@@ -140,9 +141,9 @@ func (s *ChunksIntegrationSuite) TestWriteChunked(c *check.C) {
 	serverSet := s.NewServerSet(c, "chunks", "")
 	for key, server := range serverSet {
 		if testing.Short() && key != "file" {
-			log.Printf("skipping chunks integration tests for %s because -short was provided", key)
+			slog.Info(fmt.Sprintf("skipping chunks integration tests for %s because -short was provided", key))
 		} else {
-			log.Printf("testing chunks integration tests for %s", key)
+			slog.Info(fmt.Sprintf("testing chunks integration tests for %s", key))
 			s.check(c, server)
 		}
 	}
@@ -248,7 +249,7 @@ func (s *ChunksPartialReadSuite) TearDownSuite(c *check.C) {
 
 func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 	ctx := context.Background()
-	log.Printf("Starting test %s", c.TestName())
+	slog.Info(fmt.Sprintf("Starting test %s", c.TestName()))
 	defer leaktest.Check(c)
 
 	sz := uint64(len(servertest.TestDESC))
@@ -313,7 +314,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 	resolve := func(writer io.Writer) (dir, address string, err error) {
 		defer pR.Close()
 		n, err := io.Copy(writer, pR)
-		log.Printf("Done resolving %d bytes", n)
+		slog.Info(fmt.Sprintf("Done resolving %d bytes", n))
 		return
 	}
 
@@ -321,12 +322,12 @@ func (s *ChunksPartialReadSuite) TestReadPartialOk(c *check.C) {
 	go func() {
 		err = cw.WriteChunked(ctx, "0a", "test-chunk", sz, resolve)
 		c.Assert(err, check.IsNil)
-		log.Printf("Done with WriteChunked")
+		slog.Info("Done with WriteChunked")
 	}()
 
 	// Wait for 100 chunks to be written
 	<-readStart
-	log.Printf("Starting ReadChunked after writing 100 chunks")
+	slog.Info("Starting ReadChunked after writing 100 chunks")
 
 	// Read chunks and assemble them...
 	r, _, size, mod, err := cw.ReadChunked(ctx, "0a", "test-chunk")
@@ -406,7 +407,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 
 			// On chunk 105, hang
 			if index == 105 {
-				log.Printf("Hanging for 1 minute to simulate timeout")
+				slog.Info("Hanging for 1 minute to simulate timeout")
 				time.Sleep(time.Minute)
 			}
 		}
@@ -416,7 +417,7 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 	resolve := func(writer io.Writer) (dir, address string, err error) {
 		defer pR.Close()
 		n, err := io.Copy(writer, pR)
-		log.Printf("Done resolving %d bytes", n)
+		slog.Info(fmt.Sprintf("Done resolving %d bytes", n))
 		return
 	}
 
@@ -424,12 +425,12 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 	go func() {
 		err = cw.WriteChunked(ctx, "0a", "test-chunk", sz, resolve)
 		c.Assert(err, check.IsNil)
-		log.Printf("Done with WriteChunked")
+		slog.Info("Done with WriteChunked")
 	}()
 
 	// Wait for 100 chunks to be written
 	<-readStart
-	log.Printf("Starting ReadChunked after writing 100 chunks")
+	slog.Info("Starting ReadChunked after writing 100 chunks")
 
 	// Read chunks and assemble them...
 	r, _, size, mod, err := cw.ReadChunked(ctx, "0a", "test-chunk")
