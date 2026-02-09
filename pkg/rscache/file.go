@@ -102,9 +102,9 @@ func (o *fileCache) retryingGet(ctx context.Context, dir, address string, get fu
 	// Preemptive get attempt
 	if flushingGet() {
 		if flushed == 0 {
-			slog.Log(ctx, LevelTrace, fmt.Sprintf("Found cached item at address '%s' immediately", address))
+			slog.Log(ctx, LevelTrace, "Found cached item immediately", "address", address)
 		} else {
-			slog.Log(ctx, LevelTrace, fmt.Sprintf("Found cached item at address '%s' after one flush", address))
+			slog.Log(ctx, LevelTrace, "Found cached item after one flush", "address", address)
 		}
 		return true
 	}
@@ -184,7 +184,7 @@ func (o *fileCache) Head(ctx context.Context, resolver ResolverSpec) (size int64
 		err = o.queue.AddressedPush(ctx, resolver.Priority, resolver.GroupId, resolver.Address(), resolver.Work)
 		if o.duplicateMatcher.IsDuplicate(err) {
 			// Do nothing since; someone else has already inserted the work we need.
-			slog.Debug(fmt.Sprintf("FileCache: duplicate address push for '%s'", resolver.Address()))
+			slog.Debug("FileCache: duplicate address push", "address", resolver.Address())
 		} else if err != nil {
 			return
 		}
@@ -205,7 +205,7 @@ func (o *fileCache) Head(ctx context.Context, resolver ResolverSpec) (size int64
 				if o.retryingGet(ctx, resolver.Dir(), resolver.Address(), head) {
 					return
 				} else {
-					slog.Debug(fmt.Sprintf("error: FileCache reported address '%s' complete, but item was not found in cache", resolver.Address()))
+					slog.Debug("error: FileCache reported address complete, but item was not found in cache", "address", resolver.Address())
 					err = fmt.Errorf("error: FileCache reported address '%s' complete, but item was not found in cache", resolver.Address())
 					return
 				}
@@ -274,7 +274,7 @@ func (o *fileCache) Get(ctx context.Context, resolver ResolverSpec) (value *Cach
 		err = o.queue.AddressedPush(ctx, resolver.Priority, resolver.GroupId, address, resolver.Work)
 		if o.duplicateMatcher.IsDuplicate(err) {
 			// Do nothing since; someone else has already inserted the work we need.
-			slog.Debug(fmt.Sprintf("FileCache: duplicate address push for '%s'", address))
+			slog.Debug("FileCache: duplicate address push", "address", address)
 		} else if err != nil {
 			value = &CacheReturn{
 				Err:      err,

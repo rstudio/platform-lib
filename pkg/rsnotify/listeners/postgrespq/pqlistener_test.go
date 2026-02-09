@@ -3,7 +3,7 @@ package postgrespq
 // Copyright (C) 2022 by RStudio, PBC.
 
 import (
-	"log"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -136,7 +136,7 @@ func (s *PqNotifySuite) TestNotificationsNormal(c *check.C) {
 					return
 				}
 			case e := <-errs:
-				log.Printf("error received: %s", e)
+				slog.Error("error received", "error", e)
 				c.FailNow()
 			}
 		}
@@ -188,7 +188,7 @@ func (s *PqNotifySuite) TestNotificationsNormal(c *check.C) {
 				c.Assert(i.(*testNotification).Val, check.Equals, "second-test")
 				return
 			case e := <-errs:
-				log.Printf("error received: %s", e)
+				slog.Error("error received", "error", e)
 				c.FailNow()
 			}
 		}
@@ -253,7 +253,7 @@ func (s *PqNotifySuite) TestNotificationsErrors(c *check.C) {
 		for {
 			select {
 			case <-data:
-				log.Printf("unexpected good data")
+				slog.Error("unexpected good data")
 				c.FailNow()
 			case e := <-errs:
 				errStr := e.Error()
@@ -318,7 +318,7 @@ func (s *PqNotifySuite) TestNotificationsBlock(c *check.C) {
 		defer close(done)
 		// Block a while before receiving each message
 		<-blocker
-		log.Printf("Unblocked. Starting to receive.")
+		slog.Info("Unblocked. Starting to receive.")
 		for {
 			select {
 			case i := <-data:
@@ -328,7 +328,7 @@ func (s *PqNotifySuite) TestNotificationsBlock(c *check.C) {
 					return
 				}
 			case e := <-errs:
-				log.Printf("error received: %s", e)
+				slog.Error("error received", "error", e)
 				c.FailNow()
 			}
 		}
@@ -346,7 +346,7 @@ func (s *PqNotifySuite) TestNotificationsBlock(c *check.C) {
 	}
 
 	// Block receiving any notifications until all have been sent
-	log.Printf("All messages have been sent")
+	slog.Info("All messages have been sent")
 	close(blocker)
 
 	// Wait for test to complete
