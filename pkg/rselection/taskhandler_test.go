@@ -4,6 +4,7 @@ package rselection
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/fortytw2/leaktest"
@@ -48,6 +49,37 @@ func (t *TestTaskPersistent) Run(ctx context.Context, b broadcaster.Broadcaster)
 		t.ok <- true
 	case <-ctx.Done():
 	}
+}
+
+func (s *TaskHandlerSuite) TestRegisterAfterHandleFatals(c *check.C) {
+	defer leaktest.Check(c)
+
+	handler := NewGenericTaskHandler(GenericTaskHandlerConfig{})
+	handler.Handle(nil)
+
+	// Registering a task after Handle() should fatal.
+	// Capture log.Fatalf by replacing it temporarily.
+	var fatalMsg string
+	origFatalf := logFatalf
+	logFatalf = func(format string, v ...interface{}) {
+		fatalMsg = fmt.Sprintf(format, v...)
+	}
+	defer func() { logFatalf = origFatalf }()
+
+	handler.Register("late-task", &TestTask{
+		GenericTask: GenericTask{
+			TaskName: "late-task",
+			TaskType: TaskTypeScheduled,
+			TaskSchedule: &IntervalSchedule{
+				Ticker: make(chan time.Time),
+			},
+		},
+		ran: new(int),
+		n:   make(chan bool),
+	})
+
+	c.Assert(fatalMsg, check.Matches, `.*registered after Handle\(\).*`)
+	handler.Stop()
 }
 
 func (s *TaskHandlerSuite) TestGenericTaskHandler(c *check.C) {
