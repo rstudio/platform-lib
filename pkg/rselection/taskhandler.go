@@ -13,6 +13,9 @@ import (
 	"github.com/rstudio/platform-lib/v2/pkg/rsnotify/broadcaster"
 )
 
+// logFatalf is used for fatal errors and can be overridden in tests.
+var logFatalf = log.Fatalf
+
 const (
 	TaskTypePersistent uint8 = 0
 	TaskTypeScheduled  uint8 = 1
@@ -65,8 +68,11 @@ func NewGenericTaskHandler(cfg GenericTaskHandlerConfig) *GenericTaskHandler {
 }
 
 func (h *GenericTaskHandler) Register(name string, task Task) {
+	if h.cancel != nil {
+		logFatalf("Task %q registered after Handle() was called; it will never run", name)
+	}
 	if _, ok := h.tasks[name]; ok {
-		log.Fatalf("Attempted to register a task %s that is already registered", name)
+		logFatalf("Attempted to register a task %s that is already registered", name)
 	}
 	h.tasks[name] = task
 }
