@@ -67,6 +67,9 @@ func NewGenericTaskHandler(cfg GenericTaskHandlerConfig) *GenericTaskHandler {
 	}
 }
 
+// Register adds a task to the handler. It must be called before Handle().
+// Calling Register after Handle() or registering the same task name twice
+// will cause the program to exit via log.Fatalf.
 func (h *GenericTaskHandler) Register(name string, task Task) {
 	if h.cancel != nil {
 		logFatalf("Task %q registered after Handle() was called; it will never run", name)
