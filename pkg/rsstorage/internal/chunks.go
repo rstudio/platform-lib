@@ -5,6 +5,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -139,17 +140,28 @@ func (w *DefaultChunkUtils) writeChunks(
 	results chan uint64,
 	errs chan error,
 ) {
-	// TODO: Handle this error
-	defer r.Close()
+	defer func(r *io.PipeReader) {
+		closeErr := r.Close()
+		if closeErr != nil {
+			errs <- closeErr
+		}
+	}(r)
 	defer close(results)
 	defer close(errs)
 	for i := uint64(1); i <= numChunks; i++ {
 		err := func() error {
+			var copiedBytes uint64
 			resolve := func(writer io.Writer) (dir, address string, err error) {
-				_, err = io.CopyN(writer, r, int64(w.ChunkSize))
-				if err != nil && err == io.EOF {
-					err = nil
+				written, err := io.CopyN(writer, r, int64(w.ChunkSize))
+				if err != nil {
+					// an End of File error should be considered a critical error if it is
+					// returned before the last chunk
+					if errors.Is(err, io.EOF) && i == numChunks {
+						err = nil
+					}
 				}
+				// record the number of bytes written
+				copiedBytes = uint64(written)
 				return
 			}
 
@@ -159,7 +171,9 @@ func (w *DefaultChunkUtils) writeChunks(
 				return err
 			}
 
-			results <- i
+			// if no error was encountered, report the number of bytes copied so it can be
+			// computed to ensure the download was successful
+			results <- copiedBytes
 			return nil
 		}()
 		if err != nil {
