@@ -92,6 +92,11 @@ func (w *DefaultChunkUtils) WriteChunked(
 		}
 	}()
 
+	// tally up the number of bytes written so it can be compared to
+	// the file's size to ensure all the file's content are written
+	totalBytesWritten := uint64(0)
+	chunkCount := uint64(0)
+
 	// Wait for all results to complete
 	err = func() error {
 		for {
@@ -102,16 +107,22 @@ func (w *DefaultChunkUtils) WriteChunked(
 				}
 			case err = <-errs:
 				return err
-			case count := <-results:
+			case bytesWritten := <-results:
+				chunkCount++
 				err = w.Notifier.Notify(ctx, &types.ChunkNotification{
 					Address: address,
-					Chunk:   count,
+					Chunk:   chunkCount,
 				})
+				//
+				totalBytesWritten += bytesWritten
 				if err != nil {
 					// TODO: Update DefaultChunkUtils to acceptable a logger
-					slog.Error("Error notifying store of chunk completion", "address", address, "chunk", count, "error", err)
+					slog.Error("unable to notify of chunk completion", "address", address, "chunk", chunkCount, "error", err)
 				}
-				if count == numChunks {
+				if chunkCount == numChunks {
+					if totalBytesWritten != sz {
+						return fmt.Errorf("expected to write '%d; bytes but only wrote '%d' bytes", sz, totalBytesWritten)
+					}
 					return nil
 				}
 			}
