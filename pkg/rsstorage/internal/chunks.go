@@ -179,7 +179,9 @@ func (w *DefaultChunkUtils) writeChunks(
 					// returned before the last chunk
 					if errors.Is(err, io.EOF) && i == numChunks {
 						err = nil
+						return
 					}
+					return
 				}
 				// record the number of bytes written
 				copiedBytes = uint64(written)
