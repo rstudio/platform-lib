@@ -632,12 +632,14 @@ func (s *PgCacheServerSuite) TestMove(c *check.C) {
 	// Make sure we cannot get old item
 	r, _, sz, _, ok, err := sourceServer.Get(ctx, "ad2", "cacheaddress4")
 	c.Check(err, check.IsNil)
+	c.Check(sz, check.Equals, int64(0))
 	c.Check(ok, check.Equals, false)
 	c.Check(r, check.IsNil)
 
 	// Make sure we cannot get old item
 	r, _, sz, _, ok, err = sourceServer.Get(ctx, "dir", "CHUNKED")
 	c.Check(err, check.IsNil)
+	c.Check(sz, check.Equals, int64(0))
 	c.Check(ok, check.Equals, false)
 	c.Check(r, check.IsNil)
 

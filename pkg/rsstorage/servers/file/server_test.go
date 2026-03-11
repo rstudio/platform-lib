@@ -645,7 +645,9 @@ func (s *FileStorageServerSuite) TestUsage(c *check.C) {
 	_, readErr = rand.Read(fileContents5)
 	c.Assert(readErr, check.IsNil)
 	dir1, err := os.MkdirTemp(tempdir, "dutest")
+	c.Assert(err, check.IsNil)
 	dir2, err := os.MkdirTemp(dir1, "another")
+	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(dir1)
 	c.Assert(err, check.IsNil)
 	err = os.WriteFile(filepath.Join(tempdir, "test1"), fileContents1, 0644)
@@ -691,7 +693,9 @@ func (s *FileStorageServerSuite) TestUsageTimeout(c *check.C) {
 	_, readErr = rand.Read(fileContents5)
 	c.Assert(readErr, check.IsNil)
 	dir1, err := os.MkdirTemp(tempdir, "dutest")
+	c.Assert(err, check.IsNil)
 	dir2, err := os.MkdirTemp(dir1, "another")
+	c.Assert(err, check.IsNil)
 	defer os.RemoveAll(dir1)
 	c.Assert(err, check.IsNil)
 	err = os.WriteFile(filepath.Join(tempdir, "test1"), fileContents1, 0644)
@@ -1183,6 +1187,7 @@ func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
 
 	// Read one chunk
 	f, _, _, _, _, err := serverDest.Get(ctx, "dir", "CHUNK")
+	c.Assert(err, check.IsNil)
 	b, err := io.ReadAll(f)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(b), check.Equals, servertest.TestDESC)

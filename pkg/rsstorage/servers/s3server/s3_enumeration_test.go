@@ -50,6 +50,7 @@ func (s *MetaTestSuite) TestBucketDirs(c *check.C) {
 	dirs, err := awsOps.BucketDirs(ctx, "no-sync", "bin/")
 	c.Assert(err, check.NotNil)
 	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
+	c.Assert(dirs, check.IsNil)
 
 	dirs, err = awsOps.BucketDirs(ctx, "sync", "bin/")
 	c.Assert(err, check.IsNil)
@@ -95,6 +96,7 @@ func (s *MetaTestSuite) TestBucketObjects(c *check.C) {
 	files, err := awsOps.BucketObjects(ctx, "no-sync", "bin/3.5-xenial", 1, false, BinaryReg)
 	c.Assert(err, check.NotNil)
 	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
+	c.Check(files, check.IsNil)
 
 	files, err = awsOps.BucketObjects(ctx, "sync", "bin/3.5-xenial", 1, false, BinaryReg)
 	c.Assert(err, check.IsNil)
