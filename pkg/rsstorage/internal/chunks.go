@@ -5,6 +5,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -91,6 +92,11 @@ func (w *DefaultChunkUtils) WriteChunked(
 		}
 	}()
 
+	// tally up the number of bytes written so it can be compared to
+	// the file's size to ensure all the file's content are written
+	totalBytesWritten := uint64(0)
+	chunkCount := uint64(0)
+
 	// Wait for all results to complete
 	err = func() error {
 		for {
@@ -101,16 +107,23 @@ func (w *DefaultChunkUtils) WriteChunked(
 				}
 			case err = <-errs:
 				return err
-			case count := <-results:
+			case bytesWritten := <-results:
+				chunkCount++
+				// tally up the bytes written so it can be checked later
+				totalBytesWritten += bytesWritten
 				err = w.Notifier.Notify(ctx, &types.ChunkNotification{
 					Address: address,
-					Chunk:   count,
+					Chunk:   chunkCount,
 				})
 				if err != nil {
-					// TODO: Update DefaultChunkUtils to acceptable a logger
-					slog.Error("Error notifying store of chunk completion", "address", address, "chunk", count, "error", err)
+					slog.Error("unable to notify of chunk completion", "address", address, "chunk", chunkCount, "error", err)
 				}
-				if count == numChunks {
+				if chunkCount == numChunks {
+					// if the total number of bytes written doesn't equal the size of the file, then something
+					// went wrong
+					if totalBytesWritten != sz {
+						return fmt.Errorf("expected to write '%d; bytes but only wrote '%d' bytes", sz, totalBytesWritten)
+					}
 					return nil
 				}
 			}
@@ -145,11 +158,21 @@ func (w *DefaultChunkUtils) writeChunks(
 	defer close(errs)
 	for i := uint64(1); i <= numChunks; i++ {
 		err := func() error {
+			var copiedBytes uint64
 			resolve := func(writer io.Writer) (dir, address string, err error) {
-				_, err = io.CopyN(writer, r, int64(w.ChunkSize))
-				if err != nil && err == io.EOF {
-					err = nil
+				written, err := io.CopyN(writer, r, int64(w.ChunkSize))
+				if err != nil {
+					// an End of File error should be considered a critical error if it is
+					// returned before the last chunk
+					if errors.Is(err, io.EOF) && i == numChunks {
+						err = nil
+						copiedBytes = uint64(written)
+						return
+					}
+					return
 				}
+				// record the number of bytes written
+				copiedBytes = uint64(written)
 				return
 			}
 
@@ -159,7 +182,9 @@ func (w *DefaultChunkUtils) writeChunks(
 				return err
 			}
 
-			results <- i
+			// if no error was encountered, report the number of bytes copied so it can be
+			// computed to ensure the download was successful
+			results <- copiedBytes
 			return nil
 		}()
 		if err != nil {
