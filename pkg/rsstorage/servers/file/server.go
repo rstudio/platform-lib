@@ -88,12 +88,17 @@ func (s *StorageServer) Check(ctx context.Context, dir, address string) (bool, *
 	}
 
 	if stat.IsDir() {
-		infoFile, err := s.fileIO.Open(filepath.Join(filePath, "info.json"))
-		if err != nil {
-			return false, nil, 0, time.Time{}, fmt.Errorf("no chunked directory 'info.json' for %s: %s", address, err)
+		infoFile, openErr := s.fileIO.Open(filepath.Join(filePath, "info.json"))
+		if openErr != nil {
+			return false, nil, 0, time.Time{}, fmt.Errorf("no chunked directory 'info.json' for %s: %s", address, openErr)
 		}
-		// TODO: Handle this error
-		defer infoFile.Close()
+
+		defer func(infoFile fileIOFile) {
+			closeErr := infoFile.Close()
+			if closeErr != nil {
+				slog.Error("unable to close file", "error", closeErr.Error())
+			}
+		}(infoFile)
 
 		info := types.ChunksInfo{}
 		dec := json.NewDecoder(infoFile)
@@ -103,10 +108,10 @@ func (s *StorageServer) Check(ctx context.Context, dir, address string) (bool, *
 		}
 
 		return true, &info, int64(info.FileSize), info.ModTime, nil
-	} else {
-		// Return normal file info
-		return true, nil, stat.Size(), stat.ModTime(), nil
 	}
+	// Return normal file info
+	return true, nil, stat.Size(), stat.ModTime(), nil
+
 }
 
 func (s *StorageServer) Dir() string {
@@ -252,12 +257,12 @@ func (s *StorageServer) Get(ctx context.Context, dir, address string) (io.ReadCl
 	}
 }
 
-func (s *StorageServer) Flush(ctx context.Context, dir, address string) {
+func (s *StorageServer) Flush(ctx context.Context, dir, address string) error {
 	// Determine location for this file
 	filePath := filepath.Join(s.dir, dir, address)
 
 	// Don't err if this fails
-	s.fileIO.FlushWithChownAndStat(filePath)
+	return s.fileIO.FlushWithChownAndStat(filePath)
 }
 
 func (s *StorageServer) Put(ctx context.Context, resolve types.Resolver, dir, address string) (string, string, error) {

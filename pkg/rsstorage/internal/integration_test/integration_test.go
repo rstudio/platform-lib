@@ -581,7 +581,8 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 		}
 		c.Assert(err, check.IsNil)
 		defer func() {
-			s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
+			_, deleteErr := s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
+			c.Assert(deleteErr, check.IsNil)
 		}()
 	}
 
@@ -715,7 +716,8 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		}
 		c.Assert(err, check.IsNil)
 		defer func() {
-			s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
+			_, deleteErr := s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
+			c.Assert(deleteErr, check.IsNil)
 		}()
 	}
 
@@ -741,7 +743,8 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 	resolver := func(class string) types.Resolver {
 		return func(w io.Writer) (string, string, error) {
 			// Start writing some data to the resolver's writer
-			w.Write([]byte(fmt.Sprintf(testAssetData, class)))
+			_, writeErr := w.Write([]byte(fmt.Sprintf(testAssetData, class)))
+			c.Assert(writeErr, check.IsNil)
 			gzw := gzip.NewWriter(w)
 
 			slog.Info("resolver: wrote some data, instructing test to continue, but waiting for instruction to err")

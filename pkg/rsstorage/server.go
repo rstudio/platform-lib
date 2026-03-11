@@ -80,7 +80,7 @@ type StorageServer interface {
 
 	// Flush the NFS cache while waiting for an
 	// item to appear
-	Flush(ctx context.Context, dir, address string)
+	Flush(ctx context.Context, dir, address string) error
 
 	// Enumerate all items in storage
 	Enumerate(ctx context.Context) ([]types.StoredItem, error)

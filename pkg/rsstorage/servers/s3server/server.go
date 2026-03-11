@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/url"
 	"path/filepath"
 	"strconv"
@@ -154,32 +155,42 @@ func (s *StorageServer) Check(ctx context.Context, dir, address string) (bool, *
 
 	if chunked {
 		// For chunked assets, download the `info.json`, decode it, and use it to craft a response.
-		resp, err := s.svc.GetObject(ctx, &s3.GetObjectInput{Bucket: &s.bucket, Key: &infoAddr})
-		if err != nil {
-			return false, nil, 0, time.Time{}, err
+		getResp, getErr := s.svc.GetObject(ctx, &s3.GetObjectInput{Bucket: &s.bucket, Key: &infoAddr})
+		if getErr != nil {
+			return false, nil, 0, time.Time{}, getErr
 		}
-		// TODO: handle this error gracefully
-		defer resp.Body.Close()
-		dec := json.NewDecoder(resp.Body)
+
+		defer func(Body io.ReadCloser) {
+			closeErr := Body.Close()
+			if closeErr != nil {
+				slog.Error(
+					"unable to close HTTP response body",
+					"error", closeErr.Error(),
+					"directory", dir,
+					"address", address,
+				)
+			}
+		}(getResp.Body)
+		dec := json.NewDecoder(getResp.Body)
 		info := types.ChunksInfo{}
 		err = dec.Decode(&info)
 		if err != nil {
 			return false, nil, 0, time.Time{}, err
 		}
 		return true, &info, int64(info.FileSize), info.ModTime, nil
-	} else {
-		// Check some headers for the unencrypted content length for KMS encrypted objects.
-		if s.svc.KmsEncrypted() {
-			if cl, ok := resp.Metadata[AmzUnencryptedContentLengthHeader]; ok {
-				contentLength, _ = strconv.ParseInt(cl, 10, 64)
-			}
-		} else {
-			contentLength = *resp.ContentLength
-		}
-
-		// For standard assets, the HeadObject response has the information we need.
-		return true, nil, contentLength, *resp.LastModified, nil
 	}
+
+	// Check some headers for the unencrypted content length for KMS encrypted objects.
+	if s.svc.KmsEncrypted() {
+		if cl, ok := resp.Metadata[AmzUnencryptedContentLengthHeader]; ok {
+			contentLength, _ = strconv.ParseInt(cl, 10, 64)
+		}
+	} else {
+		contentLength = *resp.ContentLength
+	}
+
+	// For standard assets, the HeadObject response has the information we need.
+	return true, nil, contentLength, *resp.LastModified, nil
 }
 
 func (s *StorageServer) Dir() string {
@@ -228,22 +239,23 @@ func (s *StorageServer) Get(ctx context.Context, dir, address string) (io.ReadCl
 			return nil, nil, 0, time.Time{}, false, fmt.Errorf("error reading chunked directory files for %s: %w", address, err)
 		}
 		return r, c, sz, mod, true, nil
-	} else {
-		// Check some headers for the unencrypted content length for KMS encrypted objects.
-		if s.svc.KmsEncrypted() {
-			if cl, ok := resp.Metadata[AmzUnencryptedContentLengthHeader]; ok {
-				contentLength, _ = strconv.ParseInt(cl, 10, 64)
-			}
-		} else {
-			contentLength = *resp.ContentLength
-		}
-
-		// For standard assets, the GetObject response has the information we need.
-		return resp.Body, nil, contentLength, *resp.LastModified, true, nil
 	}
+
+	// Check some headers for the unencrypted content length for KMS encrypted objects.
+	if s.svc.KmsEncrypted() {
+		if cl, ok := resp.Metadata[AmzUnencryptedContentLengthHeader]; ok {
+			contentLength, _ = strconv.ParseInt(cl, 10, 64)
+		}
+	} else {
+		contentLength = *resp.ContentLength
+	}
+
+	// For standard assets, the GetObject response has the information we need.
+	return resp.Body, nil, contentLength, *resp.LastModified, true, nil
 }
 
-func (s *StorageServer) Flush(ctx context.Context, dir, address string) {
+func (s *StorageServer) Flush(ctx context.Context, dir, address string) error {
+	return nil
 }
 
 func (s *StorageServer) Put(ctx context.Context, resolve types.Resolver, dir, address string) (string, string, error) {
@@ -428,9 +440,9 @@ func (s *StorageServer) parts(ctx context.Context, dir, address string) ([]rssto
 			parts = append(parts, rsstorage.NewCopyPart(chunkDir, chunkName))
 		}
 		return parts, nil
-	} else {
-		return []rsstorage.CopyPart{rsstorage.NewCopyPart(dir, address)}, nil
 	}
+
+	return []rsstorage.CopyPart{rsstorage.NewCopyPart(dir, address)}, nil
 }
 
 func (s *StorageServer) Move(ctx context.Context, dir, address string, server rsstorage.StorageServer) error {
@@ -471,6 +483,8 @@ func (s *StorageServer) Copy(ctx context.Context, dir, address string, server rs
 		err := s.moveOrCopy(ctx, dir, address, server, s.copy)
 		if err == nil {
 			s3Copy = false
+		} else {
+			return err
 		}
 	default:
 		// Don't do anything. Use a normal copy
@@ -487,8 +501,8 @@ func (s *StorageServer) Copy(ctx context.Context, dir, address string, server rs
 
 		install := func(file io.ReadCloser) types.Resolver {
 			return func(writer io.Writer) (string, string, error) {
-				_, err := io.Copy(writer, file)
-				return "", "", err
+				_, copyErr := io.Copy(writer, file)
+				return "", "", copyErr
 			}
 		}
 

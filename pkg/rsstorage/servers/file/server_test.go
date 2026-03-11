@@ -630,15 +630,20 @@ func (s *FileStorageServerSuite) TestUsage(c *check.C) {
 	defer os.RemoveAll(tempdir)
 
 	fileContents1 := make([]byte, int64(10*datasize.KB))
-	rand.Read(fileContents1)
+	_, readErr := rand.Read(fileContents1)
+	c.Assert(readErr, check.IsNil)
 	fileContents2 := make([]byte, int64(20*datasize.KB))
-	rand.Read(fileContents2)
+	_, readErr = rand.Read(fileContents2)
+	c.Assert(readErr, check.IsNil)
 	fileContents3 := make([]byte, int64(30*datasize.KB))
-	rand.Read(fileContents3)
+	_, readErr = rand.Read(fileContents3)
+	c.Assert(readErr, check.IsNil)
 	fileContents4 := make([]byte, int64(5*datasize.KB))
-	rand.Read(fileContents4)
+	_, readErr = rand.Read(fileContents4)
+	c.Assert(readErr, check.IsNil)
 	fileContents5 := make([]byte, int64(15*datasize.KB))
-	rand.Read(fileContents5)
+	_, readErr = rand.Read(fileContents5)
+	c.Assert(readErr, check.IsNil)
 	dir1, err := os.MkdirTemp(tempdir, "dutest")
 	dir2, err := os.MkdirTemp(dir1, "another")
 	defer os.RemoveAll(dir1)
@@ -671,15 +676,20 @@ func (s *FileStorageServerSuite) TestUsageTimeout(c *check.C) {
 	defer os.RemoveAll(tempdir)
 
 	fileContents1 := make([]byte, int64(10*datasize.KB))
-	rand.Read(fileContents1)
+	_, readErr := rand.Read(fileContents1)
+	c.Assert(readErr, check.IsNil)
 	fileContents2 := make([]byte, int64(20*datasize.KB))
-	rand.Read(fileContents2)
+	_, readErr = rand.Read(fileContents2)
+	c.Assert(readErr, check.IsNil)
 	fileContents3 := make([]byte, int64(30*datasize.KB))
-	rand.Read(fileContents3)
+	_, readErr = rand.Read(fileContents3)
+	c.Assert(readErr, check.IsNil)
 	fileContents4 := make([]byte, int64(5*datasize.KB))
-	rand.Read(fileContents4)
+	_, readErr = rand.Read(fileContents4)
+	c.Assert(readErr, check.IsNil)
 	fileContents5 := make([]byte, int64(15*datasize.KB))
-	rand.Read(fileContents5)
+	_, readErr = rand.Read(fileContents5)
+	c.Assert(readErr, check.IsNil)
 	dir1, err := os.MkdirTemp(tempdir, "dutest")
 	dir2, err := os.MkdirTemp(dir1, "another")
 	defer os.RemoveAll(dir1)
@@ -713,7 +723,8 @@ func (s *FileStorageServerSuite) TestDiskUsage(c *check.C) {
 
 	for i := 0; i < testFiles; i++ {
 		f, _ := os.CreateTemp("testdata", "*")
-		f.Write(testStr)
+		_, writeErr := f.Write(testStr)
+		c.Assert(writeErr, check.IsNil)
 		expectedSize += len(testStr)
 
 		defer os.Remove(f.Name())
@@ -732,7 +743,8 @@ func (s *FileStorageServerSuite) TestDiskUsageCacheTimeout(c *check.C) {
 
 	for i := 0; i < testFiles; i++ {
 		f, _ := os.CreateTemp("testdata", "*")
-		f.Write(testStr)
+		_, writeErr := f.Write(testStr)
+		c.Assert(writeErr, check.IsNil)
 		expectedSize += len(testStr)
 
 		defer os.Remove(f.Name())
@@ -750,7 +762,8 @@ func (s *FileStorageServerSuite) TestDiskUsageWalkTimeout(c *check.C) {
 
 	for i := 0; i < testFiles; i++ {
 		f, _ := os.CreateTemp("testdata", "*")
-		f.Write(testStr)
+		_, writeErr := f.Write(testStr)
+		c.Assert(writeErr, check.IsNil)
 		expectedSize += len(testStr)
 
 		defer os.Remove(f.Name())
@@ -860,7 +873,8 @@ func (s *FileEnumerationSuite) TestEnumerateWalkTimeout(c *check.C) {
 
 	for i := 0; i < testFiles; i++ {
 		f, _ := os.CreateTemp("testdata", "*")
-		f.Write(testStr)
+		_, writeErr := f.Write(testStr)
+		c.Assert(writeErr, check.IsNil)
 		expectedSize += len(testStr)
 
 		defer os.Remove(f.Name())

@@ -292,8 +292,9 @@ func (s *StorageServer) Get(
 	return
 }
 
-func (s *StorageServer) Flush(ctx context.Context, dir, address string) {
+func (s *StorageServer) Flush(ctx context.Context, dir, address string) error {
 	// No-op
+	return nil
 }
 
 func (s *StorageServer) PutChunked(ctx context.Context, resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {

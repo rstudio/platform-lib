@@ -543,6 +543,7 @@ func (s *S3StorageServerSuite) TestRemove(c *check.C) {
 	}
 	now := time.Now()
 	nowbytes, err := now.MarshalJSON()
+	c.Assert(err, check.IsNil)
 	info := []byte(fmt.Sprintf(`{"chunk_size":64,"file_size":3232,"num_chunks":15,"complete":true,"mod_time":%s}`, string(nowbytes)))
 	output := &testReadCloser{bytes.NewBuffer(info)}
 	svc.getMap = map[string]GetResponse{

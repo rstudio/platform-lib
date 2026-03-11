@@ -130,8 +130,9 @@ func (f *DummyStorageServer) Remove(ctx context.Context, dir, address string) er
 	return f.RemoveErr
 }
 
-func (f *DummyStorageServer) Flush(ctx context.Context, dir, address string) {
+func (f *DummyStorageServer) Flush(ctx context.Context, dir, address string) error {
 	f.Flushed++
+	return nil
 }
 
 func (f *DummyStorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, error) {

@@ -143,6 +143,7 @@ func (s *MetaTestSuite) TestBucketObjectsMap(c *check.C) {
 	ctx := context.Background()
 	files, err := awsOps.BucketObjectsETagMap(ctx, "no-sync", "bin/3.5-xenial", 1, false, BinaryReg)
 	c.Assert(err, check.NotNil)
+	c.Assert(files, check.IsNil)
 	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 
 	files, err = awsOps.BucketObjectsETagMap(ctx, "sync", "bin/3.5-xenial", 1, false, BinaryReg)

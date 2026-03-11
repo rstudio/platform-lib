@@ -68,12 +68,16 @@ func (w *DefaultChunkUtils) WriteChunked(
 	pR, pW := io.Pipe()
 
 	// Clean up on error
-	defer func(err *error) {
-		if *err != nil {
+	defer func() {
+		if err != nil {
 			// TODO: Handle this error gracefully
-			w.Server.Remove(ctx, dir, address)
+			removeErr := w.Server.Remove(ctx, dir, address)
+			if removeErr != nil {
+				removeErr = fmt.Errorf("encountered '%w' unable to clean up file: '%w'", err, removeErr)
+			}
+			err = removeErr
 		}
-	}(&err)
+	}()
 
 	// Write all chunks
 	results := make(chan uint64)
@@ -83,9 +87,14 @@ func (w *DefaultChunkUtils) WriteChunked(
 	// Resolve/get the data we need
 	resolverErrs := make(chan error)
 	go func() {
+		defer func(pW *io.PipeWriter) {
+			closeErr := pW.Close()
+			if closeErr != nil {
+				resolverErrs <- closeErr
+			}
+		}(pW)
 		defer close(resolverErrs)
-		// TODO: Handle this error gracefully
-		defer pW.Close()
+
 		_, _, err = resolve(pW)
 		if err != nil {
 			resolverErrs <- err
@@ -211,7 +220,7 @@ func (w *DefaultChunkUtils) ReadChunked(
 	defer func(infoFile io.ReadCloser) {
 		closeErr := infoFile.Close()
 		if closeErr != nil {
-			errors.Join(err, closeErr)
+			slog.Error("unable to close chunked read", "error", closeErr.Error())
 		}
 	}(infoFile)
 
