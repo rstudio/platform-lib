@@ -86,7 +86,6 @@ func (w *DefaultChunkUtils) WriteChunked(
 	resolverErrs := make(chan error)
 	go func() {
 		defer close(resolverErrs)
-		// TODO: Handle this error gracefully
 		defer func(pW *io.PipeWriter) {
 			closeErr := pW.Close()
 			if closeErr != nil {

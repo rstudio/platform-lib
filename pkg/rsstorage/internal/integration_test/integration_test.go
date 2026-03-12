@@ -80,7 +80,12 @@ func create(dbname string) (err error) {
 		if err != nil {
 			return
 		}
-		defer conn.Close(ctx)
+		defer func(conn *pgx.Conn, ctx context.Context) {
+			closeErr := conn.Close(ctx)
+			if closeErr != nil {
+				err = errors.Join(err, closeErr)
+			}
+		}(conn, ctx)
 
 		_, err = conn.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s", dbname))
 	}
@@ -581,7 +586,8 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 		}
 		c.Assert(err, check.IsNil)
 		defer func() {
-			s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
+			_, deleteErr := s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
+			c.Assert(deleteErr, check.IsNil)
 		}()
 	}
 
@@ -623,7 +629,12 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 				return "", "", errors.New("failure resolving data")
 			}
 
-			defer gzw.Close()
+			defer func(gzw *gzip.Writer) {
+				closeErr := gzw.Close()
+				if closeErr != nil {
+					c.Assert(closeErr, check.IsNil)
+				}
+			}(gzw)
 			return "", "", nil
 		}
 	}
@@ -715,7 +726,8 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		}
 		c.Assert(err, check.IsNil)
 		defer func() {
-			s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
+			_, deleteErr := s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
+			c.Assert(deleteErr, check.IsNil)
 		}()
 	}
 
@@ -741,7 +753,10 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 	resolver := func(class string) types.Resolver {
 		return func(w io.Writer) (string, string, error) {
 			// Start writing some data to the resolver's writer
-			w.Write([]byte(fmt.Sprintf(testAssetData, class)))
+			_, writeErr := w.Write([]byte(fmt.Sprintf(testAssetData, class)))
+			if writeErr != nil {
+				return "", "", writeErr
+			}
 			gzw := gzip.NewWriter(w)
 
 			slog.Info("resolver: wrote some data, instructing test to continue, but waiting for instruction to err")
