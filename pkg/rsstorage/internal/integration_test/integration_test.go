@@ -772,7 +772,12 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 				return "", "", errors.New("failure resolving data")
 			}
 
-			defer gzw.Close()
+			defer func(gzw *gzip.Writer) {
+				closeErr := gzw.Close()
+				if closeErr != nil {
+					c.Assert(closeErr, check.IsNil)
+				}
+			}(gzw)
 			return "", "", nil
 		}
 	}

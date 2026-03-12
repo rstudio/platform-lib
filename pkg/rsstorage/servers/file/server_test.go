@@ -423,7 +423,7 @@ func (s *FileStorageServerSuite) TestPutResolveErr(c *check.C) {
 		return "", "", errors.New("resolver error")
 	}
 	_, _, err := server.Put(context.Background(), resolve, "", "storageaddress")
-	c.Check(err, check.ErrorMatches, "resolver error")
+	c.Check(err, check.ErrorMatches, "resolver error\nclose error")
 }
 
 func (s *FileStorageServerSuite) TestPutResolveErrPreserved(c *check.C) {
@@ -439,7 +439,7 @@ func (s *FileStorageServerSuite) TestPutResolveErrPreserved(c *check.C) {
 		return "", "", errors.New("resolver error")
 	}
 	_, _, err := server.Put(context.Background(), resolve, "", "storageaddress")
-	c.Check(err, check.ErrorMatches, "resolver error")
+	c.Check(err, check.ErrorMatches, "resolver error\nclose file error")
 }
 
 func (s *FileStorageServerSuite) TestPutMkDirError(c *check.C) {
