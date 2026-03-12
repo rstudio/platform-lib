@@ -68,14 +68,14 @@ func (w *DefaultChunkUtils) WriteChunked(
 	pR, pW := io.Pipe()
 
 	// Clean up on error
-	defer func(err error) {
+	defer func() {
 		if err != nil {
 			removeErr := w.Server.Remove(ctx, dir, address)
 			if removeErr != nil {
 				err = errors.Join(err, removeErr)
 			}
 		}
-	}(err)
+	}()
 
 	// Write all chunks
 	results := make(chan uint64)
