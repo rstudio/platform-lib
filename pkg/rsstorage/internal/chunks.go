@@ -269,7 +269,7 @@ func (w *DefaultChunkUtils) readChunks(
 
 	totalBytesWritten := uint64(0)
 
-	for i := uint64(1); i <= numChunks; i++ {
+	for i := uint64(0); i <= numChunks; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
