@@ -538,14 +538,16 @@ func (s *S3IntegrationSuite) SetUpSuite(c *check.C) {
 }
 
 var minioEndpoint = "http://minio:9000"
-var awsEndpoint = ""
+
+// Use this variable for customizing the AWS endpoint for debugging
+// var awsEndpoint = ""
 
 func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	ctx := context.Background()
 	defer leaktest.Check(c)
 
 	// Customize these as needed for your environment
-	//endpoint := awsEndpoint // AWS
+	// endpoint := awsEndpoint // AWS
 	endpoint := minioEndpoint // MinIO
 	bucket := "rsstorage-minio-test"
 	region := "us-east-1"
@@ -613,7 +615,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	resolver := func(class string) types.Resolver {
 		return func(w io.Writer) (string, string, error) {
 			// Start writing some data to the resolver's writer
-			//w.Write([]byte(fmt.Sprintf(testAssetData, class)))
+			// w.Write([]byte(fmt.Sprintf(testAssetData, class)))
 			gzw := gzip.NewWriter(w)
 
 			slog.Info("resolver: wrote some data, instructing test to continue, but waiting for instruction to err")

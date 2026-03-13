@@ -26,7 +26,6 @@ import (
 const AmzUnencryptedContentLengthHeader = "X-Amz-Unencrypted-Content-Length"
 
 type moveOrCopyFn func(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error)
-type copyFn func(ctx context.Context, input *s3.CopyObjectInput) (*s3.CopyObjectOutput, error)
 
 type StorageServer struct {
 	bucket  string
@@ -423,7 +422,7 @@ func (s *StorageServer) parts(ctx context.Context, dir, address string) ([]rssto
 		}
 		chunkDir := filepath.Join(dir, address)
 		parts = append(parts, rsstorage.NewCopyPart(chunkDir, "info.json"))
-		for i := 1; i <= int(chunked.NumChunks); i++ {
+		for i := uint64(1); i <= chunked.NumChunks; i++ {
 			chunkName := fmt.Sprintf("%08d", i)
 			parts = append(parts, rsstorage.NewCopyPart(chunkDir, chunkName))
 		}
