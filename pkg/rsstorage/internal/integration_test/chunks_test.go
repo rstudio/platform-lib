@@ -393,7 +393,6 @@ func (s *ChunksPartialReadSuite) TestReadPartialTimeout(c *check.C) {
 		for {
 			_, err := io.CopyN(pW, b, int64(cw.ChunkSize))
 			if err == io.EOF {
-				err = nil
 				return
 			}
 			c.Assert(err, check.IsNil)

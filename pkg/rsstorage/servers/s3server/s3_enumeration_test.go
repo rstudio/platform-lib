@@ -49,6 +49,7 @@ func (s *MetaTestSuite) TestBucketDirs(c *check.C) {
 	ctx := context.Background()
 	dirs, err := awsOps.BucketDirs(ctx, "no-sync", "bin/")
 	c.Assert(err, check.NotNil)
+	c.Assert(dirs, check.IsNil)
 	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
 
 	dirs, err = awsOps.BucketDirs(ctx, "sync", "bin/")
@@ -95,6 +96,7 @@ func (s *MetaTestSuite) TestBucketObjects(c *check.C) {
 	files, err := awsOps.BucketObjects(ctx, "no-sync", "bin/3.5-xenial", 1, false, BinaryReg)
 	c.Assert(err, check.NotNil)
 	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
+	c.Assert(files, check.IsNil)
 
 	files, err = awsOps.BucketObjects(ctx, "sync", "bin/3.5-xenial", 1, false, BinaryReg)
 	c.Assert(err, check.IsNil)
@@ -144,6 +146,7 @@ func (s *MetaTestSuite) TestBucketObjectsMap(c *check.C) {
 	files, err := awsOps.BucketObjectsETagMap(ctx, "no-sync", "bin/3.5-xenial", 1, false, BinaryReg)
 	c.Assert(err, check.NotNil)
 	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
+	c.Assert(files, check.IsNil)
 
 	files, err = awsOps.BucketObjectsETagMap(ctx, "sync", "bin/3.5-xenial", 1, false, BinaryReg)
 	c.Assert(err, check.IsNil)

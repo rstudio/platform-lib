@@ -230,6 +230,7 @@ func (s *S3WrapperSuite) TestListObjects(c *check.C) {
 	files, err := wrapper.ListObjects(ctx, &s3.ListObjectsV2Input{Bucket: &bucket, Prefix: &prefix})
 	c.Assert(err, check.NotNil)
 	c.Assert(strings.Contains(err.Error(), "StatusCode: 404"), check.Equals, true)
+	c.Assert(files, check.IsNil)
 
 	bucket = "sync"
 	files, err = wrapper.ListObjects(ctx, &s3.ListObjectsV2Input{Bucket: &bucket, Prefix: &prefix})

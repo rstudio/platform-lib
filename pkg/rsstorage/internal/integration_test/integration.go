@@ -46,7 +46,7 @@ func getStorageServerAttempt(
 		if cfg.File == nil {
 			return nil, fmt.Errorf("Missing [FileStorage \"%s\"] configuration section", class)
 		}
-		//todo bioc: configurable size here
+		// todo bioc: configurable size here
 		server = file.NewStorageServer(
 			file.StorageServerArgs{
 				Dir:          cfg.File.Location,

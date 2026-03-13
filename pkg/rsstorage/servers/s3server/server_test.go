@@ -235,6 +235,7 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 	c.Assert(chunked, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
 	c.Assert(ok, check.Equals, false)
+	c.Assert(mod, check.Equals, time.Time{})
 
 	// Missing
 	svc.headErr = &types.NoSuchKey{}
@@ -243,6 +244,7 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 	c.Assert(chunked, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
 	c.Assert(ok, check.Equals, false)
+	c.Assert(mod, check.Equals, time.Time{})
 
 	// Chunked - error in HeadObject
 	svc.headErr = nil
@@ -253,6 +255,7 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 		},
 	}
 	ok, chunked, sz, mod, err = server.Check(ctx, "dir", "address")
+	c.Assert(mod, check.Equals, time.Time{})
 	c.Assert(err, check.ErrorMatches, "info.json head error")
 	c.Assert(chunked, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
@@ -275,6 +278,7 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 	c.Assert(chunked, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
 	c.Assert(ok, check.Equals, false)
+	c.Assert(mod, check.Equals, time.Time{})
 
 	// Chunked - error decoding info.json
 	output := &testReadCloser{bytes.NewBufferString("bad[{")}
@@ -290,9 +294,11 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 	c.Assert(chunked, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
 	c.Assert(ok, check.Equals, false)
+	c.Assert(mod, check.Equals, time.Time{})
 
 	// Chunked - ok
 	nowbytes, err := now.MarshalJSON()
+	c.Assert(err, check.IsNil)
 	info := []byte(fmt.Sprintf(`{"chunk_size":64,"file_size":3232,"num_chunks":15,"complete":true,"mod_time":%s}`, string(nowbytes)))
 	output = &testReadCloser{bytes.NewBuffer(info)}
 	svc.getMap = map[string]GetResponse{
@@ -307,6 +313,7 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 	c.Assert(chunked, check.NotNil)
 	c.Assert(sz, check.DeepEquals, int64(3232))
 	c.Assert(ok, check.Equals, true)
+	c.Assert(mod, check.Not(check.Equals), time.Time{})
 }
 
 func (s *S3StorageServerSuite) TestGet(c *check.C) {
@@ -342,6 +349,7 @@ func (s *S3StorageServerSuite) TestGet(c *check.C) {
 	c.Assert(rs, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
 	c.Assert(ok, check.Equals, false)
+	c.Assert(mod, check.Equals, time.Time{})
 
 	// Missing
 	svc.getErr = &types.NoSuchKey{}
@@ -351,6 +359,7 @@ func (s *S3StorageServerSuite) TestGet(c *check.C) {
 	c.Assert(rs, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
 	c.Assert(ok, check.Equals, false)
+	c.Assert(mod, check.Equals, time.Time{})
 
 	// Chunked - error in HeadObject
 	svc.headErr = nil
@@ -365,6 +374,7 @@ func (s *S3StorageServerSuite) TestGet(c *check.C) {
 	c.Assert(rs, check.IsNil)
 	c.Assert(sz, check.DeepEquals, int64(0))
 	c.Assert(ok, check.Equals, false)
+	c.Assert(mod, check.Equals, time.Time{})
 
 	// Chunked - error reading chunks
 	svc.headMap = map[string]HeadResponse{
@@ -387,6 +397,7 @@ func (s *S3StorageServerSuite) TestGet(c *check.C) {
 	c.Assert(rs, check.IsNil)
 	c.Assert(sz, check.Equals, int64(0))
 	c.Assert(ok, check.Equals, false)
+	c.Assert(mod, check.Equals, time.Time{})
 
 	// Chunked - ok
 	chunker.ReadErr = nil
@@ -543,6 +554,7 @@ func (s *S3StorageServerSuite) TestRemove(c *check.C) {
 	}
 	now := time.Now()
 	nowbytes, err := now.MarshalJSON()
+	c.Assert(err, check.IsNil)
 	info := []byte(fmt.Sprintf(`{"chunk_size":64,"file_size":3232,"num_chunks":15,"complete":true,"mod_time":%s}`, string(nowbytes)))
 	output := &testReadCloser{bytes.NewBuffer(info)}
 	svc.getMap = map[string]GetResponse{
