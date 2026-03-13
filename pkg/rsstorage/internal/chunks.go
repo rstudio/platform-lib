@@ -235,7 +235,7 @@ func (w *DefaultChunkUtils) ReadChunked(
 
 	pR, pW := io.Pipe()
 	go func() {
-		err = w.readChunks(ctx, address, chunkDir, info.NumChunks, info.Complete, info.ChunkSize, pW)
+		err = w.readChunks(ctx, address, chunkDir, info.NumChunks, info.Complete, info.FileSize, pW)
 	}()
 	if err != nil {
 		return nil, nil, 0, time.Time{}, err
