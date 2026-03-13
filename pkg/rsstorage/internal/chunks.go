@@ -347,7 +347,7 @@ func (w *DefaultChunkUtils) tryChunkRead(
 	// Read the current chunk
 	bytesCopied, copyErr := io.Copy(writer, chunk)
 	if copyErr != nil {
-		err = fmt.Errorf("error reading from chunk: %s", err)
+		err = fmt.Errorf("error reading from chunk: %s", copyErr)
 		return
 	}
 	bytesRead = uint64(bytesCopied)
