@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rstudio/platform-lib/v3/pkg/rsstorage"
@@ -263,14 +264,30 @@ func (w *DefaultChunkUtils) readChunks(
 		}
 	}(writer)
 
+	var wg sync.WaitGroup
+	errs := make(chan error)
+
 	totalBytesWritten := uint64(0)
 
 	for i := uint64(1); i <= numChunks; i++ {
-		bytesRead, err = w.retryingChunkRead(ctx, i, address, chunkDir, complete, writer)
-		if err != nil {
-			return writer.CloseWithError(err)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			bytesRead, err = w.retryingChunkRead(ctx, i, address, chunkDir, complete, writer)
+			if err != nil {
+				errs <- writer.CloseWithError(err)
+				return
+			}
+			totalBytesWritten += bytesRead
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	for readErr := range errs {
+		if readErr != nil {
+			return readErr
 		}
-		totalBytesWritten += bytesRead
 	}
 	if totalBytesWritten != fileSize {
 		err = fmt.Errorf("expected to read '%d' bytes from file but only read '%d' bytes", fileSize, totalBytesWritten)
