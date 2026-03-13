@@ -129,7 +129,7 @@ func (w *DefaultChunkUtils) WriteChunked(
 					// if the total number of bytes written doesn't equal the size of the file, then something
 					// went wrong
 					if totalBytesWritten != sz {
-						return fmt.Errorf("expected to write '%d; bytes but only wrote '%d' bytes", sz, totalBytesWritten)
+						return fmt.Errorf("expected to write '%d' bytes but only wrote '%d' bytes", sz, totalBytesWritten)
 					}
 					return nil
 				}
