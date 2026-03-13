@@ -43,7 +43,8 @@ func (w *DefaultChunkUtils) WriteChunked(
 	// Clear the directory if it already exists
 	err = w.Server.Remove(ctx, dir, address)
 	if err != nil {
-		return nil
+		err = fmt.Errorf("unable to clear directory before writing: %w", err)
+		return
 	}
 
 	// Write an `info.json` to the directory

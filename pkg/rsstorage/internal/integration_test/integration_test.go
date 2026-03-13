@@ -726,6 +726,15 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		}
 		c.Assert(err, check.IsNil)
 		defer func() {
+
+			resp, s3Err := s3Svc.ListObjects(ctx, &s3.ListObjectsV2Input{Bucket: aws.String(bucket)})
+			c.Assert(s3Err, check.IsNil)
+
+			for _, obj := range resp.Contents {
+				_, delErr := s3Svc.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(bucket), Key: obj.Key})
+				c.Assert(delErr, check.IsNil)
+			}
+
 			_, deleteErr := s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
 			c.Assert(deleteErr, check.IsNil)
 		}()
