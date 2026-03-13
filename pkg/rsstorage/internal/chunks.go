@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/rstudio/platform-lib/v3/pkg/rsstorage"
@@ -235,9 +234,8 @@ func (w *DefaultChunkUtils) ReadChunked(
 	}
 
 	pR, pW := io.Pipe()
-	go func() {
-		err = w.readChunks(ctx, address, chunkDir, info.NumChunks, info.Complete, info.FileSize, pW)
-	}()
+
+	err = w.readChunks(ctx, address, chunkDir, info.NumChunks, info.Complete, info.FileSize, pW)
 	if err != nil {
 		return nil, nil, 0, time.Time{}, err
 	}
@@ -264,31 +262,20 @@ func (w *DefaultChunkUtils) readChunks(
 		}
 	}(writer)
 
-	var wg sync.WaitGroup
-	errs := make(chan error)
-
 	totalBytesWritten := uint64(0)
 
 	for i := uint64(0); i <= numChunks; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			bytesRead, err = w.retryingChunkRead(ctx, i, address, chunkDir, complete, writer)
-			if err != nil {
-				errs <- writer.CloseWithError(err)
-				return
+		bytesRead, err = w.retryingChunkRead(ctx, i, address, chunkDir, complete, writer)
+		if err != nil {
+			closeErr := writer.CloseWithError(err)
+			if closeErr != nil {
+				return errors.Join(err, closeErr)
 			}
-			totalBytesWritten += bytesRead
-		}()
-	}
-	wg.Wait()
-	close(errs)
-
-	for readErr := range errs {
-		if readErr != nil {
-			return readErr
+			return err
 		}
+		totalBytesWritten += bytesRead
 	}
+
 	if totalBytesWritten != fileSize {
 		err = fmt.Errorf("expected to read '%d' bytes from file but only read '%d' bytes", fileSize, totalBytesWritten)
 		return err
