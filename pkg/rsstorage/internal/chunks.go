@@ -90,7 +90,7 @@ func (w *DefaultChunkUtils) WriteChunked(
 		defer func(pW *io.PipeWriter) {
 			closeErr := pW.Close()
 			if closeErr != nil {
-				err = errors.Join(err, closeErr)
+				resolverErrs <- closeErr
 			}
 		}(pW)
 		_, _, err = resolve(pW)
