@@ -176,15 +176,14 @@ func (w *DefaultChunkUtils) writeChunks(
 					// an End of File error should be considered a critical error if it is
 					// returned before the last chunk
 					if errors.Is(err, io.EOF) && i == numChunks {
-						err = nil
 						copiedBytes = uint64(written)
-						return
+						return "", "", nil
 					}
-					return
+					return "", "", err
 				}
 				// record the number of bytes written
 				copiedBytes = uint64(written)
-				return
+				return "", "", nil
 			}
 
 			chunkFile := fmt.Sprintf("%08d", i)
