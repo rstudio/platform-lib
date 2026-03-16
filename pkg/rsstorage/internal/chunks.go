@@ -232,7 +232,12 @@ func (w *DefaultChunkUtils) ReadChunked(
 	}
 
 	pR, pW := io.Pipe()
-	go w.readChunks(ctx, address, chunkDir, info.NumChunks, info.Complete, pW)
+	go func() {
+		readErr := w.readChunks(ctx, address, chunkDir, info.NumChunks, info.Complete, pW)
+		if readErr != nil {
+			slog.Error("unable to read chunked file", "error", readErr)
+		}
+	}()
 
 	return pR, &info, int64(info.FileSize), info.ModTime, nil
 }

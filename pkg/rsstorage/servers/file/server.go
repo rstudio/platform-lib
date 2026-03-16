@@ -119,7 +119,6 @@ func (s *StorageServer) Check(ctx context.Context, dir, address string) (
 		chunkInfo = &info
 		fileSize = int64(info.FileSize)
 		modTime = info.ModTime
-		err = nil
 		return
 	}
 
@@ -128,7 +127,6 @@ func (s *StorageServer) Check(ctx context.Context, dir, address string) (
 	chunkInfo = nil
 	fileSize = stat.Size()
 	modTime = stat.ModTime()
-	err = nil
 	return
 }
 

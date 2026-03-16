@@ -630,7 +630,7 @@ func (s *FileStorageServerSuite) TestUsage(c *check.C) {
 	defer func(path string) {
 		removeErr := os.RemoveAll(path)
 		if removeErr != nil {
-			c.Logf("unbale to remove temp directory: %s", removeErr.Error())
+			c.Logf("unable to remove temp directory: %s", removeErr.Error())
 		}
 	}(tempdir)
 
