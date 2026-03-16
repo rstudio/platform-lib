@@ -209,9 +209,8 @@ func (w *DefaultChunkUtils) ReadChunked(
 	ctx context.Context,
 	dir string,
 	address string,
-) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, error) {
+) (rc io.ReadCloser, chunksInfo *types.ChunksInfo, size int64, modTime time.Time, err error) {
 	chunkDir := filepath.Join(dir, address)
-	var err error
 
 	infoFile, _, _, _, ok, err := w.Server.Get(ctx, chunkDir, "info.json")
 	if err != nil {
