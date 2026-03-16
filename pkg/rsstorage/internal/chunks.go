@@ -316,15 +316,14 @@ func (w *DefaultChunkUtils) tryChunkRead(
 	// Open the chunks sequentially
 	chunk, _, _, _, ok, err := w.Server.Get(ctx, chunkDir, chunkFile)
 	if err != nil {
-		err = fmt.Errorf("error opening chunk file at %s: %s", chunkDir, err)
-		return
+		return false, 0, fmt.Errorf("error opening chunk file at %s: %s", chunkDir, err)
+
 	} else if !ok {
 		if !complete {
 			// If we've waited 5 minutes for this chunk to appear, err to avoid
 			// blocking forever
 			if attempts > w.MaxAttempts {
-				err = rsstorage.ErrNoChunk
-				return
+				return false, 0, rsstorage.ErrNoChunk
 			}
 			// Wait for the next chunk, then retry in for loop.
 			w.Waiter.WaitForChunk(ctx, &types.ChunkNotification{
@@ -332,12 +331,11 @@ func (w *DefaultChunkUtils) tryChunkRead(
 				Address: address,
 				Chunk:   chunkIndex,
 			})
-			return
+			return false, 0, nil
 		}
 
 		// If already done, return error
-		err = rsstorage.ErrNoChunk
-		return
+		return false, 0, rsstorage.ErrNoChunk
 	}
 
 	defer func(chunk io.ReadCloser) {
