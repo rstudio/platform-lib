@@ -164,9 +164,9 @@ func (w *DefaultChunkUtils) writeChunks(
 		if err != nil {
 			errs <- err
 		}
+		close(results)
+		close(errs)
 	}(r)
-	defer close(results)
-	defer close(errs)
 	for i := uint64(1); i <= numChunks; i++ {
 		err := func() error {
 			var copiedBytes uint64
