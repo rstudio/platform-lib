@@ -75,38 +75,59 @@ func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
 	}
 }
 
-func (s *StorageServer) Check(ctx context.Context, dir, address string) (bool, *types.ChunksInfo, int64, time.Time, error) {
+func (s *StorageServer) Check(ctx context.Context, dir, address string) (
+	found bool,
+	chunkInfo *types.ChunksInfo,
+	fileSize int64,
+	modTime time.Time,
+	err error,
+) {
 	// Determine the location for this file
 	filePath := filepath.Join(s.dir, dir, address)
 
 	// Open the file
 	stat, err := s.fileIO.Stat(filePath)
 	if os.IsNotExist(err) {
-		return false, nil, 0, time.Time{}, nil
+		err = nil
+		return
 	} else if err != nil {
-		return false, nil, 0, time.Time{}, err
+		return
 	}
 
 	if stat.IsDir() {
-		infoFile, err := s.fileIO.Open(filepath.Join(filePath, "info.json"))
-		if err != nil {
-			return false, nil, 0, time.Time{}, fmt.Errorf("no chunked directory 'info.json' for %s: %s", address, err)
+		infoFile, fileErr := s.fileIO.Open(filepath.Join(filePath, "info.json"))
+		if fileErr != nil {
+			err = fmt.Errorf("no chunked directory 'info.json' for %s: %s", address, fileErr)
+			return
 		}
-		// TODO: Handle this error
-		defer infoFile.Close()
+
+		defer func(infoFile fileIOFile) {
+			closeErr := infoFile.Close()
+			if closeErr != nil {
+				err = errors.Join(err, closeErr)
+			}
+		}(infoFile)
 
 		info := types.ChunksInfo{}
 		dec := json.NewDecoder(infoFile)
-		err = dec.Decode(&info)
-		if err != nil {
-			return false, nil, 0, time.Time{}, fmt.Errorf("error decoding chunked directory 'info.json' for %s: %s", address, err)
+		decodeErr := dec.Decode(&info)
+		if decodeErr != nil {
+			err = fmt.Errorf("error decoding chunked directory 'info.json' for %s: %s", address, decodeErr)
+			return
 		}
-
-		return true, &info, int64(info.FileSize), info.ModTime, nil
-	} else {
-		// Return normal file info
-		return true, nil, stat.Size(), stat.ModTime(), nil
+		found = true
+		chunkInfo = &info
+		fileSize = int64(info.FileSize)
+		modTime = info.ModTime
+		return
 	}
+
+	// Return normal file info
+	found = true
+	chunkInfo = nil
+	fileSize = stat.Size()
+	modTime = stat.ModTime()
+	return
 }
 
 func (s *StorageServer) Dir() string {
@@ -247,9 +268,9 @@ func (s *StorageServer) Get(ctx context.Context, dir, address string) (io.ReadCl
 		}
 
 		return r, c, sz, mod, true, nil
-	} else {
-		return f, nil, stat.Size(), stat.ModTime(), true, nil
 	}
+
+	return f, nil, stat.Size(), stat.ModTime(), true, nil
 }
 
 func (s *StorageServer) Flush(ctx context.Context, dir, address string) {
@@ -257,7 +278,10 @@ func (s *StorageServer) Flush(ctx context.Context, dir, address string) {
 	filePath := filepath.Join(s.dir, dir, address)
 
 	// Don't err if this fails
-	s.fileIO.FlushWithChownAndStat(filePath)
+	flushErr := s.fileIO.FlushWithChownAndStat(filePath)
+	if flushErr != nil {
+		slog.Debug("unable to flush file", "error", flushErr.Error(), "dir", dir, "address", address)
+	}
 }
 
 func (s *StorageServer) Put(ctx context.Context, resolve types.Resolver, dir, address string) (string, string, error) {
@@ -316,8 +340,13 @@ func (s *StorageServer) write(resolve types.Resolver) (dir, address, staging str
 	if err != nil {
 		return
 	}
-	// TODO: Handle this error
-	defer stagingFile.Close()
+
+	defer func(stagingFile fileIOFile) {
+		closeErr := stagingFile.Close()
+		if closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}(stagingFile)
 	staging = stagingFile.Name()
 
 	slog.Debug("Opened new staging file for storage", "file", stagingFile.Name())
@@ -353,9 +382,9 @@ func (s *StorageServer) Remove(ctx context.Context, dir, address string) error {
 	filePath := filepath.Join(s.dir, dir, address)
 	if chunked != nil {
 		return s.fileIO.RemoveAll(filePath)
-	} else {
-		return s.fileIO.Remove(filePath)
 	}
+
+	return s.fileIO.Remove(filePath)
 }
 
 func (s *StorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, error) {

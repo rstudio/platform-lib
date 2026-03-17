@@ -80,7 +80,12 @@ func create(dbname string) (err error) {
 		if err != nil {
 			return
 		}
-		defer conn.Close(ctx)
+		defer func(conn *pgx.Conn, ctx context.Context) {
+			closeErr := conn.Close(ctx)
+			if closeErr != nil {
+				err = errors.Join(err, closeErr)
+			}
+		}(conn, ctx)
 
 		_, err = conn.Exec(ctx, fmt.Sprintf("CREATE DATABASE %s", dbname))
 	}
@@ -533,14 +538,16 @@ func (s *S3IntegrationSuite) SetUpSuite(c *check.C) {
 }
 
 var minioEndpoint = "http://minio:9000"
-var awsEndpoint = ""
+
+// Use this variable for customizing the AWS endpoint for debugging
+// var awsEndpoint = ""
 
 func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	ctx := context.Background()
 	defer leaktest.Check(c)
 
 	// Customize these as needed for your environment
-	//endpoint := awsEndpoint // AWS
+	// endpoint := awsEndpoint // AWS
 	endpoint := minioEndpoint // MinIO
 	bucket := "rsstorage-minio-test"
 	region := "us-east-1"
@@ -581,7 +588,8 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 		}
 		c.Assert(err, check.IsNil)
 		defer func() {
-			s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
+			_, deleteErr := s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
+			c.Assert(deleteErr, check.IsNil)
 		}()
 	}
 
@@ -607,7 +615,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 	resolver := func(class string) types.Resolver {
 		return func(w io.Writer) (string, string, error) {
 			// Start writing some data to the resolver's writer
-			//w.Write([]byte(fmt.Sprintf(testAssetData, class)))
+			// w.Write([]byte(fmt.Sprintf(testAssetData, class)))
 			gzw := gzip.NewWriter(w)
 
 			slog.Info("resolver: wrote some data, instructing test to continue, but waiting for instruction to err")
@@ -623,7 +631,12 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 				return "", "", errors.New("failure resolving data")
 			}
 
-			defer gzw.Close()
+			defer func(gzw *gzip.Writer) {
+				closeErr := gzw.Close()
+				if closeErr != nil {
+					c.Assert(closeErr, check.IsNil)
+				}
+			}(gzw)
 			return "", "", nil
 		}
 	}
@@ -715,7 +728,17 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 		}
 		c.Assert(err, check.IsNil)
 		defer func() {
-			s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
+
+			resp, s3Err := s3Svc.ListObjects(ctx, &s3.ListObjectsV2Input{Bucket: aws.String(bucket)})
+			c.Assert(s3Err, check.IsNil)
+
+			for _, obj := range resp.Contents {
+				_, delErr := s3Svc.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(bucket), Key: obj.Key})
+				c.Assert(delErr, check.IsNil)
+			}
+
+			_, deleteErr := s3Svc.DeleteBucket(ctx, &s3.DeleteBucketInput{Bucket: aws.String(bucket)})
+			c.Assert(deleteErr, check.IsNil)
 		}()
 	}
 
@@ -741,7 +764,10 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 	resolver := func(class string) types.Resolver {
 		return func(w io.Writer) (string, string, error) {
 			// Start writing some data to the resolver's writer
-			w.Write([]byte(fmt.Sprintf(testAssetData, class)))
+			_, writeErr := w.Write([]byte(fmt.Sprintf(testAssetData, class)))
+			if writeErr != nil {
+				return "", "", writeErr
+			}
 			gzw := gzip.NewWriter(w)
 
 			slog.Info("resolver: wrote some data, instructing test to continue, but waiting for instruction to err")
@@ -757,7 +783,12 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 				return "", "", errors.New("failure resolving data")
 			}
 
-			defer gzw.Close()
+			defer func(gzw *gzip.Writer) {
+				closeErr := gzw.Close()
+				if closeErr != nil {
+					c.Assert(closeErr, check.IsNil)
+				}
+			}(gzw)
 			return "", "", nil
 		}
 	}

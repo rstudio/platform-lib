@@ -5,6 +5,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -42,7 +43,8 @@ func (w *DefaultChunkUtils) WriteChunked(
 	// Clear the directory if it already exists
 	err = w.Server.Remove(ctx, dir, address)
 	if err != nil {
-		return nil
+		err = fmt.Errorf("unable to clear directory before writing: %w", err)
+		return
 	}
 
 	// Write an `info.json` to the directory
@@ -67,12 +69,14 @@ func (w *DefaultChunkUtils) WriteChunked(
 	pR, pW := io.Pipe()
 
 	// Clean up on error
-	defer func(err *error) {
-		if *err != nil {
-			// TODO: Handle this error gracefully
-			w.Server.Remove(ctx, dir, address)
+	defer func() {
+		if err != nil {
+			removeErr := w.Server.Remove(ctx, dir, address)
+			if removeErr != nil {
+				err = errors.Join(err, removeErr)
+			}
 		}
-	}(&err)
+	}()
 
 	// Write all chunks
 	results := make(chan uint64)
@@ -83,13 +87,22 @@ func (w *DefaultChunkUtils) WriteChunked(
 	resolverErrs := make(chan error)
 	go func() {
 		defer close(resolverErrs)
-		// TODO: Handle this error gracefully
-		defer pW.Close()
+		defer func(pW *io.PipeWriter) {
+			closeErr := pW.Close()
+			if closeErr != nil {
+				resolverErrs <- closeErr
+			}
+		}(pW)
 		_, _, err = resolve(pW)
 		if err != nil {
 			resolverErrs <- err
 		}
 	}()
+
+	// tally up the number of bytes written so it can be compared to
+	// the file's size to ensure all the file's content are written
+	totalBytesWritten := uint64(0)
+	chunkCount := uint64(0)
 
 	// Wait for all results to complete
 	err = func() error {
@@ -101,16 +114,23 @@ func (w *DefaultChunkUtils) WriteChunked(
 				}
 			case err = <-errs:
 				return err
-			case count := <-results:
+			case bytesWritten := <-results:
+				chunkCount++
+				// tally up the bytes written so it can be checked later
+				totalBytesWritten += bytesWritten
 				err = w.Notifier.Notify(ctx, &types.ChunkNotification{
 					Address: address,
-					Chunk:   count,
+					Chunk:   chunkCount,
 				})
 				if err != nil {
-					// TODO: Update DefaultChunkUtils to acceptable a logger
-					slog.Error("Error notifying store of chunk completion", "address", address, "chunk", count, "error", err)
+					slog.Error("unable to notify of chunk completion", "address", address, "chunk", chunkCount, "error", err)
 				}
-				if count == numChunks {
+				if chunkCount == numChunks {
+					// if the total number of bytes written doesn't equal the size of the file, then something
+					// went wrong
+					if totalBytesWritten != sz {
+						return fmt.Errorf("expected to write '%d' bytes but only wrote '%d' bytes", sz, totalBytesWritten)
+					}
 					return nil
 				}
 			}
@@ -139,18 +159,31 @@ func (w *DefaultChunkUtils) writeChunks(
 	results chan uint64,
 	errs chan error,
 ) {
-	// TODO: Handle this error
-	defer r.Close()
-	defer close(results)
-	defer close(errs)
+	defer func(r *io.PipeReader) {
+		err := r.Close()
+		if err != nil {
+			errs <- err
+		}
+		close(results)
+		close(errs)
+	}(r)
 	for i := uint64(1); i <= numChunks; i++ {
 		err := func() error {
+			var copiedBytes uint64
 			resolve := func(writer io.Writer) (dir, address string, err error) {
-				_, err = io.CopyN(writer, r, int64(w.ChunkSize))
-				if err != nil && err == io.EOF {
-					err = nil
+				written, err := io.CopyN(writer, r, int64(w.ChunkSize))
+				if err != nil {
+					// an End of File error should be considered a critical error if it is
+					// returned before the last chunk
+					if errors.Is(err, io.EOF) && i == numChunks {
+						copiedBytes = uint64(written)
+						return "", "", nil
+					}
+					return "", "", err
 				}
-				return
+				// record the number of bytes written
+				copiedBytes = uint64(written)
+				return "", "", nil
 			}
 
 			chunkFile := fmt.Sprintf("%08d", i)
@@ -159,7 +192,9 @@ func (w *DefaultChunkUtils) writeChunks(
 				return err
 			}
 
-			results <- i
+			// if no error was encountered, report the number of bytes copied so it can be
+			// computed to ensure the download was successful
+			results <- copiedBytes
 			return nil
 		}()
 		if err != nil {
@@ -173,7 +208,7 @@ func (w *DefaultChunkUtils) ReadChunked(
 	ctx context.Context,
 	dir string,
 	address string,
-) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, error) {
+) (rc io.ReadCloser, chunksInfo *types.ChunksInfo, size int64, modTime time.Time, err error) {
 	chunkDir := filepath.Join(dir, address)
 
 	infoFile, _, _, _, ok, err := w.Server.Get(ctx, chunkDir, "info.json")
@@ -182,7 +217,12 @@ func (w *DefaultChunkUtils) ReadChunked(
 	} else if !ok {
 		return nil, nil, 0, time.Time{}, rsstorage.ErrNoChunkMetadata
 	}
-	defer infoFile.Close()
+	defer func(infoFile io.ReadCloser) {
+		closeErr := infoFile.Close()
+		if closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}(infoFile)
 
 	info := types.ChunksInfo{}
 	dec := json.NewDecoder(infoFile)
@@ -192,7 +232,12 @@ func (w *DefaultChunkUtils) ReadChunked(
 	}
 
 	pR, pW := io.Pipe()
-	go w.readChunks(ctx, address, chunkDir, info.NumChunks, info.Complete, pW)
+	go func() {
+		readErr := w.readChunks(ctx, address, chunkDir, info.NumChunks, info.Complete, pW)
+		if readErr != nil {
+			slog.Error("unable to read chunked file", "error", readErr)
+		}
+	}()
 
 	return pR, &info, int64(info.FileSize), info.ModTime, nil
 }
@@ -204,16 +249,22 @@ func (w *DefaultChunkUtils) readChunks(
 	numChunks uint64,
 	complete bool,
 	writer *io.PipeWriter,
-) {
-	// TODO: Handle this error
-	defer writer.Close()
+) (err error) {
+	defer func(writer *io.PipeWriter) {
+		closeErr := writer.Close()
+		if closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}(writer)
 
 	for i := uint64(1); i <= numChunks; i++ {
-		err := w.retryingChunkRead(ctx, i, address, chunkDir, complete, writer)
+		err = w.retryingChunkRead(ctx, i, address, chunkDir, complete, writer)
 		if err != nil {
-			// TODO: Handle this error
-			writer.CloseWithError(err)
-			return
+			closeErr := writer.CloseWithError(err)
+			if closeErr != nil {
+				return errors.Join(err, closeErr)
+			}
+			return err
 		}
 	}
 
@@ -247,7 +298,7 @@ func (w *DefaultChunkUtils) tryChunkRead(
 	chunkDir string,
 	complete bool,
 	writer *io.PipeWriter,
-) (bool, error) {
+) (found bool, err error) {
 	chunkFile := fmt.Sprintf("%08d", chunkIndex)
 
 	// Open the chunks sequentially
@@ -268,13 +319,17 @@ func (w *DefaultChunkUtils) tryChunkRead(
 				Chunk:   chunkIndex,
 			})
 			return false, nil
-		} else {
-			// If already done, return error
-			return false, rsstorage.ErrNoChunk
 		}
+
+		// If already done, return error
+		return false, rsstorage.ErrNoChunk
 	}
-	// TODO: handle this error
-	defer chunk.Close()
+	defer func(chunk io.ReadCloser) {
+		closeErr := chunk.Close()
+		if closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}(chunk)
 
 	// Read the current chunk
 	_, err = io.Copy(writer, chunk)

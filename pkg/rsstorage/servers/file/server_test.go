@@ -423,7 +423,7 @@ func (s *FileStorageServerSuite) TestPutResolveErr(c *check.C) {
 		return "", "", errors.New("resolver error")
 	}
 	_, _, err := server.Put(context.Background(), resolve, "", "storageaddress")
-	c.Check(err, check.ErrorMatches, "resolver error")
+	c.Check(err, check.ErrorMatches, "resolver error\nclose error")
 }
 
 func (s *FileStorageServerSuite) TestPutResolveErrPreserved(c *check.C) {
@@ -439,7 +439,7 @@ func (s *FileStorageServerSuite) TestPutResolveErrPreserved(c *check.C) {
 		return "", "", errors.New("resolver error")
 	}
 	_, _, err := server.Put(context.Background(), resolve, "", "storageaddress")
-	c.Check(err, check.ErrorMatches, "resolver error")
+	c.Check(err, check.ErrorMatches, "resolver error\nclose file error")
 }
 
 func (s *FileStorageServerSuite) TestPutMkDirError(c *check.C) {
@@ -627,21 +627,38 @@ func (s *FileStorageServerSuite) TestRemove(c *check.C) {
 func (s *FileStorageServerSuite) TestUsage(c *check.C) {
 	tempdir, err := os.MkdirTemp("", "")
 	c.Assert(err, check.IsNil)
-	defer os.RemoveAll(tempdir)
+	defer func(path string) {
+		removeErr := os.RemoveAll(path)
+		if removeErr != nil {
+			c.Logf("unable to remove temp directory: %s", removeErr.Error())
+		}
+	}(tempdir)
 
 	fileContents1 := make([]byte, int64(10*datasize.KB))
-	rand.Read(fileContents1)
+	_, readErr := rand.Read(fileContents1)
+	c.Assert(readErr, check.IsNil)
 	fileContents2 := make([]byte, int64(20*datasize.KB))
-	rand.Read(fileContents2)
+	_, readErr = rand.Read(fileContents2)
+	c.Assert(readErr, check.IsNil)
 	fileContents3 := make([]byte, int64(30*datasize.KB))
-	rand.Read(fileContents3)
+	_, readErr = rand.Read(fileContents3)
+	c.Assert(readErr, check.IsNil)
 	fileContents4 := make([]byte, int64(5*datasize.KB))
-	rand.Read(fileContents4)
+	_, readErr = rand.Read(fileContents4)
+	c.Assert(readErr, check.IsNil)
 	fileContents5 := make([]byte, int64(15*datasize.KB))
-	rand.Read(fileContents5)
+	_, readErr = rand.Read(fileContents5)
+	c.Assert(readErr, check.IsNil)
 	dir1, err := os.MkdirTemp(tempdir, "dutest")
+	c.Assert(err, check.IsNil)
 	dir2, err := os.MkdirTemp(dir1, "another")
-	defer os.RemoveAll(dir1)
+	c.Assert(err, check.IsNil)
+	defer func(path string) {
+		removeErr := os.RemoveAll(path)
+		if removeErr != nil {
+			c.Logf("unable to remove test directory: %s", removeErr.Error())
+		}
+	}(dir1)
 	c.Assert(err, check.IsNil)
 	err = os.WriteFile(filepath.Join(tempdir, "test1"), fileContents1, 0644)
 	c.Assert(err, check.IsNil)
@@ -668,21 +685,38 @@ func (s *FileStorageServerSuite) TestUsage(c *check.C) {
 func (s *FileStorageServerSuite) TestUsageTimeout(c *check.C) {
 	tempdir, err := os.MkdirTemp("", "")
 	c.Assert(err, check.IsNil)
-	defer os.RemoveAll(tempdir)
+	defer func(path string) {
+		removeErr := os.RemoveAll(path)
+		if removeErr != nil {
+			c.Logf("unable to remove temp directory")
+		}
+	}(tempdir)
 
 	fileContents1 := make([]byte, int64(10*datasize.KB))
-	rand.Read(fileContents1)
+	_, readErr := rand.Read(fileContents1)
+	c.Assert(readErr, check.IsNil)
 	fileContents2 := make([]byte, int64(20*datasize.KB))
-	rand.Read(fileContents2)
+	_, readErr = rand.Read(fileContents2)
+	c.Assert(readErr, check.IsNil)
 	fileContents3 := make([]byte, int64(30*datasize.KB))
-	rand.Read(fileContents3)
+	_, readErr = rand.Read(fileContents3)
+	c.Assert(readErr, check.IsNil)
 	fileContents4 := make([]byte, int64(5*datasize.KB))
-	rand.Read(fileContents4)
+	_, readErr = rand.Read(fileContents4)
+	c.Assert(readErr, check.IsNil)
 	fileContents5 := make([]byte, int64(15*datasize.KB))
-	rand.Read(fileContents5)
+	_, readErr = rand.Read(fileContents5)
+	c.Assert(readErr, check.IsNil)
 	dir1, err := os.MkdirTemp(tempdir, "dutest")
+	c.Assert(err, check.IsNil)
 	dir2, err := os.MkdirTemp(dir1, "another")
-	defer os.RemoveAll(dir1)
+	c.Assert(err, check.IsNil)
+	defer func(path string) {
+		removeErr := os.RemoveAll(path)
+		if removeErr != nil {
+			c.Logf("unable to remove test directory: %s", removeErr.Error())
+		}
+	}(dir1)
 	c.Assert(err, check.IsNil)
 	err = os.WriteFile(filepath.Join(tempdir, "test1"), fileContents1, 0644)
 	c.Assert(err, check.IsNil)
@@ -713,10 +747,16 @@ func (s *FileStorageServerSuite) TestDiskUsage(c *check.C) {
 
 	for i := 0; i < testFiles; i++ {
 		f, _ := os.CreateTemp("testdata", "*")
-		f.Write(testStr)
+		_, writeErr := f.Write(testStr)
+		c.Assert(writeErr, check.IsNil)
 		expectedSize += len(testStr)
 
-		defer os.Remove(f.Name())
+		defer func(name string) {
+			removeErr := os.Remove(name)
+			if removeErr != nil {
+				c.Logf("unable to remove test file: %s", removeErr)
+			}
+		}(f.Name())
 	}
 
 	sz, err := diskUsage("testdata", time.Minute, time.Second)
@@ -732,10 +772,16 @@ func (s *FileStorageServerSuite) TestDiskUsageCacheTimeout(c *check.C) {
 
 	for i := 0; i < testFiles; i++ {
 		f, _ := os.CreateTemp("testdata", "*")
-		f.Write(testStr)
+		_, writeErr := f.Write(testStr)
+		c.Assert(writeErr, check.IsNil)
 		expectedSize += len(testStr)
 
-		defer os.Remove(f.Name())
+		defer func(name string) {
+			removeErr := os.Remove(name)
+			if removeErr != nil {
+				c.Logf("unable to remove test file: %s", removeErr.Error())
+			}
+		}(f.Name())
 	}
 
 	_, err := diskUsage("testdata", time.Nanosecond, time.Minute)
@@ -750,10 +796,16 @@ func (s *FileStorageServerSuite) TestDiskUsageWalkTimeout(c *check.C) {
 
 	for i := 0; i < testFiles; i++ {
 		f, _ := os.CreateTemp("testdata", "*")
-		f.Write(testStr)
+		_, writeErr := f.Write(testStr)
+		c.Assert(writeErr, check.IsNil)
 		expectedSize += len(testStr)
 
-		defer os.Remove(f.Name())
+		defer func(name string) {
+			err := os.Remove(name)
+			if err != nil {
+				c.Logf("unable to remove test file: %s", err.Error())
+			}
+		}(f.Name())
 	}
 
 	_, err := diskUsage("testdata", time.Minute, time.Nanosecond)
@@ -860,10 +912,16 @@ func (s *FileEnumerationSuite) TestEnumerateWalkTimeout(c *check.C) {
 
 	for i := 0; i < testFiles; i++ {
 		f, _ := os.CreateTemp("testdata", "*")
-		f.Write(testStr)
+		_, writeErr := f.Write(testStr)
+		c.Assert(writeErr, check.IsNil)
 		expectedSize += len(testStr)
 
-		defer os.Remove(f.Name())
+		defer func(name string) {
+			err := os.Remove(name)
+			if err != nil {
+				c.Logf("unable to remove test file: %s", err.Error())
+			}
+		}(f.Name())
 	}
 
 	_, err := enumerate("testdata", time.Nanosecond)
@@ -1169,6 +1227,7 @@ func (s *FileCopyMoveSuite) TestMoveReal(c *check.C) {
 
 	// Read one chunk
 	f, _, _, _, _, err := serverDest.Get(ctx, "dir", "CHUNK")
+	c.Assert(err, check.IsNil)
 	b, err := io.ReadAll(f)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(b), check.Equals, servertest.TestDESC)
