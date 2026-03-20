@@ -80,7 +80,7 @@ func (w *DefaultChunkUtils) WriteChunked(
 
 	// Write all chunks
 	results := make(chan uint64)
-	errs := make(chan error)
+	errs := make(chan error, 1)
 	go w.writeChunks(ctx, numChunks, chunkDir, pR, results, errs)
 
 	// Resolve/get the data we need
@@ -93,9 +93,9 @@ func (w *DefaultChunkUtils) WriteChunked(
 				resolverErrs <- closeErr
 			}
 		}(pW)
-		_, _, err = resolve(pW)
-		if err != nil {
-			resolverErrs <- err
+		_, _, resolveErr := resolve(pW)
+		if resolveErr != nil {
+			resolverErrs <- resolveErr
 		}
 	}()
 
