@@ -1,8 +1,6 @@
 module github.com/rstudio/platform-lib/v3
 
-go 1.24.0
-
-toolchain go1.24.1
+go 1.25.0
 
 require (
 	github.com/aws/amazon-s3-encryption-client-go/v3 v3.2.0
@@ -19,11 +17,11 @@ require (
 	github.com/gomarkdown/markdown v0.0.0-20250311123330-531bef5e742b
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/jackc/pgx/v5 v5.8.0
+	github.com/jackc/pgx/v5 v5.9.0
 	github.com/jarcoal/httpmock v1.4.1
 	github.com/jmoiron/sqlx v1.4.0
-	github.com/lib/pq v1.11.2
-	github.com/mattn/go-sqlite3 v1.14.34
+	github.com/lib/pq v1.12.0
+	github.com/mattn/go-sqlite3 v1.14.37
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.4
 	github.com/spf13/cobra v1.10.2
