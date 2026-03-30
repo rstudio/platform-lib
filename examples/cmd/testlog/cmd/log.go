@@ -30,7 +30,7 @@ var LogCmd = &cobra.Command{
 	Example: "",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Log an info-level message
-		rslog.Infof(message)
+		rslog.Infof("%s", message)
 		return nil
 	},
 }
@@ -41,7 +41,7 @@ var TerminalLogCmd = &cobra.Command{
 	Example: "",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		rslog.UseTerminalLogger(rslog.InfoLevel)
-		rslog.WithField("some-field", "some-value").Infof(message)
+		rslog.WithField("some-field", "some-value").Infof("%s", message)
 		return nil
 	},
 }
@@ -57,7 +57,7 @@ var CaptureLogCmd = &cobra.Command{
 				WithMetadata: withMetadata,
 			},
 		)
-		logs.Infof(message)
+		logs.Infof("%s", message)
 		logs.WithField("field", "value").Infof("Second Message, with argument: %d", 35)
 
 		log.Printf("%v", logs.Messages())
@@ -88,7 +88,7 @@ var BufferedLogCmd = &cobra.Command{
 		defaultLogger := rslog.DefaultLogger()
 
 		log := defaultLogger.WithField("Logger", "DefaultLogger")
-		log.Warnf(message)
+		log.Warnf("%s", message)
 
 		// Since logs are only flushed after the command's execution, setting a new log level
 		// before that will make flushed logs respect the newly set level, even if the log call

@@ -284,7 +284,7 @@ func (conn *store) QueueGroupStart(ctx context.Context, id int64) error {
 	}
 	defer tx.CompleteTransaction(&err)
 
-	err = tx.(*store).db.First(&QueueGroup{}, id).Update("started", true).Error
+	err = tx.(*store).db.Model(&QueueGroup{}).Where("id = ?", id).Update("started", true).Error
 	if err != nil {
 		return err
 	}
@@ -298,7 +298,7 @@ func (conn *store) QueueGroupClear(ctx context.Context, id int64) error {
 }
 
 func (conn *store) QueueGroupCancel(ctx context.Context, id int64) error {
-	return conn.db.First(&QueueGroup{}, id).Update("cancelled", true).Error
+	return conn.db.Model(&QueueGroup{}).Where("id = ?", id).Update("cancelled", true).Error
 }
 
 func (conn *store) QueuePushAddressed(ctx context.Context, name string, groupId sql.NullInt64, priority, workType uint64, address string, work interface{}, carrier []byte) (err error) {
