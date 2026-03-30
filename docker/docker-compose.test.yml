@@ -1,6 +1,6 @@
 services:
   lib:
-    image: golang:1.24
+    image: golang:1.26
     links:
       - postgres
       - minio
