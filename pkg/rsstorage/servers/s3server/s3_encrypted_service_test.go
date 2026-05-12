@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 
+	encryptClient "github.com/aws/amazon-s3-encryption-client-go/v3/client"
+	"github.com/aws/amazon-s3-encryption-client-go/v3/materials"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -23,24 +25,36 @@ var _ = check.Suite(&S3EncryptedServiceSuite{})
 const (
 	// Raw AWS responses generated via aws.LogDebugWithHTTPBody using test objects
 	kmsResponse = `{"CiphertextBlob":"AQIDAHjn6Sd1ah3Pq5ObkS0zZNMKPN158UNlAjJfcYmp3qOIJAGWPnUuTqUcLSVl0Sxk2OcOAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQME/hVJ7LNrJ0uLrKcAgEQgDs8iwgfz3Ml4D8zMjCXjkb7GRysOsam4yAM/EE5Ynl+fgrzwGu6CYXjT1IstlAO4weQR6+yAlw3C5xhXw==","KeyId":"arn:aws:kms:us-east-1:528395739535:key/7ddec34f-7c3e-4875-a348-de761fc28b4f","Plaintext":"VZrCXyYuBdlGvFsiN7ZRvobqh5VyJmc16aaAJ2/6dEI="}`
+
+	testKeyID = "7ddec34f-7c3e-4875-a348-de761fc28b4f"
 )
+
+// newTestEncryptedClient builds an *encryptClient.S3EncryptionClientV3 wired
+// through the supplied http.Client for both S3 and KMS so tests can stub
+// responses with httpmock. This mirrors the construction work that callers
+// now perform themselves before handing the client to NewEncryptedS3Wrapper.
+func newTestEncryptedClient(c *check.C, httpClient *http.Client) *encryptClient.S3EncryptionClientV3 {
+	s3Client := s3.New(s3.Options{
+		Region:      "us-east-1",
+		Credentials: aws.AnonymousCredentials{},
+		HTTPClient:  httpClient,
+	})
+	kmsClient := kms.New(kms.Options{
+		Region:      "us-east-1",
+		Credentials: aws.AnonymousCredentials{},
+		HTTPClient:  httpClient,
+	})
+	cmm, err := materials.NewCryptographicMaterialsManager(materials.NewKmsKeyring(kmsClient, testKeyID))
+	c.Assert(err, check.IsNil)
+	client, err := encryptClient.New(s3Client, cmm)
+	c.Assert(err, check.IsNil)
+	return client
+}
 
 func (s *S3EncryptedServiceSuite) TestUpload(c *check.C) {
 	ctx := context.Background()
 	client := http.Client{}
-	s3Service, err := NewEncryptedS3Wrapper(
-		s3.Options{
-			Region:      "us-east-1",
-			Credentials: aws.AnonymousCredentials{},
-			HTTPClient:  &client,
-		},
-		kms.Options{
-			Region:      "us-east-1",
-			Credentials: aws.AnonymousCredentials{},
-			HTTPClient:  &client,
-		},
-		"7ddec34f-7c3e-4875-a348-de761fc28b4f",
-	)
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
 	c.Assert(err, check.IsNil)
 	httpmock.ActivateNonDefault(&client)
 	defer httpmock.DeactivateAndReset()
@@ -69,19 +83,7 @@ func (s *S3EncryptedServiceSuite) TestUpload(c *check.C) {
 
 func (s *S3EncryptedServiceSuite) TestGetObject(c *check.C) {
 	client := http.Client{}
-	s3Service, err := NewEncryptedS3Wrapper(
-		s3.Options{
-			Region:      "us-east-1",
-			Credentials: aws.AnonymousCredentials{},
-			HTTPClient:  &client,
-		},
-		kms.Options{
-			Region:      "us-east-1",
-			Credentials: aws.AnonymousCredentials{},
-			HTTPClient:  &client,
-		},
-		"7ddec34f-7c3e-4875-a348-de761fc28b4f",
-	)
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
 	c.Assert(err, check.IsNil)
 
 	httpmock.ActivateNonDefault(&client)
