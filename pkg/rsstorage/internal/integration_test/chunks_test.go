@@ -59,7 +59,7 @@ func (s *ChunksIntegrationSuite) TearDownTest(c *check.C) {
 func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) map[string]rsstorage.StorageServer {
 	baseEndpoint := "http://minio:9000"
 	ctx := context.Background()
-	s3Svc, err := s3server.NewS3Wrapper(
+	s3Svc, err := s3server.NewS3Wrapper(s3.New(
 		s3.Options{
 			Region:          "us-east-1",
 			BaseEndpoint:    &baseEndpoint,
@@ -67,12 +67,13 @@ func (s *ChunksIntegrationSuite) NewServerSet(c *check.C, class, prefix string) 
 			EndpointOptions: s3.EndpointResolverOptions{DisableHTTPS: true},
 			Credentials:     credentials.NewStaticCredentialsProvider("minio", "miniokey", ""),
 		},
-	)
+	))
 	c.Assert(err, check.IsNil)
+	c.Assert(s3Svc, check.NotNil)
 
 	// Create S3 bucket
 	if !testing.Short() {
-		_, err = s3Svc.CreateBucket(ctx, &s3.CreateBucketInput{
+		_, err := s3Svc.CreateBucket(ctx, &s3.CreateBucketInput{
 			Bucket: aws.String(class),
 		})
 		c.Assert(err, check.IsNil)

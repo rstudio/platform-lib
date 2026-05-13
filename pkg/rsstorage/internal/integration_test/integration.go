@@ -74,9 +74,9 @@ func getStorageServerAttempt(
 			s3Opts.EndpointOptions = s3.EndpointResolverOptions{DisableHTTPS: cfg.S3.DisableSSL}
 		}
 
-		s3Service, err := s3server.NewS3Wrapper(s3Opts)
+		s3Service, err := s3server.NewS3Wrapper(s3.New(s3Opts))
 		if err != nil {
-			return nil, fmt.Errorf("Error starting S3 session for '%s': %s", class, err)
+			return nil, fmt.Errorf("unable to create S3 wrapper: %w", err)
 		}
 
 		server = s3server.NewStorageServer(s3server.StorageServerArgs{

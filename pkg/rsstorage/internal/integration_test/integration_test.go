@@ -147,7 +147,7 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 
 	endpointURL, _ := url.Parse("http://minio:9000")
 
-	s3Svc, err := s3server.NewS3Wrapper(
+	s3Svc, err := s3server.NewS3Wrapper(s3.New(
 		s3.Options{
 			Region:             "us-east-1",
 			EndpointOptions:    s3.EndpointResolverOptions{DisableHTTPS: true},
@@ -159,7 +159,7 @@ func (s *StorageIntegrationSuite) NewServerSet(c *check.C, class, prefix string)
 			//ClientLogMode:      aws.LogRequestWithBody | aws.LogResponseWithBody,
 			//Logger: logging.NewStandardLogger(os.Stdout),
 		},
-	)
+	))
 	c.Assert(err, check.IsNil)
 
 	// Create S3 bucket
@@ -560,7 +560,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 		forcePathStyle = true
 	}
 
-	s3Svc, err := s3server.NewS3Wrapper(
+	s3Svc, err := s3server.NewS3Wrapper(s3.New(
 		s3.Options{
 			Region:          region,
 			BaseEndpoint:    &endpoint,
@@ -572,8 +572,9 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHang(c *check.C) {
 			//ClientLogMode:   aws.LogRequestWithBody | aws.LogResponseWithBody,
 			//Logger:          logging.NewStandardLogger(os.Stdout),
 		},
-	)
+	))
 	c.Assert(err, check.IsNil)
+	c.Assert(s3Svc, check.NotNil)
 
 	// Create S3 bucket if using local MinIO Server
 	if endpoint == minioEndpoint {
@@ -698,7 +699,7 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 
 	// commenting out the credentials for now so the test fails quickly
 	// instead of hanging up
-	s3Svc, err := s3server.NewS3Wrapper(
+	s3Svc, err := s3server.NewS3Wrapper(s3.New(
 		s3.Options{
 			Region:             region,
 			BaseEndpoint:       &endpoint,
@@ -711,8 +712,9 @@ func (s *S3IntegrationSuite) TestPopulateServerSetHangChunked(c *check.C) {
 			//ClientLogMode:      aws.LogRequestWithBody | aws.LogResponseWithBody,
 			//Logger:             logging.NewStandardLogger(os.Stdout),
 		},
-	)
+	))
 	c.Assert(err, check.IsNil)
+	c.Assert(s3Svc, check.NotNil)
 
 	// Create S3 bucket if using local MinIO Server
 	if endpoint == minioEndpoint {
