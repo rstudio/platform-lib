@@ -67,10 +67,13 @@ type DefaultS3Wrapper struct {
 // configuration values lets callers wrap or replace the AWS SDK client with
 // their own implementation, which is useful for testing and for layering on
 // behaviors such as Object Lock-aware deletes.
-func NewS3Wrapper(client S3API) *DefaultS3Wrapper {
+func NewS3Wrapper(client S3API) (*DefaultS3Wrapper, error) {
+	if client == nil {
+		return nil, errors.New("unable to create S3 wrapper, S3 client is nil")
+	}
 	return &DefaultS3Wrapper{
 		client: client,
-	}
+	}, nil
 }
 
 func (s *DefaultS3Wrapper) KmsEncrypted() bool {
@@ -233,7 +236,7 @@ func (s *DefaultS3Wrapper) ListObjects(ctx context.Context, input *s3.ListObject
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error encountered while listing objects: %w", err)
 		}
 
 		// Collect all objects from this page
@@ -241,9 +244,8 @@ func (s *DefaultS3Wrapper) ListObjects(ctx context.Context, input *s3.ListObject
 	}
 
 	// Return all collected objects in a single response
-	isTruncated := false
 	return &s3.ListObjectsV2Output{
 		Contents:    allObjects,
-		IsTruncated: &isTruncated,
+		IsTruncated: new(false),
 	}, nil
 }

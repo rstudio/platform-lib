@@ -4,6 +4,7 @@ package s3server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -12,7 +13,7 @@ import (
 	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/internal"
 )
 
-type EncryptedS3Service struct {
+type EncryptedS3Wrapper struct {
 	client S3API
 }
 
@@ -21,32 +22,32 @@ type EncryptedS3Service struct {
 // Callers are responsible for constructing the encryption client themselves
 // — including the underlying *s3.Client, *kms.Client, and
 // CryptographicMaterialsManager — and passing it in here.
-func NewEncryptedS3Wrapper(client S3API) (*EncryptedS3Service, error) {
+func NewEncryptedS3Wrapper(client S3API) (*EncryptedS3Wrapper, error) {
 	if client == nil {
-		return nil, fmt.Errorf("an S3 client must be provided to NewEncryptedS3Wrapper")
+		return nil, errors.New("unable to create S3 encrypted wrapper, S3 client is nil")
 	}
-	return &EncryptedS3Service{
+	return &EncryptedS3Wrapper{
 		client: client,
 	}, nil
 }
 
-func (s *EncryptedS3Service) CreateBucket(ctx context.Context, input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {
+func (s *EncryptedS3Wrapper) CreateBucket(ctx context.Context, input *s3.CreateBucketInput) (*s3.CreateBucketOutput, error) {
 	return s.client.CreateBucket(ctx, input)
 }
 
-func (s *EncryptedS3Service) DeleteBucket(ctx context.Context, input *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error) {
+func (s *EncryptedS3Wrapper) DeleteBucket(ctx context.Context, input *s3.DeleteBucketInput) (*s3.DeleteBucketOutput, error) {
 	return s.client.DeleteBucket(ctx, input)
 }
 
-func (s *EncryptedS3Service) HeadObject(ctx context.Context, input *s3.HeadObjectInput) (*s3.HeadObjectOutput, error) {
+func (s *EncryptedS3Wrapper) HeadObject(ctx context.Context, input *s3.HeadObjectInput) (*s3.HeadObjectOutput, error) {
 	return s.client.HeadObject(ctx, input)
 }
 
-func (s *EncryptedS3Service) DeleteObject(ctx context.Context, input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error) {
+func (s *EncryptedS3Wrapper) DeleteObject(ctx context.Context, input *s3.DeleteObjectInput) (*s3.DeleteObjectOutput, error) {
 	return s.client.DeleteObject(ctx, input)
 }
 
-func (s *EncryptedS3Service) CopyObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
+func (s *EncryptedS3Wrapper) CopyObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
 	head, err := s.HeadObject(ctx, &s3.HeadObjectInput{Key: &oldKey, Bucket: &oldBucket})
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -72,7 +73,7 @@ func (s *EncryptedS3Service) CopyObject(ctx context.Context, oldBucket, oldKey, 
 	return out, nil
 }
 
-func (s *EncryptedS3Service) MoveObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
+func (s *EncryptedS3Wrapper) MoveObject(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error) {
 	head, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Key:    &oldKey,
 		Bucket: &oldBucket,
@@ -98,21 +99,39 @@ func (s *EncryptedS3Service) MoveObject(ctx context.Context, oldBucket, oldKey, 
 	return out, nil
 }
 
-func (s *EncryptedS3Service) ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) (*s3.ListObjectsV2Output, error) {
-	return s.client.ListObjectsV2(ctx, input)
+func (s *EncryptedS3Wrapper) ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) (*s3.ListObjectsV2Output, error) {
+	// In AWS SDK v2, we need to handle pagination manually
+	// Create a paginator to iterate through all pages. S3API satisfies the
+	// s3.ListObjectsV2APIClient interface implicitly because it declares
+	// the same ListObjectsV2 method.
+	paginator := s3.NewListObjectsV2Paginator(s.client, input)
+
+	var allObjects []types.Object
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("error encountered while listing objects: %w", err)
+		}
+		allObjects = append(allObjects, page.Contents...)
+	}
+
+	return &s3.ListObjectsV2Output{
+		Contents:    allObjects,
+		IsTruncated: new(false),
+	}, nil
 }
 
 // Upload takes the same input as the defaultS3Service *s3.UploadInput,
-func (s *EncryptedS3Service) Upload(ctx context.Context, input *s3.PutObjectInput, options ...func(uploader *manager.Uploader)) (*manager.UploadOutput, error) {
+func (s *EncryptedS3Wrapper) Upload(ctx context.Context, input *s3.PutObjectInput, options ...func(uploader *manager.Uploader)) (*manager.UploadOutput, error) {
 	uploader := manager.NewUploader(s.client)
 	return uploader.Upload(ctx, input, options...)
 }
 
 // GetObject downloads an encrypted file from S3 and returns the plaintext value using client-side KMS decryption
-func (s *EncryptedS3Service) GetObject(ctx context.Context, input *s3.GetObjectInput) (*s3.GetObjectOutput, error) {
+func (s *EncryptedS3Wrapper) GetObject(ctx context.Context, input *s3.GetObjectInput) (*s3.GetObjectOutput, error) {
 	return s.client.GetObject(ctx, input)
 }
 
-func (s *EncryptedS3Service) KmsEncrypted() bool {
+func (s *EncryptedS3Wrapper) KmsEncrypted() bool {
 	return true
 }
