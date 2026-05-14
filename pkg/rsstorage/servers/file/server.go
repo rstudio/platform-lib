@@ -16,9 +16,9 @@ import (
 
 	"github.com/c2h5oh/datasize"
 
-	"github.com/rstudio/platform-lib/v3/pkg/rsstorage"
-	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/internal"
-	"github.com/rstudio/platform-lib/v3/pkg/rsstorage/types"
+	"github.com/rstudio/platform-lib/v4/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v4/pkg/rsstorage/internal"
+	"github.com/rstudio/platform-lib/v4/pkg/rsstorage/types"
 )
 
 const (

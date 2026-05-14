@@ -12,7 +12,7 @@ import (
 
 	"github.com/lib/pq"
 
-	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v4/pkg/rsnotify/listener"
 )
 
 type PqRetrieveListenerFactory interface {

@@ -1,11 +1,10 @@
-module github.com/rstudio/platform-lib/v3
+module github.com/rstudio/platform-lib/v4
 
 go 1.26.0
 
 require (
 	github.com/aws/amazon-s3-encryption-client-go/v3 v3.2.0
 	github.com/aws/aws-sdk-go-v2 v1.41.7
-	github.com/aws/aws-sdk-go-v2/config v1.32.17
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.16
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.22.18
 	github.com/aws/aws-sdk-go-v2/service/kms v1.51.1
@@ -33,6 +32,7 @@ require (
 
 require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.10 // indirect
+	github.com/aws/aws-sdk-go-v2/config v1.32.17 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.23 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.23 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.23 // indirect

@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/broadcaster"
-	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
-	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listeners/local"
-	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/permit"
-	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v4/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v4/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v4/pkg/rsnotify/listeners/local"
+	"github.com/rstudio/platform-lib/v4/pkg/rsqueue/permit"
+	"github.com/rstudio/platform-lib/v4/pkg/rsqueue/queue"
 	"gopkg.in/check.v1"
 )
 

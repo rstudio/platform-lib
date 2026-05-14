@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/rstudio/platform-lib/v3/examples/cmd/testnotify/cmd"
+	"github.com/rstudio/platform-lib/v4/examples/cmd/testnotify/cmd"
 )
 
 type leveler struct {

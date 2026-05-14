@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/listener"
+	"github.com/rstudio/platform-lib/v4/pkg/rsnotify/listener"
 )
 
 type AssumeLeader struct {
