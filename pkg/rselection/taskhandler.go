@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v4/pkg/rsnotify/broadcaster"
 )
 
 // logFatalf is used for fatal errors and can be overridden in tests.

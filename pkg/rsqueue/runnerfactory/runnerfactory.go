@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rstudio/platform-lib/v3/pkg/rsqueue/queue"
+	"github.com/rstudio/platform-lib/v4/pkg/rsqueue/queue"
 )
 
 type RunnerFactory struct {

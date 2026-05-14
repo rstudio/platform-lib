@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/rstudio/platform-lib/v3/pkg/rscache/test"
-	"github.com/rstudio/platform-lib/v3/pkg/rsstorage"
+	"github.com/rstudio/platform-lib/v4/pkg/rscache/test"
+	"github.com/rstudio/platform-lib/v4/pkg/rsstorage"
 	"gopkg.in/check.v1"
 )
 

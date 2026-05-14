@@ -8,8 +8,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/rstudio/platform-lib/v3/pkg/rselection/electiontypes"
-	"github.com/rstudio/platform-lib/v3/pkg/rsnotify/broadcaster"
+	"github.com/rstudio/platform-lib/v4/pkg/rselection/electiontypes"
+	"github.com/rstudio/platform-lib/v4/pkg/rsnotify/broadcaster"
 )
 
 const LevelTrace = slog.Level(-8)
