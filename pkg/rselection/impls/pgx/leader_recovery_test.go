@@ -72,4 +72,72 @@ func (s *RecoverySuite) TestIntegrityStoreErrorErrors(c *check.C) {
 	c.Assert(leader.clusterIntegrityErr(), check.NotNil)
 }
 
-var _ = time.Now // retained; used by later step-down tests in this file
+// healthyLeader returns a leader whose integrity check passes (ping ok, store
+// matches memory) with an injectable clock starting at t.
+func healthyLeader(t time.Time, stepDown time.Duration) *PgxLeader {
+	store := &fakeStore{nodes: map[string]*electiontypes.ClusterNode{
+		"a": {Name: "a", IP: "10.0.0.1"},
+	}}
+	leader := newTestLeader(store, map[string]*electiontypes.ClusterNode{
+		"a_10.0.0.1": {Name: "a", IP: "10.0.0.1"},
+	})
+	leader.stepDownTimeout = stepDown
+	cur := t
+	leader.now = func() time.Time { return cur }
+	leader.setClockTEST = func(nt time.Time) { cur = nt }
+	return leader
+}
+
+func (s *RecoverySuite) TestStepDownAfterSustainedFailure(c *check.C) {
+	start := time.Unix(1_000_000, 0)
+	leader := healthyLeader(start, 30*time.Second)
+
+	// Healthy: no step-down, unhealthySince stays zero.
+	c.Assert(leader.evaluateHealth(), check.Equals, false)
+	c.Assert(leader.unhealthySince.IsZero(), check.Equals, true)
+
+	// Force unhealthy via failing pings.
+	leader.pingSuccess = false
+
+	// First failure records the time but does not step down.
+	c.Assert(leader.evaluateHealth(), check.Equals, false)
+	c.Assert(leader.unhealthySince.Equal(start), check.Equals, true)
+
+	// Still within the timeout window.
+	leader.setClockTEST(start.Add(29 * time.Second))
+	c.Assert(leader.evaluateHealth(), check.Equals, false)
+
+	// At/after the timeout, step down.
+	leader.setClockTEST(start.Add(30 * time.Second))
+	c.Assert(leader.evaluateHealth(), check.Equals, true)
+}
+
+func (s *RecoverySuite) TestStepDownResetsOnRecovery(c *check.C) {
+	start := time.Unix(1_000_000, 0)
+	leader := healthyLeader(start, 30*time.Second)
+
+	leader.pingSuccess = false
+	c.Assert(leader.evaluateHealth(), check.Equals, false)
+	c.Assert(leader.unhealthySince.IsZero(), check.Equals, false)
+
+	// Recover before the timeout elapses.
+	leader.pingSuccess = true
+	leader.setClockTEST(start.Add(10 * time.Second))
+	c.Assert(leader.evaluateHealth(), check.Equals, false)
+	c.Assert(leader.unhealthySince.IsZero(), check.Equals, true)
+
+	// A later, separate failure must not immediately trip the timeout.
+	leader.pingSuccess = false
+	leader.setClockTEST(start.Add(11 * time.Second))
+	c.Assert(leader.evaluateHealth(), check.Equals, false)
+}
+
+func (s *RecoverySuite) TestStepDownDisabledByZeroTimeout(c *check.C) {
+	start := time.Unix(1_000_000, 0)
+	leader := healthyLeader(start, 0) // disabled
+	leader.pingSuccess = false
+
+	c.Assert(leader.evaluateHealth(), check.Equals, false)
+	leader.setClockTEST(start.Add(100 * time.Hour))
+	c.Assert(leader.evaluateHealth(), check.Equals, false)
+}

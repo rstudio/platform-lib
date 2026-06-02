@@ -192,6 +192,10 @@ func (p *PgxLeader) lead(ctx context.Context, pingTick, sweepTick <-chan time.Ti
 			go p.pingNodes(ctx)
 		case <-sweepTick:
 			p.sweepNodes()
+			if p.evaluateHealth() {
+				slog.Error("Leader stepping down after sustained cluster integrity failure; a new election will occur", "timeout", p.stepDownTimeout)
+				return
+			}
 		case vCh := <-p.taskHandler.Verify():
 			p.verify(vCh)
 		case <-logTickCh:
@@ -264,6 +268,38 @@ func (p *PgxLeader) clusterIntegrityErr() error {
 	}
 
 	return nil
+}
+
+// evaluateHealth runs the cluster integrity check and tracks how long the
+// leader has been unhealthy. It returns true when the leader should step down:
+// the cluster has been continuously unhealthy for at least stepDownTimeout
+// (when that timeout is non-zero). Called from the lead() goroutine only.
+func (p *PgxLeader) evaluateHealth() bool {
+	err := p.clusterIntegrityErr()
+	if err == nil {
+		p.unhealthySince = time.Time{}
+		return false
+	}
+
+	if p.unhealthySince.IsZero() {
+		p.unhealthySince = p.timeNow()
+	}
+	dur := p.timeNow().Sub(p.unhealthySince)
+
+	// Treat brief mismatches (e.g., a rolling restart) as routine; escalate only
+	// once the condition is sustained. When step-down is disabled, stay at debug
+	// to avoid per-tick error spam since no recovery action will be taken.
+	switch {
+	case p.stepDownTimeout == 0:
+		slog.Debug("Cluster integrity check failing", "error", err, "unhealthyFor", dur)
+		return false
+	case dur < p.stepDownTimeout/2:
+		slog.Debug("Cluster integrity check failing; may be transient", "error", err, "unhealthyFor", dur)
+	default:
+		slog.Error("Cluster integrity check failing", "error", err, "unhealthyFor", dur)
+	}
+
+	return dur >= p.stepDownTimeout
 }
 
 // verify gates a scheduled task on cluster health. It responds true on the
