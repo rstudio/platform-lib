@@ -53,6 +53,19 @@ type PgxLeader struct {
 	pingSuccess     bool
 	pingSuccessLock sync.RWMutex
 
+	// stepDownTimeout is the duration of continuous cluster-integrity failure
+	// after which the leader steps down so a fresh election can occur. Zero
+	// disables step-down (legacy behavior).
+	stepDownTimeout time.Duration
+
+	// unhealthySince is the time the leader most recently entered an unhealthy
+	// state, or the zero value when currently healthy. Only accessed from the
+	// lead() goroutine.
+	unhealthySince time.Time
+
+	// now returns the current time; overridable in tests. Use timeNow().
+	now func() time.Time
+
 	// Stores information about active nodes and ping times
 	nodes map[string]*electiontypes.ClusterNode
 	mutex sync.RWMutex
@@ -60,6 +73,7 @@ type PgxLeader struct {
 	// Used for testing
 	loopAwareChTEST    chan bool
 	pingResponseChTEST chan bool
+	setClockTEST       func(time.Time)
 }
 
 type PgxLeaderConfig struct {
@@ -75,23 +89,26 @@ type PgxLeaderConfig struct {
 	PingInterval    time.Duration
 	SweepInterval   time.Duration
 	MaxPingAge      time.Duration
+	StepDownTimeout time.Duration
 }
 
 func NewPgxLeader(cfg PgxLeaderConfig) *PgxLeader {
 	return &PgxLeader{
-		store:       cfg.Store,
-		awb:         cfg.Broadcaster,
-		notify:      cfg.Notifier,
-		taskHandler: cfg.TaskHandler,
-		chLeader:    cfg.LeaderChannel,
-		chFollower:  cfg.FollowerChannel,
-		chMessages:  cfg.MessagesChannel,
-		address:     cfg.Address,
-		stop:        cfg.StopChan,
-		ping:        cfg.PingInterval,
-		sweep:       cfg.SweepInterval,
-		maxPingAge:  cfg.MaxPingAge,
-		mutex:       sync.RWMutex{},
+		store:           cfg.Store,
+		awb:             cfg.Broadcaster,
+		notify:          cfg.Notifier,
+		taskHandler:     cfg.TaskHandler,
+		chLeader:        cfg.LeaderChannel,
+		chFollower:      cfg.FollowerChannel,
+		chMessages:      cfg.MessagesChannel,
+		address:         cfg.Address,
+		stop:            cfg.StopChan,
+		ping:            cfg.PingInterval,
+		sweep:           cfg.SweepInterval,
+		maxPingAge:      cfg.MaxPingAge,
+		stepDownTimeout: cfg.StepDownTimeout,
+		now:             time.Now,
+		mutex:           sync.RWMutex{},
 	}
 }
 
@@ -391,4 +408,14 @@ func (p *PgxLeader) unsuccessfulPing() bool {
 	p.pingSuccessLock.RLock()
 	defer p.pingSuccessLock.RUnlock()
 	return !p.pingSuccess
+}
+
+// timeNow returns the current time, using the injectable p.now when set. This
+// keeps PgxLeader instances constructed as struct literals (e.g., in tests)
+// safe to use without setting now.
+func (p *PgxLeader) timeNow() time.Time {
+	if p.now != nil {
+		return p.now()
+	}
+	return time.Now()
 }
