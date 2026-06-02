@@ -218,58 +218,64 @@ func (p *PgxLeader) info() string {
 	return fmt.Sprintf("Cluster nodes:\n  %s", strings.Join(nodes, "\n  "))
 }
 
-// verify ensures that the in-memory node list matches the store list. We do
-// this to ensure that the cluster is healthy before running scheduled tasks.
-// This helps to prevent split-brain issues in the cluster.
-//
-//  1. The task handler is ready to run a scheduled task.
-//  2. The task handler sends a `chan bool` to its verify channel.
-//  3. We receive the `chan bool` here and:
-//     a. Verify that the cluster is healthy.
-//     b. Respond with `true` over the channel if the cluster is healthy.
-//  4. The task handler runs the scheduled task when the cluster is healthy.
-func (p *PgxLeader) verify(vCh chan bool) {
-	var err error
-
-	// Upon exit, notify channel with `true` or `false` depending upon error status
-	defer func(err *error) {
-		if *err != nil {
-			// TODO this should be worded better because sometimes this error is normal and expected,
-			// e.g. when restarting a cluster node and the node list is temporarily out of sync:
-			// Error verifying cluster integrity: node list length differs. Store node count 3 does not match leader count 2
-			// It would be great to be able to distinguish between expected/unexpected errors here and log accordingly.
-			slog.Error("Error verifying cluster integrity", "error", *err)
-			vCh <- false
-		} else {
-			vCh <- true
-		}
-	}(&err)
-
+// clusterIntegrityErr reports whether the leader is in contact with every node
+// the store considers part of the cluster, returning nil when healthy. As a
+// side effect it reconciles the in-memory node map asymmetrically: nodes that
+// have left the store are pruned (always safe), but store-only nodes are NOT
+// added here. Reachable nodes are re-added by handlePingResponse when they
+// answer a ping, which preserves the split-brain guarantee — the leader only
+// reports healthy once it is actually in contact with every registered node.
+func (p *PgxLeader) clusterIntegrityErr() error {
 	if p.unsuccessfulPing() {
-		err = fmt.Errorf("error pinging follower nodes")
-		return
+		return fmt.Errorf("error pinging follower nodes")
 	}
 
-	// Enumerate nodes recorded in database
 	nodes, err := p.store.Nodes()
 	if err != nil {
-		err = fmt.Errorf("error retrieving cluster node list for verification: %s", err)
-		return
+		return fmt.Errorf("error retrieving cluster node list for verification: %w", err)
 	}
 
-	// Ensure in-memory node list length matches store
-	if len(nodes) != len(p.nodes) {
-		err = fmt.Errorf("node list length differs. Store node count %d does not match leader count %d", len(nodes), len(p.nodes))
-		return
-	}
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
-	// Ensure in-memory node list matches store list
+	// Build the set of node keys the store considers part of the cluster.
+	storeKeys := make(map[string]struct{}, len(nodes))
 	for _, node := range nodes {
-		if _, ok := p.nodes[node.Key()]; !ok {
-			err = fmt.Errorf("node %s with IP %s from store not known by leader", node.Name, node.IP)
-			return
+		storeKeys[node.Key()] = struct{}{}
+	}
+
+	// Prune in-memory nodes that are no longer present in the store.
+	// Unlike sweepNodes, we do not exempt the leader's own key here: the store
+	// includes the leader, and even if a transient store read omitted it the
+	// leader re-adds itself via its self-ping, so pruning it is self-healing.
+	for key := range p.nodes {
+		if _, ok := storeKeys[key]; !ok {
+			slog.Debug("Leader pruning node no longer present in store", "node", key)
+			delete(p.nodes, key)
 		}
 	}
+
+	// Any store node still missing from memory means the leader is not yet in
+	// contact with a registered node.
+	for _, node := range nodes {
+		if _, ok := p.nodes[node.Key()]; !ok {
+			return fmt.Errorf("node %s with IP %s from store not known by leader", node.Name, node.IP)
+		}
+	}
+
+	return nil
+}
+
+// verify gates a scheduled task on cluster health. It responds true on the
+// channel when the cluster is healthy, false otherwise. Leveled alerting on
+// sustained failure lives in evaluateHealth, so this logs only at debug.
+func (p *PgxLeader) verify(vCh chan bool) {
+	if err := p.clusterIntegrityErr(); err != nil {
+		slog.Debug("Skipping scheduled task; cluster integrity check failed", "error", err)
+		vCh <- false
+		return
+	}
+	vCh <- true
 }
 
 // pingNodes sends a ping request out on the follower channel. All online cluster
