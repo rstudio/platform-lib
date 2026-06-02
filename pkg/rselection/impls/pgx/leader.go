@@ -254,7 +254,7 @@ func (p *PgxLeader) clusterIntegrityErr() error {
 	// leader re-adds itself via its self-ping, so pruning it is self-healing.
 	for key := range p.nodes {
 		if _, ok := storeKeys[key]; !ok {
-			slog.Debug("Leader pruning node no longer present in store", "node", key)
+			slog.Info("Leader pruning node no longer present in store", "node", key)
 			delete(p.nodes, key)
 		}
 	}
