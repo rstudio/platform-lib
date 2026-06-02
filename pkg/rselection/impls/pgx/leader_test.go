@@ -252,6 +252,14 @@ func (s *LeaderSuite) TestLeaderLeadInternal(c *check.C) {
 	c.Assert(fakeNotifier.msgs, check.HasLen, 4)
 	c.Assert(leader.nodes, check.HasLen, 2)
 
+	// The leader now reconciles the in-memory map against the store on every
+	// sweep (via evaluateHealth), so seed the store with the node that should
+	// survive: "one" has a stale ping and is swept; "two" remains and is in the
+	// store, so it is neither swept nor pruned.
+	cstore.nodes = map[string]*electiontypes.ClusterNode{
+		"two": {Name: "two", IP: "192.168.50.12"},
+	}
+
 	// Sweep
 	wait(loopCh, func() { sweepTick <- time.Now() })
 	c.Assert(leader.nodes, check.HasLen, 1)
