@@ -277,29 +277,32 @@ func (p *PgxLeader) clusterIntegrityErr() error {
 func (p *PgxLeader) evaluateHealth() bool {
 	err := p.clusterIntegrityErr()
 	if err == nil {
+		if !p.unhealthySince.IsZero() {
+			slog.Info("Cluster integrity recovered", "degradedFor", p.timeNow().Sub(p.unhealthySince))
+		}
 		p.unhealthySince = time.Time{}
 		return false
 	}
 
+	// Log the onset of an unhealthy episode once, at INFO, so it appears in
+	// default logs (and is available for a customer escalation) without raising
+	// the log level. Per-tick detail stays at debug to avoid noise on routine,
+	// self-healing mismatches such as a rolling restart. A sustained failure
+	// escalates to error, but only when step-down is enabled: a disabled leader
+	// takes no recovery action and would otherwise log error every tick forever.
 	if p.unhealthySince.IsZero() {
 		p.unhealthySince = p.timeNow()
+		slog.Info("Cluster integrity check failing", "error", err)
 	}
 	dur := p.timeNow().Sub(p.unhealthySince)
 
-	// Treat brief mismatches (e.g., a rolling restart) as routine; escalate only
-	// once the condition is sustained. When step-down is disabled, stay at debug
-	// to avoid per-tick error spam since no recovery action will be taken.
-	switch {
-	case p.stepDownTimeout == 0:
+	if p.stepDownTimeout > 0 && dur >= p.stepDownTimeout/2 {
+		slog.Error("Cluster integrity check still failing", "error", err, "unhealthyFor", dur)
+	} else {
 		slog.Debug("Cluster integrity check failing", "error", err, "unhealthyFor", dur)
-		return false
-	case dur < p.stepDownTimeout/2:
-		slog.Debug("Cluster integrity check failing; may be transient", "error", err, "unhealthyFor", dur)
-	default:
-		slog.Error("Cluster integrity check failing", "error", err, "unhealthyFor", dur)
 	}
 
-	return dur >= p.stepDownTimeout
+	return p.stepDownTimeout > 0 && dur >= p.stepDownTimeout
 }
 
 // verify gates a scheduled task on cluster health. It responds true on the
