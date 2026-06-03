@@ -93,13 +93,16 @@ type PgxLeaderConfig struct {
 	SweepInterval   time.Duration
 	MaxPingAge      time.Duration
 	StepDownTimeout time.Duration
-	// OnIntegrityResult, if set, is called after every cluster integrity
-	// evaluation with the result (nil means healthy). It runs on the lead()
-	// goroutine and must not block or panic.
+	// OnIntegrityResult, if set, is called with the result of each cluster
+	// integrity evaluation (nil means healthy). It may run concurrently with
+	// OnPingResult, so it must be non-blocking, panic-free, and safe for
+	// concurrent use.
 	OnIntegrityResult func(err error)
-	// OnPingResult, if set, is called after every leader ping attempt with
-	// whether it succeeded and the time it ran. It runs on the lead()
-	// goroutine and must not block or panic.
+	// OnPingResult, if set, is called after each leader ping attempt with
+	// whether it succeeded and the time it ran. Periodic pings are dispatched on
+	// their own goroutines, so it may run concurrently with itself and with
+	// OnIntegrityResult; it must be non-blocking, panic-free, and safe for
+	// concurrent use.
 	OnPingResult func(success bool, t time.Time)
 }
 

@@ -167,13 +167,19 @@ func (s *RecoverySuite) TestEvaluateHealthFiresIntegrityCallback(c *check.C) {
 
 func (s *RecoverySuite) TestPingNodesFiresPingCallback(c *check.C) {
 	var results []bool
+	var times []time.Time
+	fixed := time.Unix(1_700_000_000, 0)
 	leader := &PgxLeader{
 		address:    "leader",
 		chLeader:   "leader",
 		chFollower: "follower",
 		notify:     FakePgNotifier{},
+		now:        func() time.Time { return fixed },
 	}
-	leader.onPingResult = func(success bool, _ time.Time) { results = append(results, success) }
+	leader.onPingResult = func(success bool, t time.Time) {
+		results = append(results, success)
+		times = append(times, t)
+	}
 	ctx := context.Background()
 
 	// Successful ping.
@@ -184,4 +190,7 @@ func (s *RecoverySuite) TestPingNodesFiresPingCallback(c *check.C) {
 	leader.notify = FakePgNotifier{notifyErr: errors.New("down")}
 	leader.pingNodes(ctx)
 	c.Assert(results, check.DeepEquals, []bool{true, false})
+
+	// The callback receives the time the ping ran, from the injectable clock.
+	c.Assert(times, check.DeepEquals, []time.Time{fixed, fixed})
 }

@@ -60,8 +60,9 @@ type GenericTaskHandler struct {
 
 type GenericTaskHandlerConfig struct {
 	// OnTaskRun, if set, is called with the task name whenever a scheduled task
-	// is about to run (after the cluster verify gate passes). It runs on the
-	// task handler's goroutine and must not block or panic.
+	// is about to run (after the cluster verify gate passes). Each scheduled
+	// task runs on its own goroutine, so it may be called concurrently across
+	// tasks; it must be non-blocking, panic-free, and safe for concurrent use.
 	OnTaskRun func(name string)
 }
 
