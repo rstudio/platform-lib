@@ -63,6 +63,9 @@ type PgxLeader struct {
 	// lead() goroutine.
 	unhealthySince time.Time
 
+	onIntegrityResult func(err error)
+	onPingResult      func(success bool, t time.Time)
+
 	// now returns the current time; overridable in tests. Use timeNow().
 	now func() time.Time
 
@@ -90,25 +93,35 @@ type PgxLeaderConfig struct {
 	SweepInterval   time.Duration
 	MaxPingAge      time.Duration
 	StepDownTimeout time.Duration
+	// OnIntegrityResult, if set, is called after every cluster integrity
+	// evaluation with the result (nil means healthy). It runs on the lead()
+	// goroutine and must not block or panic.
+	OnIntegrityResult func(err error)
+	// OnPingResult, if set, is called after every leader ping attempt with
+	// whether it succeeded and the time it ran. It runs on the lead()
+	// goroutine and must not block or panic.
+	OnPingResult func(success bool, t time.Time)
 }
 
 func NewPgxLeader(cfg PgxLeaderConfig) *PgxLeader {
 	return &PgxLeader{
-		store:           cfg.Store,
-		awb:             cfg.Broadcaster,
-		notify:          cfg.Notifier,
-		taskHandler:     cfg.TaskHandler,
-		chLeader:        cfg.LeaderChannel,
-		chFollower:      cfg.FollowerChannel,
-		chMessages:      cfg.MessagesChannel,
-		address:         cfg.Address,
-		stop:            cfg.StopChan,
-		ping:            cfg.PingInterval,
-		sweep:           cfg.SweepInterval,
-		maxPingAge:      cfg.MaxPingAge,
-		stepDownTimeout: cfg.StepDownTimeout,
-		now:             time.Now,
-		mutex:           sync.RWMutex{},
+		store:             cfg.Store,
+		awb:               cfg.Broadcaster,
+		notify:            cfg.Notifier,
+		taskHandler:       cfg.TaskHandler,
+		chLeader:          cfg.LeaderChannel,
+		chFollower:        cfg.FollowerChannel,
+		chMessages:        cfg.MessagesChannel,
+		address:           cfg.Address,
+		stop:              cfg.StopChan,
+		ping:              cfg.PingInterval,
+		sweep:             cfg.SweepInterval,
+		maxPingAge:        cfg.MaxPingAge,
+		stepDownTimeout:   cfg.StepDownTimeout,
+		onIntegrityResult: cfg.OnIntegrityResult,
+		onPingResult:      cfg.OnPingResult,
+		now:               time.Now,
+		mutex:             sync.RWMutex{},
 	}
 }
 
@@ -276,6 +289,9 @@ func (p *PgxLeader) clusterIntegrityErr() error {
 // (when that timeout is non-zero). Called from the lead() goroutine only.
 func (p *PgxLeader) evaluateHealth() bool {
 	err := p.clusterIntegrityErr()
+	if p.onIntegrityResult != nil {
+		p.onIntegrityResult(err)
+	}
 	if err == nil {
 		if !p.unhealthySince.IsZero() {
 			slog.Info("Cluster integrity recovered", "degradedFor", p.timeNow().Sub(p.unhealthySince))
@@ -320,6 +336,20 @@ func (p *PgxLeader) verify(vCh chan bool) {
 // pingNodes sends a ping request out on the follower channel. All online cluster
 // nodes should receive this message and respond with a ping response.
 func (p *PgxLeader) pingNodes(ctx context.Context) {
+	success := p.sendPings(ctx)
+
+	p.pingSuccessLock.Lock()
+	p.pingSuccess = success
+	p.pingSuccessLock.Unlock()
+
+	if p.onPingResult != nil {
+		p.onPingResult(success, p.timeNow())
+	}
+}
+
+// sendPings publishes the ping notifications on the follower and leader
+// channels and reports whether both sends succeeded.
+func (p *PgxLeader) sendPings(ctx context.Context) bool {
 	req := &electiontypes.ClusterNotification{
 		GuidVal:     uuid.New().String(),
 		MessageType: electiontypes.ClusterMessageTypePing,
@@ -328,30 +358,23 @@ func (p *PgxLeader) pingNodes(ctx context.Context) {
 	b, err := json.Marshal(req)
 	if err != nil {
 		slog.Error("Error marshaling notification to JSON", "error", err)
-		return
+		return false
 	}
 
-	p.pingSuccessLock.Lock()
-	defer p.pingSuccessLock.Unlock()
-	p.pingSuccess = true
-
 	slog.Log(ctx, LevelTrace, fmt.Sprintf("Leader pinging nodes on follower channel %s", p.chFollower))
-	err = p.notify.Notify(ctx, p.chFollower, b)
-	if err != nil {
-		p.pingSuccess = false
+	if err = p.notify.Notify(ctx, p.chFollower, b); err != nil {
 		slog.Error("Leader error pinging followers", "error", err)
-		return
+		return false
 	}
 
 	// This will ensure that the leader is tracked as part of the nodes in the cluster, and it will force
 	// duplicate leaders to surrender the position.
 	slog.Log(ctx, LevelTrace, fmt.Sprintf("Leader pinging itself on leader channel %s", p.chLeader))
-	err = p.notify.Notify(ctx, p.chLeader, b)
-	if err != nil {
-		p.pingSuccess = false
+	if err = p.notify.Notify(ctx, p.chLeader, b); err != nil {
 		slog.Error("Leader error pinging leaders", "error", err)
-		return
+		return false
 	}
+	return true
 }
 
 func (p *PgxLeader) handleNodesRequest(ctx context.Context, cn *electiontypes.ClusterNodesRequest) {

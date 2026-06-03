@@ -3,6 +3,7 @@ package pgxelection
 // Copyright (C) 2026 by Posit Software, PBC
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -140,4 +141,47 @@ func (s *RecoverySuite) TestStepDownDisabledByZeroTimeout(c *check.C) {
 	c.Assert(leader.evaluateHealth(), check.Equals, false)
 	leader.setClockTEST(start.Add(100 * time.Hour))
 	c.Assert(leader.evaluateHealth(), check.Equals, false)
+}
+
+func (s *RecoverySuite) TestEvaluateHealthFiresIntegrityCallback(c *check.C) {
+	var got []error
+	store := &fakeStore{nodes: map[string]*electiontypes.ClusterNode{
+		"a": {Name: "a", IP: "10.0.0.1"},
+	}}
+	leader := newTestLeader(store, map[string]*electiontypes.ClusterNode{
+		"a_10.0.0.1": {Name: "a", IP: "10.0.0.1"},
+	})
+	leader.onIntegrityResult = func(err error) { got = append(got, err) }
+
+	// Healthy check -> callback receives nil.
+	leader.evaluateHealth()
+	c.Assert(got, check.HasLen, 1)
+	c.Assert(got[0], check.IsNil)
+
+	// Unhealthy check -> callback receives a non-nil error.
+	leader.pingSuccess = false
+	leader.evaluateHealth()
+	c.Assert(got, check.HasLen, 2)
+	c.Assert(got[1], check.NotNil)
+}
+
+func (s *RecoverySuite) TestPingNodesFiresPingCallback(c *check.C) {
+	var results []bool
+	leader := &PgxLeader{
+		address:    "leader",
+		chLeader:   "leader",
+		chFollower: "follower",
+		notify:     FakePgNotifier{},
+	}
+	leader.onPingResult = func(success bool, _ time.Time) { results = append(results, success) }
+	ctx := context.Background()
+
+	// Successful ping.
+	leader.pingNodes(ctx)
+	c.Assert(results, check.DeepEquals, []bool{true})
+
+	// Failed ping.
+	leader.notify = FakePgNotifier{notifyErr: errors.New("down")}
+	leader.pingNodes(ctx)
+	c.Assert(results, check.DeepEquals, []bool{true, false})
 }
