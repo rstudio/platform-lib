@@ -50,20 +50,26 @@ type Schedule interface {
 }
 
 type GenericTaskHandler struct {
-	tasks  map[string]Task
-	cancel context.CancelFunc
-	verify chan chan bool
-	mutex  sync.RWMutex
-	role   string
+	tasks     map[string]Task
+	cancel    context.CancelFunc
+	verify    chan chan bool
+	mutex     sync.RWMutex
+	role      string
+	onTaskRun func(name string)
 }
 
 type GenericTaskHandlerConfig struct {
+	// OnTaskRun, if set, is called with the task name whenever a scheduled task
+	// is about to run (after the cluster verify gate passes). It runs on the
+	// task handler's goroutine and must not block or panic.
+	OnTaskRun func(name string)
 }
 
 func NewGenericTaskHandler(cfg GenericTaskHandlerConfig) *GenericTaskHandler {
 	return &GenericTaskHandler{
-		tasks: make(map[string]Task),
-		role:  "Leader",
+		tasks:     make(map[string]Task),
+		role:      "Leader",
+		onTaskRun: cfg.OnTaskRun,
 	}
 }
 
@@ -108,6 +114,9 @@ func (h *GenericTaskHandler) runScheduled(t Task, schedule Schedule, ctx context
 			vCh := make(chan bool)
 			h.verify <- vCh
 			if ok := <-vCh; ok {
+				if h.onTaskRun != nil {
+					h.onTaskRun(t.Name())
+				}
 				slog.Debug(fmt.Sprintf("%s running task %s", h.role, t.Name()))
 				go t.Run(ctx, b)
 			}
