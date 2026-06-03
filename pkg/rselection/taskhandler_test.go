@@ -155,3 +155,47 @@ func (s *TaskHandlerSuite) TestGenericTaskHandler(c *check.C) {
 	handler.Stop()
 	<-persistentTaskDone
 }
+
+func (s *TaskHandlerSuite) TestOnTaskRunFires(c *check.C) {
+	defer leaktest.Check(c)
+
+	var ran int
+	taskDone := make(chan bool)
+	defer close(taskDone)
+	tick := make(chan time.Time)
+	scheduledTask := &TestTask{
+		GenericTask: GenericTask{
+			TaskName:     "one",
+			TaskType:     TaskTypeScheduled,
+			TaskSchedule: &IntervalSchedule{Ticker: tick},
+		},
+		ran: &ran,
+		n:   taskDone,
+	}
+
+	names := make(chan string, 4)
+	handler := NewGenericTaskHandler(GenericTaskHandlerConfig{
+		OnTaskRun: func(name string) { names <- name },
+	})
+	handler.Register("one", scheduledTask)
+	handler.Handle(nil)
+
+	end := make(chan struct{})
+	defer close(end)
+	go func() {
+		for {
+			select {
+			case ch := <-handler.Verify():
+				ch <- true
+			case <-end:
+				return
+			}
+		}
+	}()
+
+	tick <- time.Now()
+	<-taskDone
+	c.Assert(<-names, check.Equals, "one")
+
+	handler.Stop()
+}
