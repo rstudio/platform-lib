@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"runtime/debug"
 	"time"
 )
 
@@ -86,9 +87,11 @@ func (a *OptionalRecurser) OptionallyRecurse(ctx context.Context, run func()) {
 			// Are we expecting recursion?
 			allowed := ctx.Value(CtxAllowsRecursion)
 			if allowed == nil {
-				msg := fmt.Sprintf("Work with type %d attempted recursion without being marked for recursion", r.WorkType)
+				msg := fmt.Sprintf("Work with type %d attempted recursion without being marked for recursion. "+
+					"The work's context reached a nested queue operation without ContextWithExpectedRecursion; "+
+					"mark the context in the work's runner.", r.WorkType)
 				if a.fatalRecurseCheck {
-					log.Fatal(msg)
+					log.Fatalf("%s Exiting because FatalRecurseCheck is enabled. Recursion stack:\n%s", msg, debug.Stack())
 				} else {
 					log.Println(msg)
 				}
