@@ -18,7 +18,7 @@ specific notification that matches a filter.
 
 ## Implementations
 
-Each listener implementation is a separate Go module.
+Each listener implementation is a separate package.
 
 ### listeners/local
 

@@ -58,8 +58,9 @@ run the integration and end-to-end tests.
 
 ## Testing
 
-We test multiple modules by default. Therefore, if you wish to test a specific
-package, you must specify the `MODULE` env variable. See the examples below. 
+`just test` runs the Go unit tests for the whole module. Any arguments are
+passed through to `go test`, so a package pattern scopes the run to specific
+packages.
 
 Examples:
 
@@ -67,23 +68,17 @@ Examples:
 # Run all Go tests
 just test
 
-# Run all Go tests twice
-just test -count 2 ./...
-
 # Run all tests once (no cached results)
 just test -count 1 ./...
 
 # Run with verbose output
 just test -v ./...
 
-# Run the "TestNewDebugLog" test twice with verbose output
-MODULE=pkg/rslog just test -v -count 2 github.com/rstudio/platform-lib/pkg/rslog/debug -testify.m=TestNewDebugLog
+# Test a single package subtree
+just test ./pkg/rslog/...
 
-# Run the LocalNotifySuite suite tests with verbose output
-MODULE=pkg/rsnotify just test -v github.com/rstudio/platform-lib/pkg/rsnotify/locallistener -check.f=LocalNotifySuite
-
-# Run the PgxNotifySuite suite tests with docker-compose
-MODULE=pkg/rsnotify just test-integration -v github.com/rstudio/platform-lib/pkg/rsnotify/pgxlistener -check.f=PgxNotifySuite
+# Run one gocheck suite in a package, verbose
+just test -v ./pkg/rsnotify/listeners/local/... -check.f=LocalNotifySuite
 ```
 
 ### Testing with Docker
@@ -102,22 +97,29 @@ just test-integration
 To update `NOTICE.md` with a list of licenses from third-party Go modules,
 use the `just licenses` target. This requires Python 3.
 
-## Versioning
+## Release
 
-Follow semantic versioning guidelines. To release a new version, we simply
-create and push a tag.
+The repo is a single Go module (`github.com/rstudio/platform-lib/v4`), so a
+single tag versions the whole library. Follow semantic versioning.
 
-```shell
-git tag v0.1.2
-git push origin v0.1.2
-```
-
-The `rslog` package is versioned separately. To release a new `rslog` version:
+To release, tag the merge commit on `main` and push it. The `Release` workflow
+(`.github/workflows/release.yml`) then publishes a GitHub Release with an
+auto-generated changelog.
 
 ```shell
-git tag pkg/rslog/v1.6.1
-git push origin pkg/rslog/v1.6.1
+git tag v4.3.0
+git push origin v4.3.0
 ```
+
+Or run the workflow manually to create the tag and release in one step,
+without touching local git:
+
+```shell
+gh workflow run release.yml -f version=v4.3.1
+```
+
+A major bump (e.g. v3 to v4) also requires updating the `/vN` suffix in the
+module path and all import paths, not just the tag.
 
 ## Badges
 

@@ -72,13 +72,7 @@ bash:
 clean:
     rm -rf out/
     rm -rf data/
-    rm -rf .chart/
 
 # generate Go dependencies' licenses file
 licenses:
     ./scripts/go-licenses.sh
-
-# enumerate latest tags for each module
-tags: versions
-versions:
-    ./scripts/latest-tags.sh
