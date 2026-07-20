@@ -478,6 +478,48 @@ func (s *QueueSuite) TestPollErr(c *check.C) {
 	c.Assert(s.store.polled, check.Equals, 1)
 }
 
+// TestPollErrAbandonedReceiver reproduces the goroutine leak from
+// rstudio/package-manager#19008: when the caller stops receiving from the
+// channel returned by PollAddress (e.g. its request context is canceled), the
+// poll goroutine must still be able to complete and exit rather than parking
+// forever on a send that no one will receive. Here we call PollAddress and
+// never read from errCh; leaktest.Check then asserts the poll goroutine has
+// exited. With an unbuffered errCh the goroutine blocks on `errCh <- err` and
+// this fails; with a buffered errCh it sends, closes, and returns.
+func (s *QueueSuite) TestPollErrAbandonedReceiver(c *check.C) {
+	// NOTE: this uses the correct leaktest form — `defer leaktest.Check(c)()`
+	// (Check returns a checker func that must be invoked at return). The other
+	// tests in this file call `defer leaktest.Check(c)` without the trailing
+	// (), which discards the checker and never actually asserts; fixing those
+	// is out of scope here.
+	defer leaktest.Check(c)()
+
+	s.store.pollErr = errors.New("horrible error")
+	q := &DatabaseQueue{
+		store:               s.store,
+		addressPollInterval: time.Millisecond * 5,
+		subscribe:           make(chan broadcaster.Subscription),
+		unsubscribe:         make(chan (<-chan listener.Notification)),
+		wrapper:             &fakeWrapper{},
+	}
+
+	queueMsgs := make(chan listener.Notification)
+	workMsgs := make(chan listener.Notification)
+	chunkMsgs := make(chan listener.Notification)
+	defer close(queueMsgs)
+	defer close(workMsgs)
+	defer close(chunkMsgs)
+
+	stopper := make(chan bool)
+	defer func() { stopper <- true }()
+	go q.broadcast(stopper, queueMsgs, workMsgs, chunkMsgs)
+
+	// Start polling but never receive from the returned channel, simulating a
+	// caller that gave up (context canceled). The poll goroutine hits the error
+	// path and must not leak.
+	_ = q.PollAddress(context.Background(), "something")
+}
+
 func (s *QueueSuite) TestPollLockErr(c *check.C) {
 	defer leaktest.Check(c)
 
