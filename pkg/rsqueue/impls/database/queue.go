@@ -246,7 +246,13 @@ func (q *DatabaseQueue) IsAddressInQueue(ctx context.Context, address string) (b
 }
 
 func (q *DatabaseQueue) PollAddress(ctx context.Context, address string) <-chan error {
-	errCh := make(chan error)
+	// Buffered by 1 so the polling goroutine's single error send below can never
+	// block, even if the caller has stopped receiving (e.g. its request context
+	// was canceled and it returned). An unbuffered channel here leaked one
+	// goroutine per abandoned poll, parked forever on the send
+	// (rstudio/package-manager#19008). The goroutine sends at most one value
+	// before closing, so a single slot is sufficient.
+	errCh := make(chan error, 1)
 
 	go func() {
 		var done, ticked bool
