@@ -16,20 +16,9 @@ It's also a way to group Go code in one place when your root directory contains
 lots of non-Go components and directories making it easier to run various Go
 tools.
 
-## Go Modules
+## Go Module
 
-Each subdirectory of `/pkg` is a separate Go module and should contain its own
-`go.mod`. You can release an individual module easily by creating a tag that 
-contains the subdirectory. For example, to release `rslog` `1.0.1`, you would
-create a tag like this:
-
-```bash
-git tag pkg/rslog/v1.0.1
-git push origin --tags
-```
-
-Before creating a tag, ensure that the `go.mod` has been updated with the
-correct dependency versions for other `platform-lib` packages. For example,
-the local listener module at `/pkg/rsnotify/listeners/local` depends upon the
-`/pkg/rsnotify` module, so we must ensure that the local listener's `go.mod`
-references the correct `rsnotify` version.
+Everything under `/pkg` is part of the single root module
+(`github.com/rstudio/platform-lib/v4`) and is versioned by the repo's top-level
+tags. See the "Release" section of the top-level [README](../README.md) for how
+releases are cut.
