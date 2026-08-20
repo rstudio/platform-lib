@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/c2h5oh/datasize"
@@ -388,7 +389,7 @@ func (s *StorageServer) Remove(ctx context.Context, dir, address string) error {
 }
 
 func (s *StorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, error) {
-	items, err := enumerate(s.dir, s.walkTimeout)
+	items, err := enumerate(ctx, s.dir, "", s.walkTimeout)
 	if err != nil {
 		slog.Error("Error enumerating storage", "error", err)
 
@@ -398,15 +399,46 @@ func (s *StorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, erro
 	return internal.FilterChunks(items), nil
 }
 
-func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error) {
-	stop := make(chan struct{})
-	defer close(stop)
+// EnumeratePrefix implements rsstorage.PrefixEnumerator.
+//
+// The walk is pruned to the subtrees that can contain a matching key, so a
+// prefix that names no directory -- the common case of items stored flat at the
+// root -- reads only the root directory instead of descending the whole tree.
+func (s *StorageServer) EnumeratePrefix(ctx context.Context, prefix string) ([]types.StoredItem, error) {
+	items, err := enumerate(ctx, s.dir, prefix, s.walkTimeout)
+	if err != nil {
+		slog.Error("Error enumerating storage", "error", err, "prefix", prefix)
 
-	itemChan := make(chan *types.StoredItem)
-	// errChan should have a buffer of two items to prevent deadlock between `<-stop` and `errChan<-err`
+		return nil, err
+	}
+
+	return internal.FilterChunks(items), nil
+}
+
+// enumerateChanBuffer batches items between the walker and its reader. The walk
+// is one channel send per file, and an unbuffered channel made that a scheduler
+// round trip each time; on a large store that dominated the walk itself.
+const enumerateChanBuffer = 256
+
+// enumerate walks dir and returns every file whose key is within prefix. An
+// empty prefix returns everything.
+//
+// walkTimeout bounds the gap BETWEEN items, not the total duration, so an
+// arbitrarily large store is fine as long as it keeps producing; a wedged
+// filesystem is not.
+func enumerate(ctx context.Context, dir, prefix string, walkTimeout time.Duration) ([]types.StoredItem, error) {
+	// Cancelled when this function returns, so an abandoned walker -- one whose
+	// reader gave up on timeout or error -- stops instead of blocking forever on
+	// a send that nobody will receive.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	itemChan := make(chan *types.StoredItem, enumerateChanBuffer)
+	// errChan should have a buffer of two items to prevent deadlock between the
+	// cancellation check and `errChan<-err`
 	errChan := make(chan error, 2)
 
-	go func(stop <-chan struct{}, itemChan chan<- *types.StoredItem, errChan chan<- error) {
+	go func(itemChan chan<- *types.StoredItem, errChan chan<- error) {
 		defer close(itemChan)
 		defer close(errChan)
 
@@ -416,21 +448,39 @@ func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error
 				return nil
 			}
 
-			if !info.IsDir() {
-				relPath, err := filepath.Rel(dir, path)
-				if err != nil {
-					return err
-				}
+			relPath, relErr := filepath.Rel(dir, path)
+			if relErr != nil {
+				return relErr
+			}
+			// filepath.Rel yields "." for the root itself.
+			if relPath == "." {
+				relPath = ""
+			}
+			key := filepath.ToSlash(relPath)
 
-				dir := filepath.Dir(relPath)
-				if dir == "." {
-					dir = ""
+			if info.IsDir() {
+				if !rsstorage.SubtreeMayMatch(key, prefix) {
+					return fs.SkipDir
 				}
+				return nil
+			}
 
-				itemChan <- &types.StoredItem{
-					Dir:     dir,
-					Address: info.Name(),
-				}
+			if !strings.HasPrefix(key, prefix) {
+				return nil
+			}
+
+			itemDir := filepath.Dir(relPath)
+			if itemDir == "." {
+				itemDir = ""
+			}
+
+			select {
+			case itemChan <- &types.StoredItem{
+				Dir:     itemDir,
+				Address: info.Name(),
+			}:
+			case <-ctx.Done():
+				return ctx.Err()
 			}
 
 			return nil
@@ -439,7 +489,7 @@ func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error
 		if err != nil {
 			errChan <- err
 		}
-	}(stop, itemChan, errChan)
+	}(itemChan, errChan)
 
 	items := make([]types.StoredItem, 0)
 
@@ -452,19 +502,28 @@ func enumerate(dir string, walkTimeout time.Duration) ([]types.StoredItem, error
 
 	for {
 		select {
-		case item := <-itemChan:
+		case item, open := <-itemChan:
+			if !open {
+				// The walker is done and itemChan is drained. Only now is it safe
+				// to look at the error: itemChan is buffered, so selecting on
+				// errChan alongside it would let a completed walk return while
+				// items were still sitting in the buffer, silently dropping them.
+				// The walker sends its error before closing either channel, so
+				// this receive cannot block -- errChan is closed, or holds the
+				// error.
+				if err := <-errChan; err != nil {
+					return nil, err
+				}
+
+				return items, nil
+			}
+
 			if item != nil {
 				items = append(items, *item)
 			}
 
 			walkTimeoutTimer.Stop()
 			walkTimeoutTimer.Reset(walkTimeout)
-		case err := <-errChan:
-			if err != nil {
-				return nil, err
-			}
-
-			return items, nil
 		case <-walkTimeoutTimer.C:
 			return nil, walktimeoutErr
 		}

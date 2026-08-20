@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -307,6 +308,80 @@ func (s *StorageIntegrationSuite) CheckFileGone(c *check.C, server rsstorage.Sto
 	ok, _, _, _, err := server.Check(context.Background(), "", address)
 	c.Check(err, check.IsNil)
 	c.Check(ok, check.Equals, false)
+}
+
+// TestEnumeratePrefix exercises prefix-scoped enumeration against every real
+// backend -- Postgres, MinIO and the filesystem -- rather than against fakes.
+//
+// Two things here are only testable at this level. The Postgres implementation
+// pushes the prefix into a LIKE query, so its SQL and its escaping of LIKE
+// metacharacters ("_" appears in every key below) never execute in a unit test.
+// And NewServerSet wraps each backend in a MetadataStorageServer, so this also
+// proves the decorator forwards the interface: embedding the StorageServer
+// interface does not promote EnumeratePrefix, so without explicit forwarding the
+// type assertion below fails and every caller silently loses prefix scoping.
+func (s *StorageIntegrationSuite) TestEnumeratePrefix(c *check.C) {
+	ctx := context.Background()
+	servers := s.NewServerSet(c, "prefix-enum", "")
+
+	for class, server := range servers {
+		slog.Info("Verify prefix enumeration", "server", class)
+
+		put := func(dir, address string) {
+			_, _, err := server.Put(ctx, func(w io.Writer) (string, string, error) {
+				_, writeErr := w.Write([]byte("data"))
+				return dir, address, writeErr
+			}, dir, address)
+			c.Assert(err, check.IsNil)
+		}
+
+		put("", "GIT_1_2_3.gob")
+		put("", "GIT_44_55_66.gob")
+		put("", "27_GIT_1_2_3.gob")
+		put("", "PACKAGES")
+		put("nested", "GIT_7_8_9.gob")
+
+		prefixEnumerator, ok := server.(rsstorage.PrefixEnumerator)
+		c.Assert(ok, check.Equals, true,
+			check.Commentf("%s server does not implement PrefixEnumerator; a wrapped server needs explicit forwarding", class))
+
+		items, err := prefixEnumerator.EnumeratePrefix(ctx, "GIT_")
+		c.Assert(err, check.IsNil)
+
+		keys := make([]string, 0, len(items))
+		for _, item := range items {
+			keys = append(keys, rsstorage.ItemKey(item.Dir, item.Address))
+		}
+		sort.Strings(keys)
+		// Only the root-level GIT_ keys. Not the version-prefixed one, not
+		// PACKAGES, and not nested/GIT_7_8_9.gob, whose key starts with "nested".
+		c.Check(keys, check.DeepEquals, []string{"GIT_1_2_3.gob", "GIT_44_55_66.gob"},
+			check.Commentf("server %s", class))
+
+		// A prefix that reaches into a directory.
+		items, err = prefixEnumerator.EnumeratePrefix(ctx, "nested/GIT_")
+		c.Assert(err, check.IsNil)
+		c.Assert(items, check.HasLen, 1, check.Commentf("server %s", class))
+		c.Check(items[0].Dir, check.Equals, "nested", check.Commentf("server %s", class))
+		c.Check(items[0].Address, check.Equals, "GIT_7_8_9.gob", check.Commentf("server %s", class))
+
+		// What comes out can go straight back in. On S3 this is the difference
+		// between EnumeratePrefix and Enumerate: Enumerate leaves the bucket
+		// prefix on Dir, and Remove joins it again, so a Remove built from its
+		// output addresses prefix/prefix/... and silently does nothing.
+		err = prefixEnumerator.(rsstorage.StorageServer).Remove(ctx, items[0].Dir, items[0].Address)
+		c.Assert(err, check.IsNil, check.Commentf("server %s", class))
+
+		items, err = prefixEnumerator.EnumeratePrefix(ctx, "nested/GIT_")
+		c.Assert(err, check.IsNil)
+		c.Check(items, check.HasLen, 0,
+			check.Commentf("%s: Remove reported success but the object survived", class))
+
+		// An unmatched prefix is empty, not an error.
+		items, err = prefixEnumerator.EnumeratePrefix(ctx, "NOPE_")
+		c.Assert(err, check.IsNil)
+		c.Check(items, check.HasLen, 0, check.Commentf("server %s", class))
+	}
 }
 
 func (s *StorageIntegrationSuite) TestMoving(c *check.C) {

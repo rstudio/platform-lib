@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -371,6 +372,60 @@ func (s *StorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, erro
 		items = append(items, types.StoredItem{
 			Dir:     dir,
 			Address: filepath.Base(*path.Key),
+		})
+	}
+
+	return internal.FilterChunks(items), nil
+}
+
+// EnumeratePrefix implements rsstorage.PrefixEnumerator.
+//
+// The prefix is pushed down into ListObjectsV2, so S3 returns only matching keys
+// rather than the whole bucket.
+//
+// Unlike Enumerate, the returned Dir is relative to the server's configured
+// prefix, so an item can be handed straight back to Get, Check or Remove. Those
+// methods join s.prefix themselves, and Enumerate leaves it attached, which
+// makes its results non-round-trippable on a prefixed server. That asymmetry is
+// long-standing and callers may depend on it, so it is left alone here and only
+// the new API is correct by construction.
+func (s *StorageServer) EnumeratePrefix(ctx context.Context, prefix string) ([]types.StoredItem, error) {
+	items := make([]types.StoredItem, 0)
+
+	listPrefix := prefix
+	if s.prefix != "" {
+		listPrefix = s.prefix + "/" + prefix
+	}
+
+	s3Objects, err := s.svc.ListObjects(ctx, &s3.ListObjectsV2Input{Bucket: &s.bucket, Prefix: &listPrefix})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, object := range s3Objects.Contents {
+		if object.Key == nil {
+			continue
+		}
+		key := *object.Key
+		if s.prefix != "" {
+			trimmed, ok := strings.CutPrefix(key, s.prefix+"/")
+			if !ok {
+				// Not under our prefix, so not ours to report. Cannot normally
+				// happen, since we asked S3 for this prefix.
+				continue
+			}
+			key = trimmed
+		}
+
+		// path, not filepath: these are S3 keys, always "/" separated, and
+		// filepath would use "\" on Windows.
+		dir := path.Dir(key)
+		if dir == "." {
+			dir = ""
+		}
+		items = append(items, types.StoredItem{
+			Dir:     dir,
+			Address: path.Base(key),
 		})
 	}
 
