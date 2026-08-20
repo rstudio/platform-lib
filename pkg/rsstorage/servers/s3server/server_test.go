@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,6 +71,7 @@ type fakeS3 struct {
 	copyError    error
 	list         []string
 	listError    error
+	listPrefixes []string
 	bucketIn     *s3.CreateBucketInput
 	bucketOut    *s3.CreateBucketOutput
 	bucketErr    error
@@ -148,10 +150,26 @@ func (s *fakeS3) CopyObject(ctx context.Context, oldBucket, oldKey, newBucket, n
 	return nil, s.copyError
 }
 
+// ListObjects honors input.Prefix, the way S3 does.
+//
+// It deliberately filters rather than returning s.list wholesale: the whole
+// point of prefix enumeration is that the filter is pushed down to the service,
+// so a fake that ignored the prefix would let a caller that never sent one, or
+// sent the wrong one, pass anyway. listPrefixes records what was asked for so a
+// test can assert the pushdown happened at all.
 func (s *fakeS3) ListObjects(ctx context.Context, input *s3.ListObjectsV2Input) (*s3.ListObjectsV2Output, error) {
+	prefix := ""
+	if input.Prefix != nil {
+		prefix = *input.Prefix
+	}
+	s.listPrefixes = append(s.listPrefixes, prefix)
+
 	var contents []types.Object
 
 	for _, key := range s.list {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
 		contents = append(contents, types.Object{Key: &key})
 	}
 
@@ -607,6 +625,89 @@ func (s *S3StorageServerSuite) TestEnumerateError(c *check.C) {
 		svc: svc,
 	}
 	_, err := server.Enumerate(context.Background())
+	c.Assert(err, check.ErrorMatches, "list error")
+}
+
+// TestEnumeratePrefixPushesPrefixDown asserts the property the whole API exists
+// for: the filter reaches S3, so S3 returns only matching keys instead of the
+// caller receiving the bucket and discarding most of it.
+func (s *S3StorageServerSuite) TestEnumeratePrefixPushesPrefixDown(c *check.C) {
+	svc := &fakeS3{
+		list: []string{
+			"GIT_1_2_3.gob",
+			"GIT_44_55_66.gob",
+			"27_GIT_1_2_3.gob",
+			"upsi/GIT_9_9_9.gob",
+			"PACKAGES",
+		},
+	}
+	server := &StorageServer{svc: svc}
+
+	en, err := server.EnumeratePrefix(context.Background(), "GIT_")
+	c.Assert(err, check.IsNil)
+	c.Check(en, check.DeepEquals, []rtypes.StoredItem{
+		{Dir: "", Address: "GIT_1_2_3.gob"},
+		{Dir: "", Address: "GIT_44_55_66.gob"},
+	})
+
+	// The prefix was sent to S3 rather than applied after the fact.
+	c.Check(svc.listPrefixes, check.DeepEquals, []string{"GIT_"})
+}
+
+// TestEnumeratePrefixWithBucketPrefix covers the configured-prefix case, which is
+// where Enumerate is subtly wrong.
+//
+// Enumerate leaves the bucket prefix attached to Dir while Get, Check and Remove
+// all join it themselves, so its items are not round-trippable on a prefixed
+// server: passing one back addresses prefix/prefix/... and, because Remove
+// returns nil for a missing object, silently does nothing. EnumeratePrefix
+// strips it, so what comes out can go straight back in.
+func (s *S3StorageServerSuite) TestEnumeratePrefixWithBucketPrefix(c *check.C) {
+	svc := &fakeS3{
+		list: []string{
+			"myprefix/GIT_1_2_3.gob",
+			"myprefix/nested/GIT_7_8_9.gob",
+			"myprefix/PACKAGES",
+			// Another tenant sharing the bucket. Must never be returned.
+			"otherprefix/GIT_0_0_0.gob",
+		},
+	}
+	// Remove checks for the object first, so the round-trip assertion below needs
+	// a head response at the fully-joined key.
+	svc.headMap = map[string]HeadResponse{
+		"myprefix/nested/GIT_7_8_9.gob": {
+			head: &s3.HeadObjectOutput{
+				ContentLength: aws.Int64(12),
+				LastModified:  aws.Time(time.Now()),
+			},
+		},
+	}
+	server := &StorageServer{svc: svc, prefix: "myprefix"}
+
+	en, err := server.EnumeratePrefix(context.Background(), "GIT_")
+	c.Assert(err, check.IsNil)
+	c.Check(en, check.DeepEquals, []rtypes.StoredItem{
+		{Dir: "", Address: "GIT_1_2_3.gob"},
+	})
+
+	// The bucket prefix and the caller's prefix were combined for the service.
+	c.Check(svc.listPrefixes, check.DeepEquals, []string{"myprefix/GIT_"})
+
+	// Dir is relative to the server, so it round-trips through Remove.
+	en, err = server.EnumeratePrefix(context.Background(), "nested/GIT_")
+	c.Assert(err, check.IsNil)
+	c.Check(en, check.DeepEquals, []rtypes.StoredItem{
+		{Dir: "nested", Address: "GIT_7_8_9.gob"},
+	})
+
+	c.Assert(server.Remove(context.Background(), en[0].Dir, en[0].Address), check.IsNil)
+	c.Check(svc.deleted, check.Equals, "myprefix/nested/GIT_7_8_9.gob")
+}
+
+func (s *S3StorageServerSuite) TestEnumeratePrefixError(c *check.C) {
+	svc := &fakeS3{listError: errors.New("list error")}
+	server := &StorageServer{svc: svc}
+	_, err := server.EnumeratePrefix(context.Background(), "GIT_")
 	c.Assert(err, check.ErrorMatches, "list error")
 }
 

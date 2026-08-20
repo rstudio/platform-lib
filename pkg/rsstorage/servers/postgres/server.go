@@ -482,6 +482,58 @@ func (s *StorageServer) rem(ctx context.Context, location string) (err error) {
 	return
 }
 
+// EnumeratePrefix implements rsstorage.PrefixEnumerator.
+//
+// The prefix is pushed into the query rather than filtered in Go, so the scan is
+// bounded by the number of matching rows instead of every large object in the
+// database.
+func (s *StorageServer) EnumeratePrefix(ctx context.Context, prefix string) (items []types.StoredItem, err error) {
+	// Addresses are stored as "<class>/<key>", so anchor the pattern on both.
+	pattern := escapeLikePattern(s.class+"/"+prefix) + "%"
+	query := `SELECT address FROM large_objects WHERE address LIKE $1 ESCAPE '\' ORDER BY address`
+
+	items = make([]types.StoredItem, 0)
+	rows, err := s.pool.Query(ctx, query, pattern)
+	if errors.Is(err, sql.ErrNoRows) {
+		return items, nil
+	} else if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var address string
+		if err = rows.Scan(&address); err != nil {
+			return nil, err
+		}
+		key, ok := strings.CutPrefix(address, s.class+"/")
+		if !ok {
+			continue
+		}
+		dir := path.Dir(key)
+		if dir == "." {
+			dir = ""
+		}
+		items = append(items, types.StoredItem{
+			Dir:     dir,
+			Address: path.Base(key),
+		})
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return internal.FilterChunks(items), nil
+}
+
+// escapeLikePattern neutralizes the LIKE metacharacters in a literal prefix, so
+// that a key containing "_" or "%" matches only itself. Paired with
+// ESCAPE '\' in the query.
+func escapeLikePattern(literal string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return replacer.Replace(literal)
+}
+
 func (s *StorageServer) Enumerate(ctx context.Context) (items []types.StoredItem, err error) {
 	query := `SELECT address FROM large_objects ORDER BY address`
 	items = make([]types.StoredItem, 0)

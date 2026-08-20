@@ -23,27 +23,31 @@ type GetResult struct {
 }
 
 type DummyStorageServer struct {
-	GetAttempts    int
-	GetReader      io.ReadCloser
-	GetOk          bool
-	GetChunked     *types.ChunksInfo
-	GetSize        int64
-	GetModTime     time.Time
-	GetErr         error
-	GetMap         map[string]GetResult
-	RemoveErr      error
-	RemoveMap      map[string]bool
-	RemoveCount    int
-	Flushed        int
-	PutDelay       time.Duration
-	PutErr         error
-	PutCalled      int
-	PutChunks      bool
-	Address        []string
-	Placed         []string
-	Buffer         *bytes.Buffer
-	EnumItems      []types.StoredItem
-	EnumErr        error
+	GetAttempts int
+	GetReader   io.ReadCloser
+	GetOk       bool
+	GetChunked  *types.ChunksInfo
+	GetSize     int64
+	GetModTime  time.Time
+	GetErr      error
+	GetMap      map[string]GetResult
+	RemoveErr   error
+	RemoveMap   map[string]bool
+	RemoveCount int
+	Flushed     int
+	PutDelay    time.Duration
+	PutErr      error
+	PutCalled   int
+	PutChunks   bool
+	Address     []string
+	Placed      []string
+	Buffer      *bytes.Buffer
+	EnumItems   []types.StoredItem
+	EnumErr     error
+	// EnumPrefixes records every prefix EnumeratePrefix was called with, so a
+	// test can assert the caller scoped its listing rather than asking for
+	// everything.
+	EnumPrefixes   []string
 	MoveErr        error
 	Moved          []string
 	CopyErr        error
@@ -136,6 +140,24 @@ func (f *DummyStorageServer) Flush(ctx context.Context, dir, address string) {
 
 func (f *DummyStorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, error) {
 	return f.EnumItems, f.EnumErr
+}
+
+// EnumeratePrefix implements PrefixEnumerator against EnumItems.
+//
+// It really filters, rather than returning EnumItems wholesale, so that a test
+// asserting a caller only acts on matching keys cannot pass by accident.
+func (f *DummyStorageServer) EnumeratePrefix(ctx context.Context, prefix string) ([]types.StoredItem, error) {
+	f.EnumPrefixes = append(f.EnumPrefixes, prefix)
+	if f.EnumErr != nil {
+		return nil, f.EnumErr
+	}
+	items := make([]types.StoredItem, 0)
+	for _, item := range f.EnumItems {
+		if KeyHasPrefix(item.Dir, item.Address, prefix) {
+			items = append(items, item)
+		}
+	}
+	return items, nil
 }
 
 func (f *DummyStorageServer) Move(ctx context.Context, dir, address string, server StorageServer) error {

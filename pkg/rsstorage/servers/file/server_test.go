@@ -9,12 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/c2h5oh/datasize"
+	"github.com/fortytw2/leaktest"
 	"gopkg.in/check.v1"
 
 	"github.com/rstudio/platform-lib/v4/pkg/rsstorage"
@@ -904,6 +906,132 @@ func (s *FileEnumerationSuite) TestEnumerate(c *check.C) {
 	})
 }
 
+func (s *FileEnumerationSuite) TestEnumeratePrefix(c *check.C) {
+	ctx := context.Background()
+	server := &StorageServer{
+		dir:    s.tempDirHelper.Dir(),
+		fileIO: &defaultFileIO{},
+	}
+
+	createTempFile(server.dir, "GIT_1_2_3.gob", "legacy", c)
+	createTempFile(server.dir, "GIT_44_55_66.gob", "legacy", c)
+	createTempFile(server.dir, "27_GIT_1_2_3.gob", "current", c)
+	createTempFile(server.dir, "PACKAGES", "unrelated", c)
+	createTempFile(filepath.Join(server.dir, "upsi"), "GIT_9_9_9.gob", "nested, not root", c)
+	createTempFile(filepath.Join(server.dir, "GIT_dir"), "inner.gob", "inside the prefix", c)
+
+	// Root-level prefix: matches the two flat legacy keys, plus everything under
+	// a directory whose own name is within the prefix. It does NOT match the
+	// same-named file under upsi/, whose key is "upsi/GIT_9_9_9.gob".
+	en, err := server.EnumeratePrefix(ctx, "GIT_")
+	c.Assert(err, check.IsNil)
+	c.Check(en, check.DeepEquals, []types.StoredItem{
+		{Dir: "", Address: "GIT_1_2_3.gob"},
+		{Dir: "", Address: "GIT_44_55_66.gob"},
+		{Dir: "GIT_dir", Address: "inner.gob"},
+	})
+
+	// A prefix that descends into a directory.
+	en, err = server.EnumeratePrefix(ctx, "upsi/GIT_")
+	c.Assert(err, check.IsNil)
+	c.Check(en, check.DeepEquals, []types.StoredItem{
+		{Dir: "upsi", Address: "GIT_9_9_9.gob"},
+	})
+
+	// A prefix matching nothing yields an empty slice, not an error.
+	en, err = server.EnumeratePrefix(ctx, "NOPE_")
+	c.Assert(err, check.IsNil)
+	c.Check(en, check.HasLen, 0)
+
+	// An empty prefix is equivalent to Enumerate.
+	en, err = server.EnumeratePrefix(ctx, "")
+	c.Assert(err, check.IsNil)
+	all, err := server.Enumerate(ctx)
+	c.Assert(err, check.IsNil)
+	c.Check(en, check.DeepEquals, all)
+}
+
+// TestEnumeratePrefixPrunesUnmatchedSubtrees asserts the performance property
+// rather than assuming it.
+//
+// Pruning is invisible in the returned items: a full walk that filtered by key
+// afterwards would produce byte-identical results, so no assertion on the item
+// list can distinguish the two. The tripwire is an unreadable directory. The
+// walker logs and swallows per-entry errors, so descending into one does not
+// change the result either -- but it does emit a log record. Enumerate walks in
+// and logs; EnumeratePrefix with a non-matching prefix must stay out and log
+// nothing.
+//
+// Without this, dropping the fs.SkipDir would restore the full walk with every
+// other test still green, which is exactly the silent regression this API exists
+// to prevent.
+func (s *FileEnumerationSuite) TestEnumeratePrefixPrunesUnmatchedSubtrees(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("running as root: mode 0000 does not deny access, so the tripwire cannot arm")
+	}
+
+	ctx := context.Background()
+	server := &StorageServer{
+		dir:    s.tempDirHelper.Dir(),
+		fileIO: &defaultFileIO{},
+	}
+
+	createTempFile(server.dir, "GIT_1_2_3.gob", "legacy", c)
+
+	// A subtree the walk must not enter. Unreadable, so entering it produces a
+	// log record we can detect.
+	unreadable := filepath.Join(server.dir, "unreadable")
+	createTempFile(unreadable, "buried.gob", "should never be visited", c)
+	c.Assert(os.Chmod(unreadable, 0o000), check.IsNil)
+	defer func() {
+		// Restore so the suite's TearDownTest can remove the tree.
+		c.Assert(os.Chmod(unreadable, 0o700), check.IsNil)
+	}()
+
+	// Enumerate walks into it and trips the wire.
+	walkLogs := countLogRecords(func() { _, _ = server.Enumerate(ctx) })
+	c.Check(walkLogs > 0, check.Equals, true,
+		check.Commentf("expected Enumerate to descend into the unreadable directory and log"))
+
+	// EnumeratePrefix prunes it and does not.
+	prefixLogs := countLogRecords(func() {
+		items, err := server.EnumeratePrefix(ctx, "GIT_")
+		c.Assert(err, check.IsNil)
+		c.Check(items, check.DeepEquals, []types.StoredItem{
+			{Dir: "", Address: "GIT_1_2_3.gob"},
+		})
+	})
+	c.Check(prefixLogs, check.Equals, 0,
+		check.Commentf("EnumeratePrefix descended into a subtree that cannot match the prefix"))
+}
+
+// countLogRecords runs fn with the default slog logger swapped for one that
+// counts records, and reports how many were emitted.
+func countLogRecords(fn func()) int {
+	counter := &countingHandler{}
+	restore := slog.Default()
+	slog.SetDefault(slog.New(counter))
+	defer slog.SetDefault(restore)
+
+	fn()
+	return counter.records
+}
+
+type countingHandler struct {
+	records int
+}
+
+func (h *countingHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *countingHandler) Handle(_ context.Context, _ slog.Record) error {
+	h.records++
+	return nil
+}
+
+func (h *countingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+
+func (h *countingHandler) WithGroup(string) slog.Handler { return h }
+
 func (s *FileEnumerationSuite) TestEnumerateWalkTimeout(c *check.C) {
 	testFiles := 10
 	testStr := []byte("hello world")
@@ -924,7 +1052,20 @@ func (s *FileEnumerationSuite) TestEnumerateWalkTimeout(c *check.C) {
 		}(f.Name())
 	}
 
-	_, err := enumerate("testdata", time.Nanosecond)
+	_, err := enumerate(context.Background(), "testdata", "", time.Nanosecond)
+	c.Assert(err, check.Equals, walktimeoutErr)
+}
+
+// TestEnumerateWalkTimeoutDoesNotLeakWalker covers the abandoned-walker case.
+//
+// The walker used to be handed a `stop` channel that its body never selected on,
+// so when the reader gave up on the stall timeout the walker stayed blocked on a
+// send forever, holding its goroutine and directory handles. That leaked once per
+// timed-out listing, on exactly the oversized stores where the timeout fires.
+func (s *FileEnumerationSuite) TestEnumerateWalkTimeoutDoesNotLeakWalker(c *check.C) {
+	defer leaktest.Check(c)()
+
+	_, err := enumerate(context.Background(), "testdata", "", time.Nanosecond)
 	c.Assert(err, check.Equals, walktimeoutErr)
 }
 

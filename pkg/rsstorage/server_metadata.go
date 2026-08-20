@@ -32,6 +32,25 @@ func NewMetadataStorageServer(args MetadataStorageServerArgs) StorageServer {
 	}
 }
 
+// EnumeratePrefix implements PrefixEnumerator by forwarding to the wrapped
+// server.
+//
+// This has to be written out. MetadataStorageServer embeds the StorageServer
+// INTERFACE, and embedding an interface promotes only the methods that interface
+// declares. EnumeratePrefix is not one of them, so without this method a
+// PrefixEnumerator type assertion against a wrapped server fails and the caller
+// silently loses prefix scoping -- on exactly the servers that are wrapped.
+//
+// Enumeration is a read that records no access time, so there is nothing to
+// account for here; contrast Get, which exists to do that bookkeeping.
+func (s *MetadataStorageServer) EnumeratePrefix(ctx context.Context, prefix string) ([]types.StoredItem, error) {
+	inner, ok := s.StorageServer.(PrefixEnumerator)
+	if !ok {
+		return nil, ErrPrefixEnumerationUnsupported
+	}
+	return inner.EnumeratePrefix(ctx, prefix)
+}
+
 func (s *MetadataStorageServer) Get(ctx context.Context, dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
 	r, c, sz, ts, ok, err := s.StorageServer.Get(ctx, dir, address)
 	if ok && err == nil {
