@@ -34,3 +34,6 @@ tempvendor
 
 # Database
 data
+
+# Compose logs written into the repo root by the test-integration cleanup trap
+test-integration-*.log
