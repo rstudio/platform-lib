@@ -1062,10 +1062,24 @@ func (s *FileEnumerationSuite) TestEnumerateWalkTimeout(c *check.C) {
 // so when the reader gave up on the stall timeout the walker stayed blocked on a
 // send forever, holding its goroutine and directory handles. That leaked once per
 // timed-out listing, on exactly the oversized stores where the timeout fires.
+//
+// The tree must hold MORE than enumerateChanBuffer files. With fewer, the walker
+// drains into the buffer and exits on its own, so there is no blocked send to
+// leak and the test would pass whether or not the walker can be stopped. That is
+// what made an earlier version of this test vacuous.
 func (s *FileEnumerationSuite) TestEnumerateWalkTimeoutDoesNotLeakWalker(c *check.C) {
+	dir := s.tempDirHelper.Dir()
+	for i := range enumerateChanBuffer * 2 {
+		createTempFile(dir, fmt.Sprintf("file-%d", i), "hello world", c)
+	}
+
+	// leaktest snapshots goroutines when it is called, so it has to be armed
+	// after the fixture work above and before the call under test.
 	defer leaktest.Check(c)()
 
-	_, err := enumerate(context.Background(), "testdata", "", time.Nanosecond)
+	// A nanosecond stall timeout makes the reader give up immediately, while the
+	// walker is still blocked trying to hand over item 257.
+	_, err := enumerate(context.Background(), dir, "", time.Nanosecond)
 	c.Assert(err, check.Equals, walktimeoutErr)
 }
 
