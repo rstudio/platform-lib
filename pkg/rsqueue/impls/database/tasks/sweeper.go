@@ -64,7 +64,13 @@ func (q *DatabaseQueueSweeperTask) Run(ctx context.Context) {
 	for _, permit := range permits {
 		if !q.monitor.Check(ctx, uint64(permit.PermitId()), permit.PermitCreated(), q.sweepFor) {
 			slog.Debug(fmt.Sprintf("Sweeping expired queue permit %d", permit.PermitId()))
-			err := tx.QueuePermitDelete(ctx, permit.PermitId())
+			// Assign to the outer `err`, do not redeclare it. The deferred
+			// CompleteTransaction above reads that variable to decide whether to commit
+			// or roll back, so a `:=` here would leave it nil and commit the permits
+			// deleted before the failure while abandoning the rest. That left the queue
+			// in a state no caller asked for: a partially swept set of permits, reported
+			// as a clean sweep.
+			err = tx.QueuePermitDelete(ctx, permit.PermitId())
 			if err != nil {
 				slog.Debug(fmt.Sprintf("Error removing expired queue permit with id %d: %s", permit.PermitId(), err))
 				return

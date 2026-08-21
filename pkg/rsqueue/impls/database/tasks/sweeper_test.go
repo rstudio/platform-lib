@@ -65,3 +65,59 @@ func (s *SweeperSuite) TestSweepErrs(c *check.C) {
 	q.Run(context.Background())
 	c.Assert(cstore.permitsCalled, check.Equals, 1)
 }
+
+// TestSweepOkCommits establishes the baseline for the test below: a sweep that
+// deletes every expired permit without error completes with a nil error, which is
+// what a real store commits on.
+func (s *SweeperSuite) TestSweepOkCommits(c *check.C) {
+	cstore := &QueueTestStore{
+		permits: []queue.QueuePermit{
+			&fakePermit{permitId: 23},
+			&fakePermit{permitId: 24},
+		},
+	}
+	q := &DatabaseQueueSweeperTask{
+		store:   cstore,
+		monitor: &fakeMonitor{},
+	}
+
+	q.Run(context.Background())
+	c.Assert(cstore.permitsDeleted, check.Equals, 2)
+	c.Assert(cstore.completeCalled, check.Equals, 1)
+	c.Assert(cstore.completedWith, check.IsNil)
+}
+
+// TestSweepDeleteErrRollsBack covers a failure part-way through the sweep.
+//
+// Run deletes each expired permit inside one transaction, and the deferred
+// CompleteTransaction decides between COMMIT and ROLLBACK by reading the `err`
+// variable. A `:=` on the delete inside the loop redeclared that variable, so a
+// mid-loop failure returned with the outer error still nil and the transaction
+// committed: the permits deleted before the failure were made permanent, the rest
+// were abandoned, and the caller was told the sweep succeeded.
+//
+// Asserting on completedWith rather than on the delete count is the point: the
+// buggy and fixed versions attempt exactly the same deletes and both return at the
+// first failure, so no count can tell them apart. The only observable difference is
+// the error the transaction is completed with, which is what decides whether the
+// partial result is kept.
+func (s *SweeperSuite) TestSweepDeleteErrRollsBack(c *check.C) {
+	deleteErr := errors.New("cannot delete permit")
+	cstore := &QueueTestStore{
+		permits: []queue.QueuePermit{
+			&fakePermit{permitId: 23},
+			&fakePermit{permitId: 24},
+		},
+		permitDelete: deleteErr,
+	}
+	q := &DatabaseQueueSweeperTask{
+		store:   cstore,
+		monitor: &fakeMonitor{},
+	}
+
+	q.Run(context.Background())
+
+	c.Assert(cstore.completeCalled, check.Equals, 1)
+	c.Assert(cstore.completedWith, check.Equals, deleteErr,
+		check.Commentf("a failed permit delete must roll the sweep back, not commit it"))
+}

@@ -46,6 +46,8 @@ type QueueTestStore struct {
 	permitsErr     error
 	permitsDeleted int
 	permitDelete   error
+	completeCalled int
+	completedWith  error
 	peek           []queue.QueueWork
 	peekErr        error
 }
@@ -54,7 +56,15 @@ func (s *QueueTestStore) BeginTransactionQueue(ctx context.Context, description 
 	return s, nil
 }
 
-func (s *QueueTestStore) CompleteTransaction(err *error) {}
+// CompleteTransaction records the error it was handed, which is what a real
+// implementation uses to decide between COMMIT and ROLLBACK. Tests assert on
+// completedWith to tell those two outcomes apart.
+func (s *QueueTestStore) CompleteTransaction(err *error) {
+	s.completeCalled++
+	if err != nil {
+		s.completedWith = *err
+	}
+}
 
 func (s *QueueTestStore) QueuePermits(ctx context.Context, name string) ([]queue.QueuePermit, error) {
 	s.permitsCalled++
