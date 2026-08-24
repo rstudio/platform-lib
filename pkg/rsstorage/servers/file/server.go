@@ -391,9 +391,7 @@ func (s *StorageServer) Remove(ctx context.Context, dir, address string) error {
 func (s *StorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, error) {
 	items, err := enumerate(ctx, s.dir, "", s.walkTimeout)
 	if err != nil {
-		if !errors.Is(err, context.Canceled) {
-			// A caller that cancelled got what it asked for; logging it at Error
-			// would report a fault every time a process shuts down mid-listing.
+		if !isContextEnded(err) {
 			slog.Error("Error enumerating storage", "error", err)
 		}
 
@@ -411,8 +409,7 @@ func (s *StorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, erro
 func (s *StorageServer) EnumeratePrefix(ctx context.Context, prefix string) ([]types.StoredItem, error) {
 	items, err := enumerate(ctx, s.dir, prefix, s.walkTimeout)
 	if err != nil {
-		if !errors.Is(err, context.Canceled) {
-			// See Enumerate: a cancellation is the caller's own doing, not a fault.
+		if !isContextEnded(err) {
 			slog.Error("Error enumerating storage", "error", err, "prefix", prefix)
 		}
 
@@ -426,6 +423,18 @@ func (s *StorageServer) EnumeratePrefix(ctx context.Context, prefix string) ([]t
 // is one channel send per file, and an unbuffered channel made that a scheduler
 // round trip each time; on a large store that dominated the walk itself.
 const enumerateChanBuffer = 256
+
+// isContextEnded reports whether err is the caller's context ending, in either
+// of its two forms.
+//
+// ⚠️ Both, not just context.Canceled. enumerate returns ctx.Err(), which is
+// DeadlineExceeded for a context.WithTimeout and Canceled for a
+// context.WithCancel, and a caller that set a deadline has asked for the stop
+// just as deliberately as one that called cancel(). Matching only Canceled would
+// keep logging a fault for every timed-out listing.
+func isContextEnded(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
 
 // enumerate walks dir and returns every file whose key is within prefix. An
 // empty prefix returns everything.
