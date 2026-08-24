@@ -391,7 +391,11 @@ func (s *StorageServer) Remove(ctx context.Context, dir, address string) error {
 func (s *StorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, error) {
 	items, err := enumerate(ctx, s.dir, "", s.walkTimeout)
 	if err != nil {
-		slog.Error("Error enumerating storage", "error", err)
+		if !errors.Is(err, context.Canceled) {
+			// A caller that cancelled got what it asked for; logging it at Error
+			// would report a fault every time a process shuts down mid-listing.
+			slog.Error("Error enumerating storage", "error", err)
+		}
 
 		return nil, err
 	}
@@ -407,7 +411,10 @@ func (s *StorageServer) Enumerate(ctx context.Context) ([]types.StoredItem, erro
 func (s *StorageServer) EnumeratePrefix(ctx context.Context, prefix string) ([]types.StoredItem, error) {
 	items, err := enumerate(ctx, s.dir, prefix, s.walkTimeout)
 	if err != nil {
-		slog.Error("Error enumerating storage", "error", err, "prefix", prefix)
+		if !errors.Is(err, context.Canceled) {
+			// See Enumerate: a cancellation is the caller's own doing, not a fault.
+			slog.Error("Error enumerating storage", "error", err, "prefix", prefix)
+		}
 
 		return nil, err
 	}
@@ -443,6 +450,13 @@ func enumerate(ctx context.Context, dir, prefix string, walkTimeout time.Duratio
 		defer close(errChan)
 
 		err := filepath.WalkDir(dir, func(path string, info fs.DirEntry, err error) error {
+			// Checked here, not only on the send below. A cancelled walk that is
+			// traversing subtrees which produce no matching items never reaches a
+			// send, so without this it would run to completion regardless.
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
+
 			if err != nil {
 				slog.Error("Error enumerating storage for directory", "dir", dir, "error", err)
 				return nil
@@ -524,6 +538,14 @@ func enumerate(ctx context.Context, dir, prefix string, walkTimeout time.Duratio
 
 			walkTimeoutTimer.Stop()
 			walkTimeoutTimer.Reset(walkTimeout)
+		case <-ctx.Done():
+			// The walker's own cancellation check cannot cover this case. WalkDir
+			// calls the callback per directory entry, so a filesystem that has
+			// stopped answering ReadDir blocks INSIDE WalkDir and the callback
+			// never runs again. Without this the caller would then wait out
+			// walkTimeout -- five minutes by default -- after asking to stop.
+			// The walker is left to unblock on its own; nothing here can hurry it.
+			return nil, ctx.Err()
 		case <-walkTimeoutTimer.C:
 			return nil, walktimeoutErr
 		}

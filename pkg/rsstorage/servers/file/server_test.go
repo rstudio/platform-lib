@@ -1083,6 +1083,51 @@ func (s *FileEnumerationSuite) TestEnumerateWalkTimeoutDoesNotLeakWalker(c *chec
 	c.Assert(err, check.Equals, walktimeoutErr)
 }
 
+// A cancelled walk that produces no matching items must still report the
+// cancellation.
+//
+// This is the case the walker's send-side check cannot see: with a prefix that
+// matches nothing, there is never a send to select on, so the walk used to run to
+// completion and return an empty list and a NIL error. A caller that had already
+// given up was told the store was empty, and on a large tree it waited out the
+// whole walk to hear it.
+func (s *FileEnumerationSuite) TestEnumerateCancelledWithNoMatchesReportsCancellation(c *check.C) {
+	dir := s.tempDirHelper.Dir()
+	createTempFile(dir, "PACKAGES", "some data", c)
+	createTempFile(filepath.Join(dir, "af"), "data.json", "{}", c)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// "nomatch" selects none of the files above, so no send is ever attempted.
+	items, err := enumerate(ctx, dir, "nomatch", time.Minute)
+	c.Assert(err, check.Equals, context.Canceled)
+	c.Check(items, check.IsNil)
+}
+
+// The same for a prefix that DOES match: cancellation wins over the items, so a
+// caller never gets a partial listing that reads as complete.
+//
+// Note this one passes on the pre-fix code too: with items to hand over, the
+// walker's send-side ctx.Done() check already aborted the walk. It is here to pin
+// that behaviour, not as coverage for the two checks added alongside it -- the
+// test above is the one that fails without them.
+func (s *FileEnumerationSuite) TestEnumerateCancelledDoesNotReturnPartialResults(c *check.C) {
+	dir := s.tempDirHelper.Dir()
+	for i := range enumerateChanBuffer * 2 {
+		createTempFile(dir, fmt.Sprintf("file-%d", i), "hello world", c)
+	}
+
+	defer leaktest.Check(c)()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	items, err := enumerate(ctx, dir, "", time.Minute)
+	c.Assert(err, check.Equals, context.Canceled)
+	c.Check(items, check.IsNil)
+}
+
 var _ = check.Suite(&FileCopyMoveSuite{})
 
 type FileCopyMoveSuite struct {
