@@ -760,3 +760,56 @@ func (s *QueueSuite) TestUnsubscribeAfterStop(c *check.C) {
 		c.Fatal("Unsubscribe blocked after queue broadcaster stopped")
 	}
 }
+
+// TestSubscribeOneAfterStop verifies that SubscribeOne does not block when called
+// after the queue's internal broadcaster has stopped, and returns nil.
+func (s *QueueSuite) TestSubscribeOneAfterStop(c *check.C) {
+	defer leaktest.Check(c)()
+
+	msgs := make(chan listener.Notification)
+	stop := make(chan bool)
+	cf := &fakeCarrierFactory{}
+
+	qi, err := NewDatabaseQueue(DatabaseQueueConfig{
+		QueueName:              "test",
+		NotifyTypeWorkReady:    1,
+		NotifyTypeWorkComplete: 2,
+		NotifyTypeChunk:        3,
+		ChunkMatcher:           &fakeMatcher{},
+		CarrierFactory:         cf,
+		QueueStore:             s.store,
+		QueueMsgsChan:          msgs,
+		WorkMsgsChan:           msgs,
+		ChunkMsgsChan:          msgs,
+		StopChan:               stop,
+		JobLifecycleWrapper:    &fakeWrapper{},
+	})
+	c.Assert(err, check.IsNil)
+
+	// Type assert to get access to SubscribeOne method
+	q := qi.(*DatabaseQueue)
+
+	// Stop the queue's internal broadcaster by signaling the stop channel
+	stop <- true
+
+	// Wait for the broadcaster to fully stop (stop channel is closed on exit)
+	<-stop
+
+	// Now call SubscribeOne after the broadcaster has stopped.
+	// This should NOT block and should return nil.
+	done := make(chan struct{})
+	var ch <-chan listener.Notification
+	go func() {
+		ch = q.SubscribeOne(1, func(n listener.Notification) bool { return true })
+		close(done)
+	}()
+
+	// If SubscribeOne blocks, this will timeout
+	select {
+	case <-done:
+		// Success - SubscribeOne returned
+		c.Assert(ch, check.IsNil)
+	case <-time.After(time.Second):
+		c.Fatal("SubscribeOne blocked after queue broadcaster stopped")
+	}
+}

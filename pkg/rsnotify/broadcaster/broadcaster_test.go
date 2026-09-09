@@ -255,3 +255,58 @@ func (s *BroadcasterSuite) TestUnsubscribeAfterStop(c *check.C) {
 		c.Fatal("Unsubscribe blocked after broadcaster stopped")
 	}
 }
+
+// TestSubscribeAfterStop verifies that Subscribe does not block when called
+// after the broadcaster has stopped, and returns nil.
+func (s *BroadcasterSuite) TestSubscribeAfterStop(c *check.C) {
+	defer leaktest.Check(c)()
+
+	items := make(chan listener.Notification)
+	errs := make(chan error)
+	l := &FakeListener{
+		items: items,
+		errs:  errs,
+	}
+	stop := make(chan bool)
+	b, err := NewNotificationBroadcaster(l, stop)
+	c.Check(err, check.IsNil)
+
+	// Stop the broadcaster by signaling the stop channel
+	stop <- true
+
+	// Wait for the broadcaster to fully stop (stopSignal is closed on exit)
+	<-b.stopSignal
+
+	// Now call Subscribe after the broadcaster has stopped.
+	// This should NOT block and should return nil.
+	done := make(chan struct{})
+	var ch <-chan listener.Notification
+	go func() {
+		ch = b.Subscribe(1)
+		close(done)
+	}()
+
+	// If Subscribe blocks, this will timeout
+	select {
+	case <-done:
+		// Success - Subscribe returned
+		c.Assert(ch, check.IsNil)
+	case <-time.After(time.Second):
+		c.Fatal("Subscribe blocked after broadcaster stopped")
+	}
+
+	// Also test SubscribeOne
+	done2 := make(chan struct{})
+	var ch2 <-chan listener.Notification
+	go func() {
+		ch2 = b.SubscribeOne(1, func(n listener.Notification) bool { return true })
+		close(done2)
+	}()
+
+	select {
+	case <-done2:
+		c.Assert(ch2, check.IsNil)
+	case <-time.After(time.Second):
+		c.Fatal("SubscribeOne blocked after broadcaster stopped")
+	}
+}

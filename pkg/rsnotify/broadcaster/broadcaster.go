@@ -142,15 +142,20 @@ type Subscription struct {
 }
 
 // Subscribe returns a new output channel that will receive all broadcast events.
+// Returns nil if the broadcaster has already stopped.
 func (b *NotificationBroadcaster) Subscribe(dataType uint8) <-chan listener.Notification {
 	c := make(chan listener.Notification)
 
-	b.subscribe <- Subscription{
+	select {
+	case b.subscribe <- Subscription{
 		C: c,
 		T: dataType,
+	}:
+		return c
+	case <-b.stopSignal:
+		// Broadcaster has stopped; return nil to indicate no subscription.
+		return nil
 	}
-
-	return c
 }
 
 // SubscribeOne returns a new output channel that will receive one and only one broadcast
@@ -158,16 +163,21 @@ func (b *NotificationBroadcaster) Subscribe(dataType uint8) <-chan listener.Noti
 // the event is passed over the output channel and the channel is immediately
 // unsubscribed. You should still call `Unsubscribe` with the channel in case an event
 // is never received.
+// Returns nil if the broadcaster has already stopped.
 func (b *NotificationBroadcaster) SubscribeOne(dataType uint8, matcher Matcher) <-chan listener.Notification {
 	c := make(chan listener.Notification)
 
-	b.subscribe <- Subscription{
+	select {
+	case b.subscribe <- Subscription{
 		C:   c,
 		T:   dataType,
 		One: matcher,
+	}:
+		return c
+	case <-b.stopSignal:
+		// Broadcaster has stopped; return nil to indicate no subscription.
+		return nil
 	}
-
-	return c
 }
 
 // Unsubscribe removes a channel from receiving broadcast events. That channel is

@@ -197,16 +197,21 @@ func send(msg listener.Notification, ch chan listener.Notification, timeout time
 // the event is passed over the output channel and the channel is immediately
 // unsubscribed. You should still call `Unsubscribe` with the channel in case an event
 // is never received.
+// Returns nil if the queue's broadcaster has already stopped.
 func (q *DatabaseQueue) SubscribeOne(dataType uint8, matcher broadcaster.Matcher) <-chan listener.Notification {
 	c := make(chan listener.Notification)
 
-	q.subscribe <- broadcaster.Subscription{
+	select {
+	case q.subscribe <- broadcaster.Subscription{
 		C:   c,
 		T:   dataType,
 		One: matcher,
+	}:
+		return c
+	case <-q.stopChan:
+		// Queue broadcaster has stopped; return nil to indicate no subscription.
+		return nil
 	}
-
-	return c
 }
 
 // Unsubscribe removes a channel from receiving broadcast events. That channel is
