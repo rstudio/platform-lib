@@ -217,6 +217,9 @@ func (q *DatabaseQueue) SubscribeOne(dataType uint8, matcher broadcaster.Matcher
 // Unsubscribe removes a channel from receiving broadcast events. That channel is
 // closed as a consequence of unsubscribing.
 func (q *DatabaseQueue) Unsubscribe(ch <-chan listener.Notification) {
+	if ch == nil {
+		return
+	}
 	drainer := func() {
 		for {
 			_, more := <-ch

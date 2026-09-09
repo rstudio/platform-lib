@@ -762,7 +762,8 @@ func (s *QueueSuite) TestUnsubscribeAfterStop(c *check.C) {
 }
 
 // TestSubscribeOneAfterStop verifies that SubscribeOne does not block when called
-// after the queue's internal broadcaster has stopped, and returns nil.
+// after the queue's internal broadcaster has stopped, returns nil, and that
+// calling Unsubscribe on the nil channel does not leak goroutines.
 func (s *QueueSuite) TestSubscribeOneAfterStop(c *check.C) {
 	defer leaktest.Check(c)()
 
@@ -812,4 +813,7 @@ func (s *QueueSuite) TestSubscribeOneAfterStop(c *check.C) {
 	case <-time.After(time.Second):
 		c.Fatal("SubscribeOne blocked after queue broadcaster stopped")
 	}
+
+	// Unsubscribe(nil) should not block or leak goroutines
+	q.Unsubscribe(ch)
 }

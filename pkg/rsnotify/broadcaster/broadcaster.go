@@ -183,6 +183,9 @@ func (b *NotificationBroadcaster) SubscribeOne(dataType uint8, matcher Matcher) 
 // Unsubscribe removes a channel from receiving broadcast events. That channel is
 // closed as a consequence of unsubscribing.
 func (b *NotificationBroadcaster) Unsubscribe(ch <-chan listener.Notification) {
+	if ch == nil {
+		return
+	}
 	drainer := func() {
 		// It's possible that the broadcaster is still trying to send
 		// us events while we're attempting to unsubscribe. Create a

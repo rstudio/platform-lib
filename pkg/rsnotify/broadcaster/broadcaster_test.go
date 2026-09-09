@@ -257,7 +257,8 @@ func (s *BroadcasterSuite) TestUnsubscribeAfterStop(c *check.C) {
 }
 
 // TestSubscribeAfterStop verifies that Subscribe does not block when called
-// after the broadcaster has stopped, and returns nil.
+// after the broadcaster has stopped, returns nil, and that calling Unsubscribe
+// on the nil channel does not leak goroutines.
 func (s *BroadcasterSuite) TestSubscribeAfterStop(c *check.C) {
 	defer leaktest.Check(c)()
 
@@ -295,6 +296,9 @@ func (s *BroadcasterSuite) TestSubscribeAfterStop(c *check.C) {
 		c.Fatal("Subscribe blocked after broadcaster stopped")
 	}
 
+	// Unsubscribe(nil) should not block or leak goroutines
+	b.Unsubscribe(ch)
+
 	// Also test SubscribeOne
 	done2 := make(chan struct{})
 	var ch2 <-chan listener.Notification
@@ -309,4 +313,7 @@ func (s *BroadcasterSuite) TestSubscribeAfterStop(c *check.C) {
 	case <-time.After(time.Second):
 		c.Fatal("SubscribeOne blocked after broadcaster stopped")
 	}
+
+	// Unsubscribe(nil) should not block or leak goroutines
+	b.Unsubscribe(ch2)
 }
