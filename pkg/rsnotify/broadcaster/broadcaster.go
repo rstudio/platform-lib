@@ -189,7 +189,12 @@ func (b *NotificationBroadcaster) Unsubscribe(ch <-chan listener.Notification) {
 		}
 	}
 	go drainer()
-	b.unsubscribe <- ch
+	select {
+	case b.unsubscribe <- ch:
+	case <-b.stopSignal:
+		// Broadcaster has stopped; all channels were closed by stop().
+		// The drainer will exit when it sees the closed channel.
+	}
 }
 
 // internal stop function that closes the destination channels.

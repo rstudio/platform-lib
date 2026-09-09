@@ -35,6 +35,7 @@ type DatabaseQueue struct {
 	// Used by the queue's internal broadcaster
 	subscribe   chan broadcaster.Subscription
 	unsubscribe chan (<-chan listener.Notification)
+	stopChan    chan bool
 
 	// Define notifications to use
 	leaderChannel          string
@@ -82,6 +83,7 @@ func NewDatabaseQueue(cfg DatabaseQueueConfig) (queue.Queue, error) {
 
 		subscribe:   make(chan broadcaster.Subscription),
 		unsubscribe: make(chan (<-chan listener.Notification)),
+		stopChan:    cfg.StopChan,
 
 		wrapper: cfg.JobLifecycleWrapper,
 
@@ -219,7 +221,12 @@ func (q *DatabaseQueue) Unsubscribe(ch <-chan listener.Notification) {
 		}
 	}
 	go drainer()
-	q.unsubscribe <- ch
+	select {
+	case q.unsubscribe <- ch:
+	case <-q.stopChan:
+		// Queue broadcaster has stopped; all channels were closed by stop().
+		// The drainer will exit when it sees the closed channel.
+	}
 }
 
 // Stop the broadcaster safely.

@@ -5,6 +5,7 @@ package broadcaster
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/fortytw2/leaktest"
 	"gopkg.in/check.v1"
@@ -211,4 +212,46 @@ func (s *BroadcasterSuite) TestBroadcasterIP(c *check.C) {
 		ip: "10.16.17.18",
 	}
 	c.Assert(b.IP(), check.Equals, "10.16.17.18")
+}
+
+// TestUnsubscribeAfterStop verifies that Unsubscribe does not block when called
+// after the broadcaster has stopped. This was a bug where the send to the
+// unsubscribe channel would block forever if the broadcast loop had exited.
+func (s *BroadcasterSuite) TestUnsubscribeAfterStop(c *check.C) {
+	defer leaktest.Check(c)()
+
+	items := make(chan listener.Notification)
+	errs := make(chan error)
+	l := &FakeListener{
+		items: items,
+		errs:  errs,
+	}
+	stop := make(chan bool)
+	b, err := NewNotificationBroadcaster(l, stop)
+	c.Check(err, check.IsNil)
+
+	// Subscribe to get a channel
+	ch := b.Subscribe(1)
+
+	// Stop the broadcaster by signaling the stop channel
+	stop <- true
+
+	// Wait for the broadcaster to fully stop (stopSignal is closed on exit)
+	<-b.stopSignal
+
+	// Now call Unsubscribe after the broadcaster has stopped.
+	// This should NOT block - it should return immediately.
+	done := make(chan struct{})
+	go func() {
+		b.Unsubscribe(ch)
+		close(done)
+	}()
+
+	// If Unsubscribe blocks, this will timeout
+	select {
+	case <-done:
+		// Success - Unsubscribe returned
+	case <-time.After(time.Second):
+		c.Fatal("Unsubscribe blocked after broadcaster stopped")
+	}
 }
