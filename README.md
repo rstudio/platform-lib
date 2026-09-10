@@ -118,6 +118,9 @@ without touching local git:
 gh workflow run release.yml -f version=v4.3.1
 ```
 
+Do not create the release manually via the GitHub UI — just create the tag and
+let the workflow handle the release.
+
 A major bump (e.g. v3 to v4) also requires updating the `/vN` suffix in the
 module path and all import paths, not just the tag.
 
