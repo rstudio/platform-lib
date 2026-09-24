@@ -35,7 +35,7 @@ services:
       retries: 5
 
   minio:
-    image: quay.io/minio/minio
+    image: ghcr.io/rstudio/ppm-minio:RELEASE.2025-09-07T16-13-09Z
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -44,7 +44,7 @@ services:
     environment:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: miniokey
-    command: minio server /data --console-address ":9001"
+    command: server /data --console-address ":9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
