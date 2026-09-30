@@ -384,6 +384,94 @@ func (s *QueueSuite) TestGetWait(c *check.C) {
 	c.Assert(timeout, check.IsNil)
 }
 
+// racePopStore simulates a push that commits while a pop is running: pop number
+// pushOnPop makes work available and sends work-ready, but still returns no rows.
+type racePopStore struct {
+	*QueueTestStore
+	queueMsgs chan listener.Notification
+	workMsgs  chan listener.Notification
+	pushOnPop int
+	pops      int
+	available bool
+}
+
+func (s *racePopStore) QueuePop(ctx context.Context, name string, maxPriority uint64, types []uint64) (*queue.QueueWork, error) {
+	s.pops++
+	if s.available {
+		return &queue.QueueWork{Permit: permit.Permit(34)}, nil
+	}
+	if s.pops == s.pushOnPop {
+		s.available = true
+		s.queueMsgs <- &listener.GenericNotification{NotifyGuid: uuid.New().String(), NotifyType: 9}
+		// Unrelated message; the send only completes once the broadcaster is free again.
+		s.workMsgs <- &listener.GenericNotification{NotifyGuid: uuid.New().String(), NotifyType: 10}
+	}
+	return nil, sql.ErrNoRows
+}
+
+func (s *QueueSuite) getWithPushDuringPop(c *check.C, pushOnPop int) {
+	queueMsgs := make(chan listener.Notification)
+	workMsgs := make(chan listener.Notification)
+	chunkMsgs := make(chan listener.Notification)
+	store := &racePopStore{
+		QueueTestStore: &QueueTestStore{},
+		queueMsgs:      queueMsgs,
+		workMsgs:       workMsgs,
+		pushOnPop:      pushOnPop,
+	}
+	stopper := make(chan bool)
+	q := &DatabaseQueue{
+		store:       store,
+		subscribe:   make(chan broadcaster.Subscription),
+		unsubscribe: make(chan (<-chan listener.Notification)),
+		stopChan:    stopper,
+		wrapper:     &fakeWrapper{},
+
+		notifyTypeWorkReady: 9,
+	}
+
+	// Don't hang the suite if the broadcaster is stuck.
+	defer func() {
+		select {
+		case stopper <- true:
+		case <-time.After(time.Second):
+		}
+	}()
+	go q.broadcast(stopper, queueMsgs, workMsgs, chunkMsgs)
+
+	type result struct {
+		work *queue.QueueWork
+		err  error
+	}
+	done := make(chan result, 1)
+	stop := make(chan bool)
+	go func() {
+		work, err := q.Get(context.Background(), 1, make(chan uint64), &queue.DefaultQueueSupportedTypes{}, stop)
+		done <- result{work, err}
+	}()
+
+	select {
+	case r := <-done:
+		c.Assert(r.err, check.IsNil)
+		c.Check(r.work.Permit, check.Equals, permit.Permit(34))
+	case <-time.After(time.Second):
+		close(stop)
+		c.Fatalf("Get did not return work pushed during pop %d", pushOnPop)
+	}
+}
+
+// TestGetPushDuringFirstPop covers a push that lands during the first pop,
+// before Get has subscribed.
+func (s *QueueSuite) TestGetPushDuringFirstPop(c *check.C) {
+	s.getWithPushDuringPop(c, 1)
+}
+
+// TestGetPushDuringSubscribedPop covers a push that lands during a pop made while
+// subscribed. The notification must be latched without blocking the broadcaster.
+func (s *QueueSuite) TestGetPushDuringSubscribedPop(c *check.C) {
+	s.getWithPushDuringPop(c, 2)
+}
+
 func (s *QueueSuite) TestExtend(c *check.C) {
 	q := &DatabaseQueue{
 		store:   s.store,

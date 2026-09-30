@@ -199,7 +199,9 @@ func send(msg listener.Notification, ch chan listener.Notification, timeout time
 // is never received.
 // Returns nil if the queue's broadcaster has already stopped.
 func (q *DatabaseQueue) SubscribeOne(dataType uint8, matcher broadcaster.Matcher) <-chan listener.Notification {
-	c := make(chan listener.Notification)
+	// Buffered so the broadcaster's single send never blocks, even if the
+	// subscriber is busy (e.g. `Get` holds its subscription while popping).
+	c := make(chan listener.Notification, 1)
 
 	select {
 	case q.subscribe <- broadcaster.Subscription{
@@ -378,14 +380,20 @@ func (q *DatabaseQueue) Get(ctx context.Context, maxPriority uint64, maxPriority
 		return queueWork, err
 	}
 
-	// If no jobs were waiting, then we loop and wait for a job.
+	// If no jobs were waiting, loop and wait. Subscribe before each pop and hold it
+	// through the wait, so a work-ready notification sent during the pop is not lost.
 	for {
-		// The select is wrapped in a function so we can efficiently call `q.Unsubscribe`
-		// immediately before attempting to pop from the queue.
+		// A nil channel (broadcaster stopped) never fires; we still exit via `stop`.
+		qAvail := q.SubscribeOne(q.notifyTypeWorkReady, func(n listener.Notification) bool {
+			return n != nil
+		})
+		queueWork, err := q.store.QueuePop(ctx, q.name, maxPriority, types.Enabled())
+		if err != sql.ErrNoRows {
+			q.Unsubscribe(qAvail)
+			q.measureDequeue(ctx, queueWork, err)
+			return queueWork, err
+		}
 		err = func() error {
-			qAvail := q.SubscribeOne(q.notifyTypeWorkReady, func(n listener.Notification) bool {
-				return n != nil
-			})
 			defer q.Unsubscribe(qAvail)
 			select {
 			case <-stop:
@@ -395,18 +403,16 @@ func (q *DatabaseQueue) Get(ctx context.Context, maxPriority uint64, maxPriority
 					slog.Debug(fmt.Sprintf("Priority changed via channel from %d to %d.\n", maxPriority, priority))
 					maxPriority = priority
 				}
-			case n := <-qAvail:
-				slog.Debug(fmt.Sprintf("Notification received: queue ready for processing: %s.", n.Guid()), "type", n.Type())
+			case n, ok := <-qAvail:
+				// The channel is closed without a message if the broadcaster stops.
+				if ok {
+					slog.Debug(fmt.Sprintf("Notification received: queue ready for processing: %s.", n.Guid()), "type", n.Type())
+				}
 			}
 			return nil
 		}()
 		if err != nil {
-			return queueWork, err
-		}
-		queueWork, err := q.store.QueuePop(ctx, q.name, maxPriority, types.Enabled())
-		if err != sql.ErrNoRows {
-			q.measureDequeue(ctx, queueWork, err)
-			return queueWork, err
+			return nil, err
 		}
 	}
 }
