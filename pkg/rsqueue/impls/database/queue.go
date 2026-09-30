@@ -32,10 +32,6 @@ type DatabaseQueue struct {
 	// Poll for addressed item completion at this interval
 	addressPollInterval time.Duration
 
-	// While idle, `Get` re-checks the queue at this interval in case a "work
-	// ready" notification was missed. Zero disables the re-check.
-	workPollInterval time.Duration
-
 	// Used by the queue's internal broadcaster
 	subscribe   chan broadcaster.Subscription
 	unsubscribe chan (<-chan listener.Notification)
@@ -84,7 +80,6 @@ func NewDatabaseQueue(cfg DatabaseQueueConfig) (queue.Queue, error) {
 		chunkMatcher:           cfg.ChunkMatcher,
 
 		addressPollInterval: 5 * time.Second,
-		workPollInterval:    5 * time.Second,
 
 		subscribe:   make(chan broadcaster.Subscription),
 		unsubscribe: make(chan (<-chan listener.Notification)),
@@ -105,7 +100,6 @@ func (q *DatabaseQueue) WithDbTx(ctx context.Context, tx queue.QueueStore) queue
 		name:                q.name,
 		store:               tx,
 		addressPollInterval: q.addressPollInterval,
-		workPollInterval:    q.workPollInterval,
 		subscribe:           q.subscribe,
 		unsubscribe:         q.unsubscribe,
 	}
@@ -205,7 +199,9 @@ func send(msg listener.Notification, ch chan listener.Notification, timeout time
 // is never received.
 // Returns nil if the queue's broadcaster has already stopped.
 func (q *DatabaseQueue) SubscribeOne(dataType uint8, matcher broadcaster.Matcher) <-chan listener.Notification {
-	c := make(chan listener.Notification)
+	// Buffered so the broadcaster's single send never blocks, even if the
+	// subscriber is busy (e.g. `Get` holds its subscription while popping).
+	c := make(chan listener.Notification, 1)
 
 	select {
 	case q.subscribe <- broadcaster.Subscription{
@@ -384,46 +380,39 @@ func (q *DatabaseQueue) Get(ctx context.Context, maxPriority uint64, maxPriority
 		return queueWork, err
 	}
 
-	// If no jobs were waiting, then we loop and wait for a job.
+	// If no jobs were waiting, loop and wait. Subscribe before each pop and hold it
+	// through the wait, so a work-ready notification sent during the pop is not lost.
 	for {
-		// The select is wrapped in a function so we can efficiently call `q.Unsubscribe`
-		// immediately before attempting to pop from the queue.
+		// A nil channel (broadcaster stopped) never fires; we still exit via `stop`.
+		qAvail := q.SubscribeOne(q.notifyTypeWorkReady, func(n listener.Notification) bool {
+			return n != nil
+		})
+		queueWork, err := q.store.QueuePop(ctx, q.name, maxPriority, types.Enabled())
+		if err != sql.ErrNoRows {
+			q.Unsubscribe(qAvail)
+			q.measureDequeue(ctx, queueWork, err)
+			return queueWork, err
+		}
 		err = func() error {
-			qAvail := q.SubscribeOne(q.notifyTypeWorkReady, func(n listener.Notification) bool {
-				return n != nil
-			})
 			defer q.Unsubscribe(qAvail)
-
-			// A notification sent between the last pop and the subscribe above
-			// is lost, which would strand the work until some later push. The
-			// timer makes us pop again regardless.
-			var repoll <-chan time.Time
-			if q.workPollInterval > 0 {
-				timer := time.NewTimer(q.workPollInterval)
-				defer timer.Stop()
-				repoll = timer.C
-			}
 			select {
 			case <-stop:
 				return agent.ErrAgentStopped
-			case <-repoll:
 			case priority := <-maxPriorityChan:
 				if priority != maxPriority {
 					slog.Debug(fmt.Sprintf("Priority changed via channel from %d to %d.\n", maxPriority, priority))
 					maxPriority = priority
 				}
-			case n := <-qAvail:
-				slog.Debug(fmt.Sprintf("Notification received: queue ready for processing: %s.", n.Guid()), "type", n.Type())
+			case n, ok := <-qAvail:
+				// The channel is closed without a message if the broadcaster stops.
+				if ok {
+					slog.Debug(fmt.Sprintf("Notification received: queue ready for processing: %s.", n.Guid()), "type", n.Type())
+				}
 			}
 			return nil
 		}()
 		if err != nil {
-			return queueWork, err
-		}
-		queueWork, err := q.store.QueuePop(ctx, q.name, maxPriority, types.Enabled())
-		if err != sql.ErrNoRows {
-			q.measureDequeue(ctx, queueWork, err)
-			return queueWork, err
+			return nil, err
 		}
 	}
 }
