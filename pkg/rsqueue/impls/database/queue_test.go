@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -382,6 +383,76 @@ func (s *QueueSuite) TestGetWait(c *check.C) {
 	}()
 	<-done
 	c.Assert(timeout, check.IsNil)
+}
+
+// lateWorkStore simulates work that lands in the queue without a "work ready"
+// notification reaching the waiting Get (a missed wakeup).
+type lateWorkStore struct {
+	QueueTestStore
+	mu    sync.Mutex
+	ready bool
+}
+
+func (s *lateWorkStore) QueuePop(ctx context.Context, name string, maxPriority uint64, types []uint64) (*queue.QueueWork, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ready {
+		return &queue.QueueWork{Permit: permit.Permit(35)}, nil
+	}
+	return nil, sql.ErrNoRows
+}
+
+func (s *lateWorkStore) makeReady() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ready = true
+}
+
+func (s *QueueSuite) TestGetRepollsAfterMissedNotification(c *check.C) {
+	store := &lateWorkStore{}
+	q := &DatabaseQueue{
+		store:       store,
+		subscribe:   make(chan broadcaster.Subscription),
+		unsubscribe: make(chan (<-chan listener.Notification)),
+		wrapper:     &fakeWrapper{},
+
+		notifyTypeWorkReady: 9,
+		workPollInterval:    20 * time.Millisecond,
+	}
+
+	queueMsgs := make(chan listener.Notification)
+	workMsgs := make(chan listener.Notification)
+	chunkMsgs := make(chan listener.Notification)
+	defer close(queueMsgs)
+	defer close(workMsgs)
+	defer close(chunkMsgs)
+
+	stopper := make(chan bool)
+	defer func() { stopper <- true }()
+	go q.broadcast(stopper, queueMsgs, workMsgs, chunkMsgs)
+
+	type result struct {
+		work *queue.QueueWork
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		enabled := &queue.DefaultQueueSupportedTypes{}
+		work, err := q.Get(context.Background(), 1, make(chan uint64), enabled, make(chan bool))
+		done <- result{work, err}
+	}()
+
+	// Let Get start waiting, then make work available with no notification.
+	time.Sleep(100 * time.Millisecond)
+	store.makeReady()
+
+	select {
+	case r := <-done:
+		c.Assert(r.err, check.IsNil)
+		c.Check(r.work.Permit, check.Equals, permit.Permit(35))
+	case <-time.After(5 * time.Second):
+		c.Fatal("Get did not pick up work that arrived without a notification")
+	}
 }
 
 func (s *QueueSuite) TestExtend(c *check.C) {

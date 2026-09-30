@@ -32,6 +32,10 @@ type DatabaseQueue struct {
 	// Poll for addressed item completion at this interval
 	addressPollInterval time.Duration
 
+	// While idle, `Get` re-checks the queue at this interval in case a "work
+	// ready" notification was missed. Zero disables the re-check.
+	workPollInterval time.Duration
+
 	// Used by the queue's internal broadcaster
 	subscribe   chan broadcaster.Subscription
 	unsubscribe chan (<-chan listener.Notification)
@@ -80,6 +84,7 @@ func NewDatabaseQueue(cfg DatabaseQueueConfig) (queue.Queue, error) {
 		chunkMatcher:           cfg.ChunkMatcher,
 
 		addressPollInterval: 5 * time.Second,
+		workPollInterval:    5 * time.Second,
 
 		subscribe:   make(chan broadcaster.Subscription),
 		unsubscribe: make(chan (<-chan listener.Notification)),
@@ -100,6 +105,7 @@ func (q *DatabaseQueue) WithDbTx(ctx context.Context, tx queue.QueueStore) queue
 		name:                q.name,
 		store:               tx,
 		addressPollInterval: q.addressPollInterval,
+		workPollInterval:    q.workPollInterval,
 		subscribe:           q.subscribe,
 		unsubscribe:         q.unsubscribe,
 	}
@@ -387,9 +393,20 @@ func (q *DatabaseQueue) Get(ctx context.Context, maxPriority uint64, maxPriority
 				return n != nil
 			})
 			defer q.Unsubscribe(qAvail)
+
+			// A notification sent between the last pop and the subscribe above
+			// is lost, which would strand the work until some later push. The
+			// timer makes us pop again regardless.
+			var repoll <-chan time.Time
+			if q.workPollInterval > 0 {
+				timer := time.NewTimer(q.workPollInterval)
+				defer timer.Stop()
+				repoll = timer.C
+			}
 			select {
 			case <-stop:
 				return agent.ErrAgentStopped
+			case <-repoll:
 			case priority := <-maxPriorityChan:
 				if priority != maxPriority {
 					slog.Debug(fmt.Sprintf("Priority changed via channel from %d to %d.\n", maxPriority, priority))
