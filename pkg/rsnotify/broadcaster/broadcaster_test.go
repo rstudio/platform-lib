@@ -317,3 +317,46 @@ func (s *BroadcasterSuite) TestSubscribeAfterStop(c *check.C) {
 	// Unsubscribe(nil) should not block or leak goroutines
 	b.Unsubscribe(ch2)
 }
+
+// TestStopDuringSubscribe verifies that a stop sent while Subscribe and
+// Unsubscribe calls are in flight still reaches the broadcast loop, which
+// acks it by closing the stop channel.
+func (s *BroadcasterSuite) TestStopDuringSubscribe(c *check.C) {
+	for trial := 0; trial < 10; trial++ {
+		l := &FakeListener{
+			items: make(chan listener.Notification),
+			errs:  make(chan error),
+		}
+		stop := make(chan bool)
+		b, err := NewNotificationBroadcaster(l, stop)
+		c.Assert(err, check.IsNil)
+
+		quit := make(chan struct{})
+		wg := &sync.WaitGroup{}
+		for i := 0; i < 50; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for {
+					select {
+					case <-quit:
+						return
+					default:
+					}
+					b.Unsubscribe(b.Subscribe(1))
+					b.Unsubscribe(b.SubscribeOne(1, func(n listener.Notification) bool { return true }))
+				}
+			}()
+		}
+
+		stop <- true
+		select {
+		case <-stop:
+			// Success - the broadcast loop received the stop and closed the channel.
+		case <-time.After(time.Second):
+			c.Fatalf("trial %d: broadcaster did not ack stop; a subscriber took the stop signal", trial)
+		}
+		close(quit)
+		wg.Wait()
+	}
+}

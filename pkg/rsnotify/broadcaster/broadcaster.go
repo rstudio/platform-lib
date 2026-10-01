@@ -26,6 +26,10 @@ type NotificationBroadcaster struct {
 	subscribe   chan Subscription
 	unsubscribe chan (<-chan listener.Notification)
 	stopSignal  chan bool
+
+	// Closed when broadcast() exits. Callers wait on this rather than
+	// stopSignal so only broadcast() ever receives the stop value.
+	done chan struct{}
 }
 
 func NewNotificationBroadcaster(l listener.Listener, stop chan bool) (*NotificationBroadcaster, error) {
@@ -34,6 +38,7 @@ func NewNotificationBroadcaster(l listener.Listener, stop chan bool) (*Notificat
 		subscribe:   make(chan Subscription),
 		unsubscribe: make(chan (<-chan listener.Notification)),
 		stopSignal:  stop,
+		done:        make(chan struct{}),
 	}
 	var err error
 	b.msgs, b.errs, err = b.listener.Listen()
@@ -55,6 +60,7 @@ func (b *NotificationBroadcaster) IP() string {
 func (b *NotificationBroadcaster) broadcast() {
 	sinks := make([]Subscription, 0)
 	defer close(b.stopSignal)
+	defer close(b.done)
 	for {
 		select {
 		case <-b.stopSignal:
@@ -152,7 +158,7 @@ func (b *NotificationBroadcaster) Subscribe(dataType uint8) <-chan listener.Noti
 		T: dataType,
 	}:
 		return c
-	case <-b.stopSignal:
+	case <-b.done:
 		// Broadcaster has stopped; return nil to indicate no subscription.
 		return nil
 	}
@@ -174,7 +180,7 @@ func (b *NotificationBroadcaster) SubscribeOne(dataType uint8, matcher Matcher) 
 		One: matcher,
 	}:
 		return c
-	case <-b.stopSignal:
+	case <-b.done:
 		// Broadcaster has stopped; return nil to indicate no subscription.
 		return nil
 	}
@@ -204,7 +210,7 @@ func (b *NotificationBroadcaster) Unsubscribe(ch <-chan listener.Notification) {
 	go drainer()
 	select {
 	case b.unsubscribe <- ch:
-	case <-b.stopSignal:
+	case <-b.done:
 		// Broadcaster has stopped; all channels were closed by stop().
 		// The drainer will exit when it sees the closed channel.
 	}
