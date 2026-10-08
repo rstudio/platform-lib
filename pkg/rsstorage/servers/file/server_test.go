@@ -64,27 +64,19 @@ func (s *FileStorageServerSuite) TestNew(c *check.C) {
 		WalkTimeout:  time.Minute * 2,
 	})
 
-	c.Check(server, check.DeepEquals, &StorageServer{
-		dir:    "test",
-		fileIO: &defaultFileIO{},
-		chunker: &internal.DefaultChunkUtils{
-			ChunkSize: 4096,
-			Server: &StorageServer{
-				dir:          "test",
-				fileIO:       &defaultFileIO{},
-				cacheTimeout: time.Minute,
-				walkTimeout:  time.Minute * 2,
-				class:        "classname",
-			},
-			Waiter:      wn,
-			Notifier:    wn,
-			PollTimeout: rsstorage.DefaultChunkPollTimeout,
-			MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
-		},
-		cacheTimeout: time.Minute,
-		walkTimeout:  time.Minute * 2,
-		class:        "classname",
-	})
+	ss := server.(*StorageServer)
+	c.Check(ss.dir, check.Equals, "test")
+	c.Check(ss.class, check.Equals, "classname")
+	c.Check(ss.cacheTimeout, check.Equals, time.Minute)
+	c.Check(ss.walkTimeout, check.Equals, time.Minute*2)
+
+	chunker := ss.chunker.(*internal.DefaultChunkUtils)
+	c.Check(chunker.ChunkSize, check.Equals, uint64(4096))
+	c.Check(chunker.Server, check.Equals, ss)
+	c.Check(chunker.Waiter, check.Equals, wn)
+	c.Check(chunker.Notifier, check.Equals, wn)
+	c.Check(chunker.PollTimeout, check.Equals, rsstorage.DefaultChunkPollTimeout)
+	c.Check(chunker.MaxAttempts, check.Equals, rsstorage.DefaultMaxChunkAttempts)
 
 	c.Assert(server.Dir(), check.Equals, "test")
 	c.Assert(server.Type(), check.Equals, rsstorage.StorageTypeFile)
