@@ -208,6 +208,18 @@ func (f *FakeFileIOFile) Write(p []byte) (n int, err error) {
 	return 0, nil
 }
 
+type trackableFile struct {
+	*FakeFileIOFile
+	onClose func()
+}
+
+func (t *trackableFile) Close() error {
+	if t.onClose != nil {
+		t.onClose()
+	}
+	return t.FakeFileIOFile.Close()
+}
+
 func (s *FileStorageServerSuite) TestCheckOpenErr(c *check.C) {
 	server := &StorageServer{
 		fileIO: &fakeFileIO{
@@ -316,6 +328,26 @@ func (s *FileStorageServerSuite) TestGetNotExist(c *check.C) {
 	c.Check(r, check.IsNil)
 	c.Check(ok, check.Equals, false)
 	c.Check(err, check.IsNil)
+}
+
+func (s *FileStorageServerSuite) TestGetStatErrClosesFile(c *check.C) {
+	closed := false
+	f := &FakeFileIOFile{
+		statErr: errors.New("stat error"),
+	}
+	server := &StorageServer{
+		fileIO: &fakeFileIO{
+			open: &trackableFile{
+				FakeFileIOFile: f,
+				onClose:        func() { closed = true },
+			},
+		},
+	}
+	r, _, _, _, ok, err := server.Get(context.Background(), "", "storageaddress")
+	c.Check(r, check.IsNil)
+	c.Check(ok, check.Equals, false)
+	c.Check(err, check.ErrorMatches, "stat error")
+	c.Check(closed, check.Equals, true)
 }
 
 func (s *FileStorageServerSuite) TestGetOk(c *check.C) {
@@ -811,7 +843,7 @@ func (s *FileStorageServerSuite) TestDiskUsageWalkTimeout(c *check.C) {
 	}
 
 	_, err := diskUsage("testdata", time.Minute, time.Nanosecond)
-	c.Assert(err, check.Equals, walktimeoutErr)
+	c.Assert(err, check.Equals, walkTimeoutErr)
 }
 
 var _ = check.Suite(&FileEnumerationSuite{})
@@ -1053,7 +1085,7 @@ func (s *FileEnumerationSuite) TestEnumerateWalkTimeout(c *check.C) {
 	}
 
 	_, err := enumerate(context.Background(), "testdata", "", time.Nanosecond)
-	c.Assert(err, check.Equals, walktimeoutErr)
+	c.Assert(err, check.Equals, walkTimeoutErr)
 }
 
 // TestEnumerateWalkTimeoutDoesNotLeakWalker covers the abandoned-walker case.
@@ -1080,7 +1112,7 @@ func (s *FileEnumerationSuite) TestEnumerateWalkTimeoutDoesNotLeakWalker(c *chec
 	// A nanosecond stall timeout makes the reader give up immediately, while the
 	// walker is still blocked trying to hand over item 257.
 	_, err := enumerate(context.Background(), dir, "", time.Nanosecond)
-	c.Assert(err, check.Equals, walktimeoutErr)
+	c.Assert(err, check.Equals, walkTimeoutErr)
 }
 
 // A cancelled walk that produces no matching items must still report the
@@ -1170,7 +1202,7 @@ func (s *FileEnumerationSuite) TestEnumerateDoesNotLogAnEndedContextAsAFault(c *
 
 		server.walkTimeout = time.Nanosecond
 		_, err = server.Enumerate(context.Background())
-		c.Check(err, check.Equals, walktimeoutErr)
+		c.Check(err, check.Equals, walkTimeoutErr)
 	})
 	c.Check(logs, check.Equals, 1, check.Commentf("a walk timeout must still be reported"))
 }

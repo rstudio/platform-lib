@@ -29,7 +29,7 @@ const (
 
 var (
 	cacheTimeoutErr = errors.New("cacheTimeout reached walking file storage server")
-	walktimeoutErr  = errors.New("walkTimeout reached walking file storage server")
+	walkTimeoutErr  = errors.New("walkTimeout reached walking file storage server")
 )
 
 type StorageServer struct {
@@ -239,7 +239,7 @@ func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size dat
 			// Success case error will return `nil`
 			return
 		case <-walkTimeoutTimer.C:
-			return 0, walktimeoutErr
+			return 0, walkTimeoutErr
 		}
 	}
 }
@@ -259,6 +259,7 @@ func (s *StorageServer) Get(ctx context.Context, dir, address string) (io.ReadCl
 
 	stat, err := f.Stat()
 	if err != nil {
+		f.Close()
 		return nil, nil, 0, time.Time{}, false, err
 	}
 
@@ -556,7 +557,7 @@ func enumerate(ctx context.Context, dir, prefix string, walkTimeout time.Duratio
 			// The walker is left to unblock on its own; nothing here can hurry it.
 			return nil, ctx.Err()
 		case <-walkTimeoutTimer.C:
-			return nil, walktimeoutErr
+			return nil, walkTimeoutErr
 		}
 	}
 }
@@ -568,12 +569,12 @@ func (s *StorageServer) move(dir, address string, server rsstorage.StorageServer
 	destDir := filepath.Dir(dest)
 	if destDir != dest {
 		slog.Debug("Ensuring directory exists", "dir", destDir)
-		err := os.MkdirAll(destDir, 0700)
+		err := s.fileIO.MkdirAll(destDir, 0700)
 		if err != nil {
 			return err
 		}
 	}
-	err := os.Rename(source, dest)
+	err := s.fileIO.Move(source, dest)
 	if err != nil {
 		slog.Debug("Error moving with os.Rename", "error", err)
 		return err
@@ -621,6 +622,7 @@ func (s *StorageServer) Copy(ctx context.Context, dir, address string, server rs
 	if !ok {
 		return fmt.Errorf("the file at %s to copy does not exist", filepath.Join(dir, address))
 	}
+	defer f.Close()
 
 	install := func(file io.ReadCloser) types.Resolver {
 		return func(writer io.Writer) (string, string, error) {
