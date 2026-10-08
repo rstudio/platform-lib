@@ -52,28 +52,22 @@ type StorageServerArgs struct {
 }
 
 func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
-	fileBackedStorageServer := &StorageServer{
+	s := &StorageServer{
 		dir:          args.Dir,
 		fileIO:       &defaultFileIO{},
 		class:        args.Class,
 		cacheTimeout: args.CacheTimeout,
 		walkTimeout:  args.WalkTimeout,
 	}
-	return &StorageServer{
-		dir:          args.Dir,
-		fileIO:       &defaultFileIO{},
-		cacheTimeout: args.CacheTimeout,
-		walkTimeout:  args.WalkTimeout,
-		chunker: &internal.DefaultChunkUtils{
-			ChunkSize:   args.ChunkSize,
-			Server:      fileBackedStorageServer,
-			Waiter:      args.Waiter,
-			Notifier:    args.Notifier,
-			PollTimeout: rsstorage.DefaultChunkPollTimeout,
-			MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
-		},
-		class: args.Class,
+	s.chunker = &internal.DefaultChunkUtils{
+		ChunkSize:   args.ChunkSize,
+		Server:      s,
+		Waiter:      args.Waiter,
+		Notifier:    args.Notifier,
+		PollTimeout: rsstorage.DefaultChunkPollTimeout,
+		MaxAttempts: rsstorage.DefaultMaxChunkAttempts,
 	}
+	return s
 }
 
 func (s *StorageServer) Check(ctx context.Context, dir, address string) (
@@ -180,68 +174,43 @@ func (s *StorageServer) CalculateUsage() (types.Usage, error) {
 
 // diskUsage will walk the specified path in a filesystem and
 // aggregate the size of the contained files.
-func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (size datasize.ByteSize, err error) {
-	stop := make(chan struct{})
-	defer close(stop)
-
-	sizeChan := make(chan datasize.ByteSize)
-	// errChan should have a buffer of two items to prevent deadlock between `<-stop` and `errChan<-err`
-	errChan := make(chan error, 2)
-
-	go func(stop <-chan struct{}, sizeChan chan<- datasize.ByteSize, errChan chan<- error) {
-		defer close(sizeChan)
-		defer close(errChan)
-
-		err = filepath.Walk(duPath, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-
-			select {
-			case <-stop:
-				return nil
-			default:
-			}
-
-			if !info.IsDir() {
-				sizeChan <- datasize.ByteSize(info.Size())
-			}
-
-			return nil
-		})
-
-		if err != nil {
-			errChan <- err
-		}
-	}(stop, sizeChan, errChan)
-
-	cacheTimeoutTimer := time.NewTimer(cacheTimeout)
-	defer cacheTimeoutTimer.Stop()
-
+func diskUsage(duPath string, cacheTimeout, walkTimeout time.Duration) (datasize.ByteSize, error) {
 	if walkTimeout == 0 {
 		walkTimeout = defaultWalkTimeout
 	}
 
-	// TODO: replace this with a context
-	walkTimeoutTimer := time.NewTimer(walkTimeout)
-	defer walkTimeoutTimer.Stop()
+	ctx, cancel := context.WithTimeout(context.Background(), cacheTimeout)
+	defer cancel()
 
-	for {
-		select {
-		case <-cacheTimeoutTimer.C:
-			return 0, cacheTimeoutErr
-		case sz := <-sizeChan:
-			size += sz
+	var size int64
+	var lastActivity time.Time = time.Now()
 
-			walkTimeoutTimer.Stop()
-			walkTimeoutTimer.Reset(walkTimeout)
-		case err = <-errChan:
-			// Success case error will return `nil`
-			return
-		case <-walkTimeoutTimer.C:
-			return 0, walkTimeoutErr
+	err := filepath.Walk(duPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
 		}
+
+		if ctx.Err() != nil {
+			return cacheTimeoutErr
+		}
+
+		if time.Since(lastActivity) > walkTimeout {
+			return walkTimeoutErr
+		}
+
+		if !info.IsDir() {
+			size += info.Size()
+			lastActivity = time.Now()
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return 0, err
 	}
+
+	return datasize.ByteSize(size), nil
 }
 
 func (s *StorageServer) Get(ctx context.Context, dir, address string) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
