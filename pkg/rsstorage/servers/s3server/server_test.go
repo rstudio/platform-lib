@@ -1133,6 +1133,207 @@ func (s *S3StorageServerSuite) TestUsage(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
+func (s *S3StorageServerSuite) TestPutChunked(c *check.C) {
+	defer leaktest.Check(c)
+
+	svc := &fakeS3{}
+	chunker := &servertest.DummyChunkUtils{}
+	server := &StorageServer{
+		svc:     svc,
+		bucket:  "test-bucket",
+		prefix:  "prefix",
+		chunker: chunker,
+	}
+	ctx := context.Background()
+
+	resolver := func(w io.Writer) (string, string, error) {
+		_, err := io.Copy(w, strings.NewReader("chunk data"))
+		return "", "", err
+	}
+
+	// Error: empty address
+	_, _, err := server.PutChunked(ctx, resolver, "dir", "", 1024)
+	c.Assert(err, check.ErrorMatches, "cache only supports pre-addressed chunked put commands")
+
+	// Error: zero size
+	_, _, err = server.PutChunked(ctx, resolver, "dir", "address", 0)
+	c.Assert(err, check.ErrorMatches, "cache only supports pre-sized chunked put commands")
+
+	// Error from chunker
+	chunker.WriteErr = errors.New("chunker write error")
+	_, _, err = server.PutChunked(ctx, resolver, "dir", "address", 1024)
+	c.Assert(err, check.ErrorMatches, "chunker write error")
+
+	// Success
+	chunker.WriteErr = nil
+	d, a, err := server.PutChunked(ctx, resolver, "dir", "address", 1024)
+	c.Assert(err, check.IsNil)
+	c.Assert(d, check.Equals, "dir")
+	c.Assert(a, check.Equals, "address")
+}
+
+func (s *S3StorageServerSuite) TestFlush(c *check.C) {
+	server := &StorageServer{}
+	server.Flush(context.Background(), "dir", "address")
+}
+
+type fakeKmsS3 struct {
+	fakeS3
+}
+
+func (s *fakeKmsS3) KmsEncrypted() bool {
+	return true
+}
+
+func (s *S3StorageServerSuite) TestCheckKmsEncrypted(c *check.C) {
+	now := time.Now()
+	svc := &fakeKmsS3{
+		fakeS3: fakeS3{
+			head: &s3.HeadObjectOutput{
+				ContentLength: aws.Int64(100),
+				LastModified:  aws.Time(now),
+				Metadata: map[string]string{
+					AmzUnencryptedContentLengthHeader: "45",
+				},
+			},
+		},
+	}
+	server := &StorageServer{
+		svc:    svc,
+		prefix: "prefix",
+	}
+
+	ctx := context.Background()
+
+	ok, chunked, sz, mod, err := server.Check(ctx, "dir", "address")
+	c.Assert(err, check.IsNil)
+	c.Assert(chunked, check.IsNil)
+	c.Assert(sz, check.DeepEquals, int64(45))
+	c.Assert(mod, servertest.TimeEquals, now)
+	c.Assert(ok, check.Equals, true)
+}
+
+func (s *S3StorageServerSuite) TestGetKmsEncrypted(c *check.C) {
+	output := &testReadCloser{bytes.NewBufferString("test output")}
+	now := time.Now()
+	svc := &fakeKmsS3{
+		fakeS3: fakeS3{
+			get: &s3.GetObjectOutput{
+				Body:          output,
+				ContentLength: aws.Int64(100),
+				LastModified:  aws.Time(now),
+				Metadata: map[string]string{
+					AmzUnencryptedContentLengthHeader: "45",
+				},
+			},
+		},
+	}
+	server := &StorageServer{
+		svc:    svc,
+		prefix: "prefix",
+	}
+
+	ctx := context.Background()
+
+	rs, ch, sz, mod, ok, err := server.Get(ctx, "dir", "address")
+	c.Assert(err, check.IsNil)
+	c.Assert(rs, check.FitsTypeOf, &testReadCloser{})
+	c.Assert(ch, check.IsNil)
+	c.Assert(sz, check.DeepEquals, int64(45))
+	c.Assert(mod, servertest.TimeEquals, now)
+	c.Assert(ok, check.Equals, true)
+}
+
+func (s *S3StorageServerSuite) TestPartsChunked(c *check.C) {
+	now := time.Now()
+	nowbytes, err := now.MarshalJSON()
+	c.Assert(err, check.IsNil)
+	info := []byte(fmt.Sprintf(`{"chunk_size":64,"file_size":3232,"num_chunks":3,"complete":true,"mod_time":%s}`, string(nowbytes)))
+	output := &testReadCloser{bytes.NewBuffer(info)}
+
+	svc := &fakeS3{
+		headMap: map[string]HeadResponse{
+			"prefix/dir/address/info.json": {
+				head: &s3.HeadObjectOutput{
+					LastModified:  aws.Time(now),
+					ContentLength: aws.Int64(100),
+				},
+			},
+		},
+		getMap: map[string]GetResponse{
+			"prefix/dir/address/info.json": {
+				get: &s3.GetObjectOutput{
+					Body: output,
+				},
+			},
+		},
+	}
+	server := &StorageServer{
+		svc:    svc,
+		prefix: "prefix",
+	}
+
+	ctx := context.Background()
+
+	parts, err := server.parts(ctx, "dir", "address")
+	c.Assert(err, check.IsNil)
+	c.Assert(len(parts), check.Equals, 4)
+	c.Assert(parts[0].Address, check.Equals, "info.json")
+	c.Assert(parts[1].Address, check.Equals, "00000001")
+	c.Assert(parts[2].Address, check.Equals, "00000002")
+	c.Assert(parts[3].Address, check.Equals, "00000003")
+}
+
+func (s *S3StorageServerSuite) TestPartsChunkedIncomplete(c *check.C) {
+	now := time.Now()
+	nowbytes, err := now.MarshalJSON()
+	c.Assert(err, check.IsNil)
+	info := []byte(fmt.Sprintf(`{"chunk_size":64,"file_size":3232,"num_chunks":3,"complete":false,"mod_time":%s}`, string(nowbytes)))
+	output := &testReadCloser{bytes.NewBuffer(info)}
+
+	svc := &fakeS3{
+		headMap: map[string]HeadResponse{
+			"prefix/dir/address/info.json": {
+				head: &s3.HeadObjectOutput{
+					LastModified:  aws.Time(now),
+					ContentLength: aws.Int64(100),
+				},
+			},
+		},
+		getMap: map[string]GetResponse{
+			"prefix/dir/address/info.json": {
+				get: &s3.GetObjectOutput{
+					Body: output,
+				},
+			},
+		},
+	}
+	server := &StorageServer{
+		svc:    svc,
+		prefix: "prefix",
+	}
+
+	ctx := context.Background()
+
+	_, err = server.parts(ctx, "dir", "address")
+	c.Assert(err, check.ErrorMatches, ".*incomplete.*")
+}
+
+func (s *S3StorageServerSuite) TestPartsNotFound(c *check.C) {
+	svc := &fakeS3{
+		headErr: &types.NoSuchKey{},
+	}
+	server := &StorageServer{
+		svc:    svc,
+		prefix: "prefix",
+	}
+
+	ctx := context.Background()
+
+	_, err := server.parts(ctx, "dir", "address")
+	c.Assert(err, check.ErrorMatches, ".*does not exist.*")
+}
+
 func (s *S3StorageServerSuite) TestValidate(c *check.C) {
 	ctx := context.Background()
 	uploadErr := errors.New("s3 upload op failed")
