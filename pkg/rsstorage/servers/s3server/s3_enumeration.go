@@ -9,10 +9,10 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"golang.org/x/sync/errgroup"
 )
 
 type AwsOps interface {
@@ -58,108 +58,20 @@ func (a *DefaultAwsOps) BucketObjects(
 	recursive bool,
 	reg *regexp.Regexp,
 ) ([]string, error) {
+	var results []string
+	var mu sync.Mutex
 
-	nextMarkerChan := make(chan string, 100)
-	nextMarkerChan <- ""
-	defer close(nextMarkerChan)
-
-	binaryMeta := make([]string, 0)
-	binaryL := sync.Mutex{}
-
-	wg := sync.WaitGroup{}
-	waitCh := make(chan struct{})
-	wg.Add(1)
-
-	var ops uint64
-	var total uint64
-
-	errCh := make(chan error)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// If recursive is not true, include a delimiter so we only list the contents
-	// of the directory indicated by `s3Prefix`. Otherwise, leave the delimiter nil
-	// so we list everything recursively.
-	var delimiter *string
-	if !recursive {
-		delimiter = aws.String("/")
-	}
-
-	go func() {
-		for i := 0; i < concurrency; i++ {
-			go func() {
-				for nextMarker := range nextMarkerChan {
-					wg.Add(1)
-
-					query := &s3.ListObjectsInput{
-						Bucket:    aws.String(bucket),
-						Prefix:    aws.String(s3Prefix),
-						Delimiter: delimiter,
-					}
-
-					if nextMarker != "" {
-						query.Marker = &nextMarker
-					}
-
-					resp, err := a.s3Client.ListObjects(ctx, query)
-					if err != nil {
-						errCh <- fmt.Errorf("something went wrong listing objects: %s", err)
-						return
-					}
-
-					nm := ""
-
-					if resp.NextMarker != nil {
-						nm = *resp.NextMarker
-						nextMarkerChan <- nm
-					}
-
-					// When there are no contents, we need to return
-					// early.
-					if len(resp.Contents) == 0 {
-						wg.Done()
-						// TODO: `nm` may always be blank when there are no
-						// contents, so this conditional may be unnecessary.
-						if nm == "" {
-							wg.Done()
-						}
-						return
-					}
-
-					bm := getObjectsAll(resp, s3Prefix, reg)
-
-					binaryL.Lock()
-					binaryMeta = append(binaryMeta, bm...)
-					binaryL.Unlock()
-
-					wg.Done()
-					atomic.AddUint64(&ops, uint64(len(bm)))
-					if ops > 1000 {
-						atomic.AddUint64(&total, atomic.LoadUint64(&ops))
-						slog.Info("Parsed S3 files", "prefix", s3Prefix, "fileCount", atomic.LoadUint64(&total))
-						atomic.SwapUint64(&ops, 0)
-					}
-
-					if nm == "" {
-						wg.Done()
-						break
-					}
-				}
-			}()
-		}
-
-		wg.Wait()
-		close(waitCh)
-	}()
-
-	// Block until the wait group is done or we err
-	select {
-	case <-waitCh:
-		return binaryMeta, nil
-	case err := <-errCh:
-		cancel()
+	err := a.enumerateBucket(ctx, bucket, s3Prefix, concurrency, recursive, func(resp *s3.ListObjectsOutput) {
+		bm := getObjectsAll(resp, s3Prefix, reg)
+		mu.Lock()
+		results = append(results, bm...)
+		mu.Unlock()
+	})
+	if err != nil {
 		return nil, err
 	}
+
+	return results, nil
 }
 
 func (a *DefaultAwsOps) BucketObjectsETagMap(
@@ -169,110 +81,121 @@ func (a *DefaultAwsOps) BucketObjectsETagMap(
 	recursive bool,
 	reg *regexp.Regexp,
 ) (map[string]string, error) {
+	results := make(map[string]string)
+	var mu sync.Mutex
 
-	nextMarkerChan := make(chan string, 100)
-	nextMarkerChan <- ""
-	defer close(nextMarkerChan)
+	err := a.enumerateBucket(ctx, bucket, s3Prefix, concurrency, recursive, func(resp *s3.ListObjectsOutput) {
+		bm := getObjectsAllMap(resp, s3Prefix, reg)
+		mu.Lock()
+		for key, val := range bm {
+			results[key] = val
+		}
+		mu.Unlock()
+	})
+	if err != nil {
+		return nil, err
+	}
 
-	binaryMeta := make(map[string]string)
-	binaryL := sync.Mutex{}
+	return results, nil
+}
 
-	wg := sync.WaitGroup{}
-	waitCh := make(chan struct{})
-	wg.Add(1)
+// enumerateBucket handles paginated listing of S3 objects with concurrent workers.
+// The callback is invoked for each page of results.
+func (a *DefaultAwsOps) enumerateBucket(
+	ctx context.Context,
+	bucket, s3Prefix string,
+	concurrency int,
+	recursive bool,
+	callback func(*s3.ListObjectsOutput),
+) error {
+	// Channel for markers to process. Buffer allows some lookahead.
+	markers := make(chan string, concurrency*2)
 
-	var ops uint64
-	var total uint64
+	// Track in-flight work to know when we're done
+	var pending sync.WaitGroup
 
-	errCh := make(chan error)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Use errgroup for proper goroutine lifecycle management
+	g, ctx := errgroup.WithContext(ctx)
 
-	// If recursive is not true, include a delimiter so we only list the contents
-	// of the directory indicated by `s3Prefix`. Otherwise, leave the delimiter nil
-	// so we list everything recursively.
+	// Delimiter for non-recursive listing
 	var delimiter *string
 	if !recursive {
 		delimiter = aws.String("/")
 	}
 
-	go func() {
-		for i := 0; i < concurrency; i++ {
-			go func() {
-				for nextMarker := range nextMarkerChan {
-					wg.Add(1)
+	// Progress tracking
+	var totalObjects int64
+	var totalMu sync.Mutex
+
+	// Start with empty marker
+	pending.Add(1)
+	markers <- ""
+
+	// Spawn worker goroutines
+	for i := 0; i < concurrency; i++ {
+		g.Go(func() error {
+			for {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case marker, ok := <-markers:
+					if !ok {
+						return nil
+					}
 
 					query := &s3.ListObjectsInput{
 						Bucket:    aws.String(bucket),
 						Prefix:    aws.String(s3Prefix),
 						Delimiter: delimiter,
 					}
-
-					if nextMarker != "" {
-						query.Marker = &nextMarker
+					if marker != "" {
+						query.Marker = &marker
 					}
 
 					resp, err := a.s3Client.ListObjects(ctx, query)
 					if err != nil {
-						errCh <- fmt.Errorf("something went wrong listing objects: %s", err)
-						return
+						pending.Done()
+						return fmt.Errorf("error listing objects: %w", err)
 					}
 
-					nm := ""
+					// Process results
+					if len(resp.Contents) > 0 {
+						callback(resp)
 
-					if resp.NextMarker != nil {
-						nm = *resp.NextMarker
-						nextMarkerChan <- nm
-					}
-
-					// When there are no contents, we need to return
-					// early.
-					if len(resp.Contents) == 0 {
-						wg.Done()
-						// TODO: `nm` may always be blank when there are no
-						// contents, so this conditional may be unnecessary.
-						if nm == "" {
-							wg.Done()
+						// Progress logging
+						totalMu.Lock()
+						totalObjects += int64(len(resp.Contents))
+						if totalObjects%1000 < int64(len(resp.Contents)) {
+							slog.Info("Parsed S3 files", "prefix", s3Prefix, "fileCount", totalObjects)
 						}
-						return
+						totalMu.Unlock()
 					}
 
-					bm := getObjectsAllMap(resp, s3Prefix, reg)
-
-					binaryL.Lock()
-					for key, val := range bm {
-						binaryMeta[key] = val
-					}
-					binaryL.Unlock()
-
-					wg.Done()
-					atomic.AddUint64(&ops, uint64(len(bm)))
-					if ops > 1000 {
-						atomic.AddUint64(&total, atomic.LoadUint64(&ops))
-						slog.Info("Parsed S3 files", "prefix", s3Prefix, "fileCount", atomic.LoadUint64(&total))
-						atomic.SwapUint64(&ops, 0)
+					// Queue next page if there is one
+					if resp.IsTruncated != nil && *resp.IsTruncated && resp.NextMarker != nil {
+						pending.Add(1)
+						select {
+						case markers <- *resp.NextMarker:
+						case <-ctx.Done():
+							pending.Done()
+							pending.Done()
+							return ctx.Err()
+						}
 					}
 
-					if nm == "" {
-						wg.Done()
-						break
-					}
+					pending.Done()
 				}
-			}()
-		}
+			}
+		})
+	}
 
-		wg.Wait()
-		close(waitCh)
+	// Close the markers channel when all work is done
+	go func() {
+		pending.Wait()
+		close(markers)
 	}()
 
-	// Block until the wait group is done or we err
-	select {
-	case <-waitCh:
-		return binaryMeta, nil
-	case err := <-errCh:
-		cancel()
-		return nil, err
-	}
+	return g.Wait()
 }
 
 var BinaryReg = regexp.MustCompile(`(.+)(\.tar\.gz|\.zip)$`)

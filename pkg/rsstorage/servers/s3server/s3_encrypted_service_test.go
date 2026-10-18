@@ -124,3 +124,224 @@ func (s *S3EncryptedServiceSuite) TestGetObject(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(string(b), check.Equals, "test")
 }
+
+func (s *S3EncryptedServiceSuite) TestNewEncryptedS3WrapperNilClient(c *check.C) {
+	_, err := NewEncryptedS3Wrapper(nil)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Equals, "unable to create S3 encrypted wrapper, S3 client is nil")
+}
+
+func (s *S3EncryptedServiceSuite) TestKmsEncrypted(c *check.C) {
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
+	c.Assert(err, check.IsNil)
+	c.Assert(s3Service.KmsEncrypted(), check.Equals, true)
+}
+
+func (s *S3EncryptedServiceSuite) TestCreateBucket(c *check.C) {
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
+	c.Assert(err, check.IsNil)
+
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(http.MethodPut, `https://test-bucket.s3.us-east-1.amazonaws.com/`,
+		httpmock.NewStringResponder(http.StatusOK, ``))
+
+	bucket := "test-bucket"
+	_, err = s3Service.CreateBucket(context.Background(), &s3.CreateBucketInput{Bucket: &bucket})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *S3EncryptedServiceSuite) TestDeleteBucket(c *check.C) {
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
+	c.Assert(err, check.IsNil)
+
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(http.MethodDelete, `https://test-bucket.s3.us-east-1.amazonaws.com/`,
+		httpmock.NewStringResponder(http.StatusNoContent, ``))
+
+	bucket := "test-bucket"
+	_, err = s3Service.DeleteBucket(context.Background(), &s3.DeleteBucketInput{Bucket: &bucket})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *S3EncryptedServiceSuite) TestHeadObject(c *check.C) {
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
+	c.Assert(err, check.IsNil)
+
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(http.MethodHead, `https://test-bucket.s3.us-east-1.amazonaws.com/test-key`,
+		httpmock.NewStringResponder(http.StatusOK, ``))
+
+	bucket := "test-bucket"
+	key := "test-key"
+	_, err = s3Service.HeadObject(context.Background(), &s3.HeadObjectInput{Bucket: &bucket, Key: &key})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *S3EncryptedServiceSuite) TestDeleteObject(c *check.C) {
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
+	c.Assert(err, check.IsNil)
+
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(http.MethodDelete, `https://test-bucket.s3.us-east-1.amazonaws.com/test-key?x-id=DeleteObject`,
+		httpmock.NewStringResponder(http.StatusNoContent, ``))
+
+	bucket := "test-bucket"
+	key := "test-key"
+	_, err = s3Service.DeleteObject(context.Background(), &s3.DeleteObjectInput{Bucket: &bucket, Key: &key})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *S3EncryptedServiceSuite) TestCopyObject(c *check.C) {
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
+	c.Assert(err, check.IsNil)
+
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(http.MethodHead, `https://source-bucket.s3.us-east-1.amazonaws.com/source-key`,
+		httpmock.NewStringResponder(http.StatusOK, ``))
+
+	httpmock.RegisterResponder(http.MethodPut, `https://dest-bucket.s3.us-east-1.amazonaws.com/dest-key?x-id=CopyObject`,
+		httpmock.NewStringResponder(http.StatusOK, `<CopyObjectResult><ETag>"etag"</ETag></CopyObjectResult>`))
+
+	_, err = s3Service.CopyObject(context.Background(), "source-bucket", "source-key", "dest-bucket", "dest-key")
+	c.Assert(err, check.IsNil)
+}
+
+func (s *S3EncryptedServiceSuite) TestCopyObjectHeadError(c *check.C) {
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
+	c.Assert(err, check.IsNil)
+
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(http.MethodHead, `https://source-bucket.s3.us-east-1.amazonaws.com/source-key`,
+		httpmock.NewStringResponder(http.StatusNotFound, ``))
+
+	_, err = s3Service.CopyObject(context.Background(), "source-bucket", "source-key", "dest-bucket", "dest-key")
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Matches, ".*HEAD for an S3 object.*")
+}
+
+func (s *S3EncryptedServiceSuite) TestMoveObject(c *check.C) {
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
+	c.Assert(err, check.IsNil)
+
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(http.MethodHead, `https://source-bucket.s3.us-east-1.amazonaws.com/source-key`,
+		httpmock.NewStringResponder(http.StatusOK, ``))
+
+	httpmock.RegisterResponder(http.MethodPut, `https://dest-bucket.s3.us-east-1.amazonaws.com/dest-key?x-id=CopyObject`,
+		httpmock.NewStringResponder(http.StatusOK, `<CopyObjectResult><ETag>"etag"</ETag></CopyObjectResult>`))
+
+	httpmock.RegisterResponder(http.MethodDelete, `https://source-bucket.s3.us-east-1.amazonaws.com/source-key?x-id=DeleteObject`,
+		httpmock.NewStringResponder(http.StatusNoContent, ``))
+
+	_, err = s3Service.MoveObject(context.Background(), "source-bucket", "source-key", "dest-bucket", "dest-key")
+	c.Assert(err, check.IsNil)
+}
+
+func (s *S3EncryptedServiceSuite) TestMoveObjectHeadError(c *check.C) {
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
+	c.Assert(err, check.IsNil)
+
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(http.MethodHead, `https://source-bucket.s3.us-east-1.amazonaws.com/source-key`,
+		httpmock.NewStringResponder(http.StatusNotFound, ``))
+
+	_, err = s3Service.MoveObject(context.Background(), "source-bucket", "source-key", "dest-bucket", "dest-key")
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Matches, ".*HEAD for an S3 object.*")
+}
+
+func (s *S3EncryptedServiceSuite) TestMoveObjectCopyError(c *check.C) {
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
+	c.Assert(err, check.IsNil)
+
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(http.MethodHead, `https://source-bucket.s3.us-east-1.amazonaws.com/source-key`,
+		httpmock.NewStringResponder(http.StatusOK, ``))
+
+	httpmock.RegisterResponder(http.MethodPut, `https://dest-bucket.s3.us-east-1.amazonaws.com/dest-key?x-id=CopyObject`,
+		httpmock.NewStringResponder(http.StatusForbidden, ``))
+
+	_, err = s3Service.MoveObject(context.Background(), "source-bucket", "source-key", "dest-bucket", "dest-key")
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Matches, ".*moving an S3 object.*")
+}
+
+func (s *S3EncryptedServiceSuite) TestMoveObjectDeleteError(c *check.C) {
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
+	c.Assert(err, check.IsNil)
+
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(http.MethodHead, `https://source-bucket.s3.us-east-1.amazonaws.com/source-key`,
+		httpmock.NewStringResponder(http.StatusOK, ``))
+
+	httpmock.RegisterResponder(http.MethodPut, `https://dest-bucket.s3.us-east-1.amazonaws.com/dest-key?x-id=CopyObject`,
+		httpmock.NewStringResponder(http.StatusOK, `<CopyObjectResult><ETag>"etag"</ETag></CopyObjectResult>`))
+
+	httpmock.RegisterResponder(http.MethodDelete, `https://source-bucket.s3.us-east-1.amazonaws.com/source-key?x-id=DeleteObject`,
+		httpmock.NewStringResponder(http.StatusForbidden, ``))
+
+	_, err = s3Service.MoveObject(context.Background(), "source-bucket", "source-key", "dest-bucket", "dest-key")
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Matches, ".*deleting source object after move.*")
+}
+
+func (s *S3EncryptedServiceSuite) TestListObjects(c *check.C) {
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
+	c.Assert(err, check.IsNil)
+
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder("GET", `https://test-bucket.s3.us-east-1.amazonaws.com/?list-type=2&prefix=test-prefix`,
+		httpmock.NewStringResponder(http.StatusOK, `<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Name>test-bucket</Name>
+  <Prefix>test-prefix</Prefix>
+  <IsTruncated>false</IsTruncated>
+  <Contents>
+    <Key>test-prefix/file1.txt</Key>
+  </Contents>
+  <Contents>
+    <Key>test-prefix/file2.txt</Key>
+  </Contents>
+</ListBucketResult>`))
+
+	bucket := "test-bucket"
+	prefix := "test-prefix"
+	result, err := s3Service.ListObjects(context.Background(), &s3.ListObjectsV2Input{Bucket: &bucket, Prefix: &prefix})
+	c.Assert(err, check.IsNil)
+	c.Assert(len(result.Contents), check.Equals, 2)
+	c.Assert(*result.Contents[0].Key, check.Equals, "test-prefix/file1.txt")
+	c.Assert(*result.Contents[1].Key, check.Equals, "test-prefix/file2.txt")
+}

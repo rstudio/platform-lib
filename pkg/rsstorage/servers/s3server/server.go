@@ -538,6 +538,7 @@ func (s *StorageServer) Copy(ctx context.Context, dir, address string, server rs
 		} else if err != nil {
 			return err
 		}
+		defer f.Close()
 
 		install := func(file io.ReadCloser) types.Resolver {
 			return func(writer io.Writer) (string, string, error) {
