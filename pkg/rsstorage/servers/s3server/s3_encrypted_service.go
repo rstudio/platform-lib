@@ -96,6 +96,16 @@ func (s *EncryptedS3Wrapper) MoveObject(ctx context.Context, oldBucket, oldKey, 
 	if err != nil {
 		return nil, fmt.Errorf("error encountered while moving an S3 object; try checking your configuration: %w", err)
 	}
+
+	// Delete the source object to complete the move
+	_, err = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: &oldBucket,
+		Key:    &oldKey,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error encountered while deleting source object after move: %w", err)
+	}
+
 	return out, nil
 }
 

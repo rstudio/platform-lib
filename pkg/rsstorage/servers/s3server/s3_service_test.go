@@ -241,3 +241,191 @@ func (s *S3WrapperSuite) TestSetStorageS3Validate(c *check.C) {
 	err = s3srv.(*StorageServer).Validate(context.Background())
 	c.Assert(err, check.NotNil)
 }
+
+func (s *S3WrapperSuite) TestNewS3WrapperNilClient(c *check.C) {
+	_, err := NewS3Wrapper(nil)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Equals, "unable to create S3 wrapper, S3 client is nil")
+}
+
+func (s *S3WrapperSuite) TestKmsEncrypted(c *check.C) {
+	client := http.Client{}
+	wrapper, err := NewS3Wrapper(newTestS3Client(&client))
+	c.Assert(err, check.IsNil)
+	c.Assert(wrapper.KmsEncrypted(), check.Equals, false)
+}
+
+func (s *S3WrapperSuite) TestDeleteBucket(c *check.C) {
+	client := http.Client{}
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(
+		"DELETE",
+		`https://test-bucket.s3.us-east-1.amazonaws.com/`,
+		httpmock.NewStringResponder(http.StatusNoContent, ``),
+	)
+
+	wrapper, err := NewS3Wrapper(newTestS3Client(&client))
+	c.Assert(err, check.IsNil)
+
+	_, err = wrapper.DeleteBucket(context.Background(), &s3.DeleteBucketInput{
+		Bucket: aws.String("test-bucket"),
+	})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *S3WrapperSuite) TestDeleteBucketError(c *check.C) {
+	client := http.Client{}
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(
+		"DELETE",
+		`https://test-bucket.s3.us-east-1.amazonaws.com/`,
+		httpmock.NewStringResponder(http.StatusForbidden, ``),
+	)
+
+	wrapper, err := NewS3Wrapper(newTestS3Client(&client))
+	c.Assert(err, check.IsNil)
+
+	_, err = wrapper.DeleteBucket(context.Background(), &s3.DeleteBucketInput{
+		Bucket: aws.String("test-bucket"),
+	})
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Matches, ".*deleting an S3 bucket.*")
+}
+
+func (s *S3WrapperSuite) TestMoveObjectSuccess(c *check.C) {
+	client := http.Client{}
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(
+		"HEAD",
+		`https://source-bucket.s3.us-east-1.amazonaws.com/source-key`,
+		httpmock.NewStringResponder(http.StatusOK, ``),
+	)
+
+	httpmock.RegisterResponder(
+		"PUT",
+		`https://dest-bucket.s3.us-east-1.amazonaws.com/dest-key?x-id=CopyObject`,
+		httpmock.NewStringResponder(http.StatusOK, `<CopyObjectResult><ETag>"etag"</ETag></CopyObjectResult>`),
+	)
+
+	httpmock.RegisterResponder(
+		"DELETE",
+		`https://source-bucket.s3.us-east-1.amazonaws.com/source-key?x-id=DeleteObject`,
+		httpmock.NewStringResponder(http.StatusNoContent, ``),
+	)
+
+	wrapper, err := NewS3Wrapper(newTestS3Client(&client))
+	c.Assert(err, check.IsNil)
+
+	_, err = wrapper.MoveObject(context.Background(), "source-bucket", "source-key", "dest-bucket", "dest-key")
+	c.Assert(err, check.IsNil)
+}
+
+func (s *S3WrapperSuite) TestMoveObjectCopyError(c *check.C) {
+	client := http.Client{}
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(
+		"HEAD",
+		`https://source-bucket.s3.us-east-1.amazonaws.com/source-key`,
+		httpmock.NewStringResponder(http.StatusOK, ``),
+	)
+
+	httpmock.RegisterResponder(
+		"PUT",
+		`https://dest-bucket.s3.us-east-1.amazonaws.com/dest-key?x-id=CopyObject`,
+		httpmock.NewStringResponder(http.StatusForbidden, ``),
+	)
+
+	wrapper, err := NewS3Wrapper(newTestS3Client(&client))
+	c.Assert(err, check.IsNil)
+
+	_, err = wrapper.MoveObject(context.Background(), "source-bucket", "source-key", "dest-bucket", "dest-key")
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Matches, ".*moving an S3 object.*")
+}
+
+func (s *S3WrapperSuite) TestMoveObjectDeleteError(c *check.C) {
+	client := http.Client{}
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(
+		"HEAD",
+		`https://source-bucket.s3.us-east-1.amazonaws.com/source-key`,
+		httpmock.NewStringResponder(http.StatusOK, ``),
+	)
+
+	httpmock.RegisterResponder(
+		"PUT",
+		`https://dest-bucket.s3.us-east-1.amazonaws.com/dest-key?x-id=CopyObject`,
+		httpmock.NewStringResponder(http.StatusOK, `<CopyObjectResult><ETag>"etag"</ETag></CopyObjectResult>`),
+	)
+
+	httpmock.RegisterResponder(
+		"DELETE",
+		`https://source-bucket.s3.us-east-1.amazonaws.com/source-key?x-id=DeleteObject`,
+		httpmock.NewStringResponder(http.StatusForbidden, ``),
+	)
+
+	wrapper, err := NewS3Wrapper(newTestS3Client(&client))
+	c.Assert(err, check.IsNil)
+
+	_, err = wrapper.MoveObject(context.Background(), "source-bucket", "source-key", "dest-bucket", "dest-key")
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Matches, ".*deleting source object after move.*")
+}
+
+func (s *S3WrapperSuite) TestCopyObjectSuccess(c *check.C) {
+	client := http.Client{}
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(
+		"HEAD",
+		`https://source-bucket.s3.us-east-1.amazonaws.com/source-key`,
+		httpmock.NewStringResponder(http.StatusOK, ``),
+	)
+
+	httpmock.RegisterResponder(
+		"PUT",
+		`https://dest-bucket.s3.us-east-1.amazonaws.com/dest-key?x-id=CopyObject`,
+		httpmock.NewStringResponder(http.StatusOK, `<CopyObjectResult><ETag>"etag"</ETag></CopyObjectResult>`),
+	)
+
+	wrapper, err := NewS3Wrapper(newTestS3Client(&client))
+	c.Assert(err, check.IsNil)
+
+	_, err = wrapper.CopyObject(context.Background(), "source-bucket", "source-key", "dest-bucket", "dest-key")
+	c.Assert(err, check.IsNil)
+}
+
+func (s *S3WrapperSuite) TestCopyObjectCopyError(c *check.C) {
+	client := http.Client{}
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(
+		"HEAD",
+		`https://source-bucket.s3.us-east-1.amazonaws.com/source-key`,
+		httpmock.NewStringResponder(http.StatusOK, ``),
+	)
+
+	httpmock.RegisterResponder(
+		"PUT",
+		`https://dest-bucket.s3.us-east-1.amazonaws.com/dest-key?x-id=CopyObject`,
+		httpmock.NewStringResponder(http.StatusForbidden, ``),
+	)
+
+	wrapper, err := NewS3Wrapper(newTestS3Client(&client))
+	c.Assert(err, check.IsNil)
+
+	_, err = wrapper.CopyObject(context.Background(), "source-bucket", "source-key", "dest-bucket", "dest-key")
+	c.Assert(err, check.NotNil)
+}
