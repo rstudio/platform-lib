@@ -32,7 +32,6 @@ type StorageServer struct {
 	bucket  string
 	prefix  string
 	svc     S3Wrapper
-	move    moveOrCopyFn
 	copy    moveOrCopyFn
 	chunker rsstorage.ChunkUtils
 }
@@ -51,14 +50,12 @@ func NewStorageServer(args StorageServerArgs) rsstorage.StorageServer {
 		bucket: args.Bucket,
 		prefix: args.Prefix,
 		svc:    args.Svc,
-		move:   args.Svc.MoveObject,
 		copy:   args.Svc.CopyObject,
 	}
 	return &StorageServer{
 		bucket: args.Bucket,
 		prefix: args.Prefix,
 		svc:    args.Svc,
-		move:   args.Svc.MoveObject,
 		copy:   args.Svc.CopyObject,
 		chunker: &internal.DefaultChunkUtils{
 			ChunkSize:   args.ChunkSize,
@@ -487,34 +484,16 @@ func (s *StorageServer) parts(ctx context.Context, dir, address string) ([]rssto
 	}
 }
 
+// Move copies every part of the asset to the destination, then removes the
+// source. The source is not touched until all copies succeed. If a copy fails
+// partway through a chunked asset, the source stays complete and readable.
+// Moving each part on its own would leave the asset split between the two
+// servers, with info.json only at the destination.
 func (s *StorageServer) Move(ctx context.Context, dir, address string, server rsstorage.StorageServer) error {
-	copyOp := true
-	switch server.(type) {
-	case *StorageServer:
-		// Attempt move
-		err := s.moveOrCopy(ctx, dir, address, server, s.move)
-		if err == nil {
-			copyOp = false
-		}
-	default:
-		// Don't do anything. Just copy
+	if err := s.Copy(ctx, dir, address, server); err != nil {
+		return err
 	}
-
-	// Copy the file
-	if copyOp {
-		err := s.Copy(ctx, dir, address, server)
-		if err != nil {
-			return err
-		}
-
-		// Then, remove the file
-		err = s.Remove(ctx, dir, address)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return s.Remove(ctx, dir, address)
 }
 
 func (s *StorageServer) Copy(ctx context.Context, dir, address string, server rsstorage.StorageServer) error {

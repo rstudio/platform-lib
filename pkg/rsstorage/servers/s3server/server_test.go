@@ -206,10 +206,8 @@ func (s *S3StorageServerSuite) TestNew(c *check.C) {
 		Waiter:    wn,
 		Notifier:  wn,
 	})
-	c.Assert(server.(*StorageServer).move, check.NotNil)
 	c.Assert(server.(*StorageServer).copy, check.NotNil)
 	c.Assert(server.(*StorageServer).chunker, check.NotNil)
-	server.(*StorageServer).move = nil
 	server.(*StorageServer).copy = nil
 	server.(*StorageServer).chunker = nil
 	c.Check(server, check.DeepEquals, &StorageServer{
@@ -929,98 +927,44 @@ func (s *S3StorageServerSuite) TestCopyNoS3(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-// Test scenario where we move from S3 -> S3. The S3-specific move
-// operation succeeds.
+// Test scenario where we move from S3 -> S3. The S3-specific copy
+// operation succeeds, then the source is removed.
 func (s *S3StorageServerSuite) TestMoveViaS3(c *check.C) {
-	opMove := &fakeMoveOrCopy{
-		ops: make([]string, 0),
-	}
-	sourceServer := &StorageServer{
-		bucket: "a-test-bucket",
-		prefix: "some/prefix",
-		move:   opMove.Operation,
-		svc: &fakeS3{
-			head: &s3.HeadObjectOutput{
-				ContentLength: aws.Int64(4242),
-				LastModified:  aws.Time(time.Now()),
-			},
-		},
-	}
-	destServer := &StorageServer{
-		bucket: "b-test-bucket",
-		prefix: "another-place",
-	}
-
-	// Catch an error deleting the item a
-	err := sourceServer.Move(context.Background(), "dir", "address", destServer)
-	c.Assert(err, check.IsNil)
-	c.Assert(
-		opMove.ops,
-		check.DeepEquals,
-		[]string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"},
-	)
-}
-
-// Test scenario where we move from S3 -> S3. The S3-specific move
-// operation fails, but we succeed by performing a copy + delete, still
-// using the S3-specific copy operation.
-func (s *S3StorageServerSuite) TestMoveViaS3Fallback(c *check.C) {
-	// The initial move will fail
-	opMove := &fakeMoveOrCopy{
-		ops:    make([]string, 0),
-		result: errors.New("no go"),
-	}
-	// The initial copy on fallback will succeed.
 	opCopy := &fakeMoveOrCopy{
 		ops: make([]string, 0),
 	}
-	output := &testReadCloser{bytes.NewBufferString("test output")}
-	now := time.Now()
 	svc := &fakeS3{
-		get: &s3.GetObjectOutput{
-			Body:          output,
-			ContentLength: aws.Int64(45),
-			LastModified:  aws.Time(now),
-		},
 		head: &s3.HeadObjectOutput{
-			ContentLength: aws.Int64(45),
-			LastModified:  aws.Time(now),
+			ContentLength: aws.Int64(4242),
+			LastModified:  aws.Time(time.Now()),
 		},
 	}
 	sourceServer := &StorageServer{
 		bucket: "a-test-bucket",
 		prefix: "some/prefix",
-		move:   opMove.Operation,
 		copy:   opCopy.Operation,
 		svc:    svc,
 	}
 	destServer := &StorageServer{
 		bucket: "b-test-bucket",
 		prefix: "another-place",
-		svc:    svc,
 	}
+
 	err := sourceServer.Move(context.Background(), "dir", "address", destServer)
 	c.Assert(err, check.IsNil)
 	c.Assert(
-		opMove.ops,
+		opCopy.ops,
 		check.DeepEquals,
 		[]string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"},
 	)
+	c.Assert(svc.deleted, check.Equals, "some/prefix/dir/address")
 	c.Assert(svc.uploaded, check.Equals, "")
 }
 
-// Test scenario where we move from S3 -> S3. The S3-specific move
-// operation fails. The fallback to copying fails when trying the
-// S3-specific copy operation. Finally, we succeed by copying with
-// a `Get` + `Put` operation followed by a `Remove`.
-func (s *S3StorageServerSuite) TestMoveViaS3FallbackCopyFallback(c *check.C) {
-	// The initial move will fail
-	opMove := &fakeMoveOrCopy{
-		ops:    make([]string, 0),
-		result: errors.New("no go"),
-	}
-	// The initial copy on fallback will fail, as well, but the `Get` + `Put` operation
-	// will still succeed.
+// Test scenario where we move from S3 -> S3. The S3-specific copy
+// operation fails, so we copy with a `Get` + `Put` operation, then
+// remove the source.
+func (s *S3StorageServerSuite) TestMoveViaS3CopyFallback(c *check.C) {
 	opCopy := &fakeMoveOrCopy{
 		ops:    make([]string, 0),
 		result: errors.New("no go"),
@@ -1041,7 +985,6 @@ func (s *S3StorageServerSuite) TestMoveViaS3FallbackCopyFallback(c *check.C) {
 	sourceServer := &StorageServer{
 		bucket: "a-test-bucket",
 		prefix: "some/prefix",
-		move:   opMove.Operation,
 		copy:   opCopy.Operation,
 		svc:    svc,
 	}
@@ -1053,11 +996,76 @@ func (s *S3StorageServerSuite) TestMoveViaS3FallbackCopyFallback(c *check.C) {
 	err := sourceServer.Move(context.Background(), "dir", "address", destServer)
 	c.Assert(err, check.IsNil)
 	c.Assert(
-		opMove.ops,
+		opCopy.ops,
 		check.DeepEquals,
 		[]string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"},
 	)
 	c.Assert(svc.uploaded, check.Equals, "test output")
+	c.Assert(svc.deleted, check.Equals, "some/prefix/dir/address")
+}
+
+// failingChunker fails every chunked read.
+type failingChunker struct{}
+
+func (failingChunker) WriteChunked(context.Context, string, string, uint64, rtypes.Resolver) error {
+	return errors.New("write not supported")
+}
+
+func (failingChunker) ReadChunked(context.Context, string, string) (io.ReadCloser, *rtypes.ChunksInfo, int64, time.Time, error) {
+	return nil, nil, 0, time.Time{}, errors.New("read failed")
+}
+
+// Test scenario where we move a chunked asset from S3 -> S3 and the copy
+// fails partway through. The source must be left complete: nothing is
+// deleted, so the asset can still be read from the source.
+func (s *S3StorageServerSuite) TestMoveViaS3ChunkedPartialFailure(c *check.C) {
+	info := `{"chunk_size":10,"file_size":30,"num_chunks":3,"complete":true}`
+	svc := &fakeS3{
+		headMap: map[string]HeadResponse{
+			"some/prefix/dir/address/info.json": {head: &s3.HeadObjectOutput{
+				ContentLength: aws.Int64(int64(len(info))),
+				LastModified:  aws.Time(time.Now()),
+			}},
+		},
+		getMap: map[string]GetResponse{
+			"some/prefix/dir/address/info.json": {get: &s3.GetObjectOutput{
+				Body: &testReadCloser{bytes.NewBufferString(info)},
+			}},
+		},
+	}
+
+	// The server-side copy succeeds for info.json and the first chunk, then
+	// fails on the second chunk.
+	var ops []string
+	copyOp := func(ctx context.Context, bucket, path, newBucket, newPath string) (*s3.CopyObjectOutput, error) {
+		ops = append(ops, path)
+		if strings.HasSuffix(path, "/00000002") {
+			return nil, errors.New("copy failed")
+		}
+		return nil, nil
+	}
+
+	sourceServer := &StorageServer{
+		bucket:  "a-test-bucket",
+		prefix:  "some/prefix",
+		copy:    copyOp,
+		svc:     svc,
+		chunker: failingChunker{},
+	}
+	destServer := &StorageServer{
+		bucket: "b-test-bucket",
+		prefix: "another-place",
+	}
+
+	// The fallback `Get` + `Put` also fails, so the move fails.
+	err := sourceServer.Move(context.Background(), "dir", "address", destServer)
+	c.Assert(err, check.ErrorMatches, ".*read failed")
+	c.Assert(ops, check.DeepEquals, []string{
+		"some/prefix/dir/address/info.json",
+		"some/prefix/dir/address/00000001",
+		"some/prefix/dir/address/00000002",
+	})
+	c.Assert(svc.deleted, check.Equals, "")
 }
 
 // Test scenario where we move from S3 to a non-S3 storage system.
