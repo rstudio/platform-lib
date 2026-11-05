@@ -7,12 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"runtime"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/fortytw2/leaktest"
 	"github.com/jarcoal/httpmock"
 	"gopkg.in/check.v1"
 )
@@ -348,6 +348,8 @@ func (s *MetaTestSuite) TestEnumerateBucketCancelInCallback(c *check.C) {
 }
 
 func (s *MetaTestSuite) TestEnumerateBucketCancelNoGoroutineLeak(c *check.C) {
+	defer leaktest.Check(c)()
+
 	awsOps, client := newMockedAwsOps()
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
@@ -361,13 +363,10 @@ func (s *MetaTestSuite) TestEnumerateBucketCancelNoGoroutineLeak(c *check.C) {
 	}
 	httpmock.RegisterResponder("GET", syncBucketURL, p.respond)
 
-	runtime.GC()
-	before := runtime.NumGoroutine()
-
-	// Cancel in the callback after a truncated page, many times. Each run must
-	// leave no goroutine behind.
-	const runs = 200
-	for i := 0; i < runs; i++ {
+	// Cancel in the callback after a truncated page. No goroutine may be
+	// left behind. One run does not always hit the race that leaked in the
+	// old worker pool, so repeat it.
+	for i := 0; i < 200; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
 		err := awsOps.enumerateBucket(ctx, "sync", "", 1, false, func(*s3.ListObjectsOutput) {
 			cancel()
@@ -375,17 +374,41 @@ func (s *MetaTestSuite) TestEnumerateBucketCancelNoGoroutineLeak(c *check.C) {
 		cancel()
 		c.Assert(errors.Is(err, context.Canceled), check.Equals, true)
 	}
+}
 
-	// Give goroutines that are exiting time to finish.
-	var after int
-	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); {
-		after = runtime.NumGoroutine()
-		if after-before < 5 {
-			break
+func (s *MetaTestSuite) TestEnumerateBucketCancelDuringRequest(c *check.C) {
+	awsOps, client := newMockedAwsOps()
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Cancel while the request is in flight. The request must see the
+	// cancellation, which only happens if the caller's ctx reaches
+	// ListObjects.
+	sawCancel := make(chan struct{})
+	httpmock.RegisterResponder("GET", syncBucketURL, func(req *http.Request) (*http.Response, error) {
+		cancel()
+		select {
+		case <-req.Context().Done():
+			close(sawCancel)
+			return nil, req.Context().Err()
+		case <-time.After(2 * time.Second):
+			return httpmock.NewStringResponse(http.StatusOK, listPage(false, "", "a.tar.gz")), nil
 		}
-		time.Sleep(10 * time.Millisecond)
+	})
+
+	files, err := awsOps.BucketObjects(ctx, "sync", "", 1, false, BinaryReg)
+	c.Assert(errors.Is(err, context.Canceled), check.Equals, true)
+	c.Check(files, check.IsNil)
+
+	// The HTTP client can return before the responder finishes, so wait.
+	select {
+	case <-sawCancel:
+	case <-time.After(5 * time.Second):
+		c.Fatal("the request did not see the cancellation")
 	}
-	c.Check(after-before < 5, check.Equals, true, check.Commentf("goroutines before=%d after=%d", before, after))
 }
 
 func (s *MetaTestSuite) TestEnumerateBucketCanceledContext(c *check.C) {

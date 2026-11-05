@@ -32,9 +32,11 @@ var _ = check.Suite(&S3StorageServerSuite{})
 
 type testReadCloser struct {
 	io.Reader
+	closed bool
 }
 
-func (*testReadCloser) Close() error {
+func (r *testReadCloser) Close() error {
+	r.closed = true
 	return nil
 }
 
@@ -297,7 +299,7 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 	c.Assert(mod, check.Equals, time.Time{})
 
 	// Chunked - error decoding info.json
-	output := &testReadCloser{bytes.NewBufferString("bad[{")}
+	output := &testReadCloser{Reader: bytes.NewBufferString("bad[{")}
 	svc.getMap = map[string]GetResponse{
 		"prefix/dir/address/info.json": {
 			get: &s3.GetObjectOutput{
@@ -316,7 +318,7 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 	nowbytes, err := now.MarshalJSON()
 	c.Assert(err, check.IsNil)
 	info := []byte(fmt.Sprintf(`{"chunk_size":64,"file_size":3232,"num_chunks":15,"complete":true,"mod_time":%s}`, string(nowbytes)))
-	output = &testReadCloser{bytes.NewBuffer(info)}
+	output = &testReadCloser{Reader: bytes.NewBuffer(info)}
 	svc.getMap = map[string]GetResponse{
 		"prefix/dir/address/info.json": {
 			get: &s3.GetObjectOutput{
@@ -333,7 +335,7 @@ func (s *S3StorageServerSuite) TestCheck(c *check.C) {
 }
 
 func (s *S3StorageServerSuite) TestGet(c *check.C) {
-	output := &testReadCloser{bytes.NewBufferString("test output")}
+	output := &testReadCloser{Reader: bytes.NewBufferString("test output")}
 	now := time.Now()
 	svc := &fakeS3{
 		get: &s3.GetObjectOutput{
@@ -429,7 +431,7 @@ func (s *S3StorageServerSuite) TestGet(c *check.C) {
 }
 
 func (s *S3StorageServerSuite) TestPut(c *check.C) {
-	defer leaktest.Check(c)
+	defer leaktest.Check(c)()
 
 	input := bytes.NewBufferString("test input")
 	resolver := func(w io.Writer) (string, string, error) {
@@ -470,7 +472,7 @@ func (s *S3StorageServerSuite) TestPut(c *check.C) {
 }
 
 func (s *S3StorageServerSuite) TestPutDeferredAddress(c *check.C) {
-	defer leaktest.Check(c)
+	defer leaktest.Check(c)()
 
 	input := bytes.NewBufferString("test input")
 	resolver := func(w io.Writer) (string, string, error) {
@@ -572,7 +574,7 @@ func (s *S3StorageServerSuite) TestRemove(c *check.C) {
 	nowbytes, err := now.MarshalJSON()
 	c.Assert(err, check.IsNil)
 	info := []byte(fmt.Sprintf(`{"chunk_size":64,"file_size":3232,"num_chunks":15,"complete":true,"mod_time":%s}`, string(nowbytes)))
-	output := &testReadCloser{bytes.NewBuffer(info)}
+	output := &testReadCloser{Reader: bytes.NewBuffer(info)}
 	svc.getMap = map[string]GetResponse{
 		"prefix/dir/address/info.json": {
 			get: &s3.GetObjectOutput{
@@ -585,7 +587,7 @@ func (s *S3StorageServerSuite) TestRemove(c *check.C) {
 
 	// Ok (chunked)
 	svc.deleteErr = nil
-	output = &testReadCloser{bytes.NewBuffer(info)}
+	output = &testReadCloser{Reader: bytes.NewBuffer(info)}
 	svc.getMap = map[string]GetResponse{
 		"prefix/dir/address/info.json": {
 			get: &s3.GetObjectOutput{
@@ -847,7 +849,7 @@ func (s *S3StorageServerSuite) TestCopyViaS3Fallback(c *check.C) {
 		ops:    make([]string, 0),
 		result: errors.New("no go"),
 	}
-	output := &testReadCloser{bytes.NewBufferString("test output")}
+	output := &testReadCloser{Reader: bytes.NewBufferString("test output")}
 	now := time.Now()
 	svc := &fakeS3{
 		get: &s3.GetObjectOutput{
@@ -879,13 +881,14 @@ func (s *S3StorageServerSuite) TestCopyViaS3Fallback(c *check.C) {
 		[]string{"a-test-bucket-some/prefix/dir/address-b-test-bucket-another-place/dir/address"},
 	)
 	c.Assert(svc.uploaded, check.Equals, "test output")
+	c.Assert(output.closed, check.Equals, true)
 }
 
 // Test scenario where we copy from S3 to a non-S3 storage system.
 // This scenario always uses a `Get` + `Put` operation.
 func (s *S3StorageServerSuite) TestCopyNoS3(c *check.C) {
 	ctx := context.Background()
-	output := &testReadCloser{bytes.NewBufferString("test output")}
+	output := &testReadCloser{Reader: bytes.NewBufferString("test output")}
 	now := time.Now()
 	svc := &fakeS3{
 		get: &s3.GetObjectOutput{
@@ -925,6 +928,7 @@ func (s *S3StorageServerSuite) TestCopyNoS3(c *check.C) {
 	destServer.PutErr = nil
 	err = sourceServer.Copy(ctx, "dir", "address", destServer)
 	c.Assert(err, check.IsNil)
+	c.Assert(output.closed, check.Equals, true)
 }
 
 // Test scenario where we move from S3 -> S3. The S3-specific copy
@@ -969,7 +973,7 @@ func (s *S3StorageServerSuite) TestMoveViaS3CopyFallback(c *check.C) {
 		ops:    make([]string, 0),
 		result: errors.New("no go"),
 	}
-	output := &testReadCloser{bytes.NewBufferString("test output")}
+	output := &testReadCloser{Reader: bytes.NewBufferString("test output")}
 	now := time.Now()
 	svc := &fakeS3{
 		get: &s3.GetObjectOutput{
@@ -1002,6 +1006,7 @@ func (s *S3StorageServerSuite) TestMoveViaS3CopyFallback(c *check.C) {
 	)
 	c.Assert(svc.uploaded, check.Equals, "test output")
 	c.Assert(svc.deleted, check.Equals, "some/prefix/dir/address")
+	c.Assert(output.closed, check.Equals, true)
 }
 
 // failingChunker fails every chunked read.
@@ -1029,7 +1034,7 @@ func (s *S3StorageServerSuite) TestMoveViaS3ChunkedPartialFailure(c *check.C) {
 		},
 		getMap: map[string]GetResponse{
 			"some/prefix/dir/address/info.json": {get: &s3.GetObjectOutput{
-				Body: &testReadCloser{bytes.NewBufferString(info)},
+				Body: &testReadCloser{Reader: bytes.NewBufferString(info)},
 			}},
 		},
 	}
@@ -1073,7 +1078,7 @@ func (s *S3StorageServerSuite) TestMoveViaS3ChunkedPartialFailure(c *check.C) {
 // `Remove`.
 func (s *S3StorageServerSuite) TestMoveNoS3(c *check.C) {
 	ctx := context.Background()
-	output := &testReadCloser{bytes.NewBufferString("test output")}
+	output := &testReadCloser{Reader: bytes.NewBufferString("test output")}
 	now := time.Now()
 	svc := &fakeS3{
 		get: &s3.GetObjectOutput{
@@ -1107,6 +1112,7 @@ func (s *S3StorageServerSuite) TestMoveNoS3(c *check.C) {
 	svc.deleteErr = nil
 	err = sourceServer.Move(ctx, "dir", "address", destServer)
 	c.Assert(err, check.IsNil)
+	c.Assert(output.closed, check.Equals, true)
 }
 
 func (s *S3StorageServerSuite) TestLocate(c *check.C) {
@@ -1142,7 +1148,7 @@ func (s *S3StorageServerSuite) TestUsage(c *check.C) {
 }
 
 func (s *S3StorageServerSuite) TestPutChunked(c *check.C) {
-	defer leaktest.Check(c)
+	defer leaktest.Check(c)()
 
 	svc := &fakeS3{}
 	chunker := &servertest.DummyChunkUtils{}
@@ -1222,7 +1228,7 @@ func (s *S3StorageServerSuite) TestCheckKmsEncrypted(c *check.C) {
 }
 
 func (s *S3StorageServerSuite) TestGetKmsEncrypted(c *check.C) {
-	output := &testReadCloser{bytes.NewBufferString("test output")}
+	output := &testReadCloser{Reader: bytes.NewBufferString("test output")}
 	now := time.Now()
 	svc := &fakeKmsS3{
 		fakeS3: fakeS3{
@@ -1257,7 +1263,7 @@ func (s *S3StorageServerSuite) TestPartsChunked(c *check.C) {
 	nowbytes, err := now.MarshalJSON()
 	c.Assert(err, check.IsNil)
 	info := []byte(fmt.Sprintf(`{"chunk_size":64,"file_size":3232,"num_chunks":3,"complete":true,"mod_time":%s}`, string(nowbytes)))
-	output := &testReadCloser{bytes.NewBuffer(info)}
+	output := &testReadCloser{Reader: bytes.NewBuffer(info)}
 
 	svc := &fakeS3{
 		headMap: map[string]HeadResponse{
@@ -1297,7 +1303,7 @@ func (s *S3StorageServerSuite) TestPartsChunkedIncomplete(c *check.C) {
 	nowbytes, err := now.MarshalJSON()
 	c.Assert(err, check.IsNil)
 	info := []byte(fmt.Sprintf(`{"chunk_size":64,"file_size":3232,"num_chunks":3,"complete":false,"mod_time":%s}`, string(nowbytes)))
-	output := &testReadCloser{bytes.NewBuffer(info)}
+	output := &testReadCloser{Reader: bytes.NewBuffer(info)}
 
 	svc := &fakeS3{
 		headMap: map[string]HeadResponse{
