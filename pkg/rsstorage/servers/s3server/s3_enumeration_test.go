@@ -254,15 +254,13 @@ func (s *MetaTestSuite) TestBucketObjectsPaginationRecursiveLastKey(c *check.C) 
 	c.Check(p.seen, check.DeepEquals, []string{"", "x/b.zip"})
 }
 
-func (s *MetaTestSuite) TestBucketObjectsTruncatedWithoutMarker(c *check.C) {
+func (s *MetaTestSuite) TestBucketObjectsEmptyListing(c *check.C) {
 	awsOps, client := newMockedAwsOps()
 	httpmock.ActivateNonDefault(client)
 	defer httpmock.DeactivateAndReset()
 
-	// A truncated page with no NextMarker and no contents cannot be continued.
-	// The listing must stop and not loop on the same request.
 	p := &pagedResponder{
-		pages:   []string{listPage(true, "")},
+		pages:   []string{listPage(false, "")},
 		markers: map[string]int{"": 0},
 	}
 	httpmock.RegisterResponder("GET", syncBucketURL, p.respond)
@@ -273,6 +271,52 @@ func (s *MetaTestSuite) TestBucketObjectsTruncatedWithoutMarker(c *check.C) {
 	c.Check(files, check.NotNil)
 	c.Check(files, check.HasLen, 0)
 	c.Check(p.seen, check.DeepEquals, []string{""})
+}
+
+func (s *MetaTestSuite) TestBucketObjectsTruncatedWithoutMarker(c *check.C) {
+	awsOps, client := newMockedAwsOps()
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	// A truncated page with no NextMarker and no contents cannot be continued.
+	// The listing must fail rather than report a partial list as complete.
+	p := &pagedResponder{
+		pages:   []string{listPage(true, "")},
+		markers: map[string]int{"": 0},
+	}
+	httpmock.RegisterResponder("GET", syncBucketURL, p.respond)
+
+	files, err := awsOps.BucketObjects(context.Background(), "sync", "", 1, true, nil)
+	c.Assert(err, check.ErrorMatches, "error listing objects: truncated page with no marker to continue from")
+	c.Check(files, check.IsNil)
+	c.Check(p.seen, check.DeepEquals, []string{""})
+}
+
+func (s *MetaTestSuite) TestBucketObjectsMarkerDoesNotAdvance(c *check.C) {
+	awsOps, client := newMockedAwsOps()
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	// The second page returns the same marker it was asked for. Following it
+	// would loop forever, so the listing must fail.
+	p := &pagedResponder{
+		pages: []string{
+			listPage(true, "m1", "a.tar.gz"),
+			listPage(true, "m1", "b.tar.gz"),
+		},
+		markers: map[string]int{"": 0, "m1": 1},
+	}
+	httpmock.RegisterResponder("GET", syncBucketURL, func(req *http.Request) (*http.Response, error) {
+		if len(p.seen) >= 5 {
+			return httpmock.NewStringResponse(http.StatusBadRequest, "too many requests"), nil
+		}
+		return p.respond(req)
+	})
+
+	files, err := awsOps.BucketObjectsETagMap(context.Background(), "sync", "", 1, false, BinaryReg)
+	c.Assert(err, check.ErrorMatches, `error listing objects: marker "m1" did not advance`)
+	c.Check(files, check.IsNil)
+	c.Check(p.seen, check.DeepEquals, []string{"", "m1"})
 }
 
 func (s *MetaTestSuite) TestBucketObjectsEmptyNextMarker(c *check.C) {

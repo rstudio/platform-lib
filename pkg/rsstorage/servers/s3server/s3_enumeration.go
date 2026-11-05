@@ -144,9 +144,13 @@ func (a *DefaultAwsOps) enumerateBucket(
 		if next == "" && len(resp.Contents) > 0 {
 			next = aws.ToString(resp.Contents[len(resp.Contents)-1].Key)
 		}
+		// Fail rather than return a partial listing as if it were complete.
+		// Neither case happens on real S3.
 		if next == "" {
-			// No way to continue. Stop rather than refetch the first page.
-			return nil
+			return fmt.Errorf("error listing objects: truncated page with no marker to continue from")
+		}
+		if marker != nil && next == *marker {
+			return fmt.Errorf("error listing objects: marker %q did not advance", next)
 		}
 		marker = aws.String(next)
 	}
