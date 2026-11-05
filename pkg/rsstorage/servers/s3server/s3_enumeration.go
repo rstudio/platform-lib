@@ -57,7 +57,7 @@ func (a *DefaultAwsOps) BucketObjects(
 	recursive bool,
 	reg *regexp.Regexp,
 ) ([]string, error) {
-	var results []string
+	results := make([]string, 0)
 
 	err := a.enumerateBucket(ctx, bucket, s3Prefix, concurrency, recursive, func(resp *s3.ListObjectsOutput) {
 		results = append(results, getObjectsAll(resp, s3Prefix, reg)...)

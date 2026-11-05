@@ -269,6 +269,8 @@ func (s *MetaTestSuite) TestBucketObjectsTruncatedWithoutMarker(c *check.C) {
 
 	files, err := awsOps.BucketObjects(context.Background(), "sync", "", 1, true, nil)
 	c.Assert(err, check.IsNil)
+	// An empty listing returns an empty slice, not nil.
+	c.Check(files, check.NotNil)
 	c.Check(files, check.HasLen, 0)
 	c.Check(p.seen, check.DeepEquals, []string{""})
 }
