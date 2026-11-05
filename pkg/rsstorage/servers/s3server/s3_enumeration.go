@@ -134,20 +134,21 @@ func (a *DefaultAwsOps) enumerateBucket(
 			}
 		}
 
-		if resp.IsTruncated == nil || !*resp.IsTruncated {
+		if !aws.ToBool(resp.IsTruncated) {
 			return nil
 		}
 
 		// S3 returns NextMarker only when a delimiter is set. Otherwise, the
 		// last key of the page is the marker for the next page.
-		switch {
-		case resp.NextMarker != nil:
-			marker = resp.NextMarker
-		case len(resp.Contents) > 0:
-			marker = resp.Contents[len(resp.Contents)-1].Key
-		default:
+		next := aws.ToString(resp.NextMarker)
+		if next == "" && len(resp.Contents) > 0 {
+			next = aws.ToString(resp.Contents[len(resp.Contents)-1].Key)
+		}
+		if next == "" {
+			// No way to continue. Stop rather than refetch the first page.
 			return nil
 		}
+		marker = aws.String(next)
 	}
 }
 

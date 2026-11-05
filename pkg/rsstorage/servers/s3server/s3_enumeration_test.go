@@ -273,6 +273,32 @@ func (s *MetaTestSuite) TestBucketObjectsTruncatedWithoutMarker(c *check.C) {
 	c.Check(p.seen, check.DeepEquals, []string{""})
 }
 
+func (s *MetaTestSuite) TestBucketObjectsEmptyNextMarker(c *check.C) {
+	awsOps, client := newMockedAwsOps()
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	// An empty NextMarker must be treated as missing, so the last key is used.
+	// Using the empty marker would refetch the first page forever.
+	page1 := strings.Replace(listPage(true, "", "a.tar.gz", "b.zip"),
+		"<IsTruncated>", "<NextMarker></NextMarker><IsTruncated>", 1)
+	p := &pagedResponder{
+		pages:   []string{page1, listPage(false, "", "c.tar.gz")},
+		markers: map[string]int{"": 0, "b.zip": 1},
+	}
+	httpmock.RegisterResponder("GET", syncBucketURL, func(req *http.Request) (*http.Response, error) {
+		if len(p.seen) >= 5 {
+			return httpmock.NewStringResponse(http.StatusBadRequest, "too many requests"), nil
+		}
+		return p.respond(req)
+	})
+
+	files, err := awsOps.BucketObjects(context.Background(), "sync", "", 1, false, BinaryReg)
+	c.Assert(err, check.IsNil)
+	c.Check(files, check.DeepEquals, []string{"a", "b", "c"})
+	c.Check(p.seen, check.DeepEquals, []string{"", "b.zip"})
+}
+
 func (s *MetaTestSuite) TestBucketObjectsErrorOnLaterPage(c *check.C) {
 	awsOps, client := newMockedAwsOps()
 	httpmock.ActivateNonDefault(client)
