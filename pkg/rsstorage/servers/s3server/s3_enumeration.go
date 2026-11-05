@@ -6,13 +6,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"regexp"
 	"strings"
-	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"golang.org/x/sync/errgroup"
 )
 
 type AwsOps interface {
@@ -59,13 +58,9 @@ func (a *DefaultAwsOps) BucketObjects(
 	reg *regexp.Regexp,
 ) ([]string, error) {
 	var results []string
-	var mu sync.Mutex
 
 	err := a.enumerateBucket(ctx, bucket, s3Prefix, concurrency, recursive, func(resp *s3.ListObjectsOutput) {
-		bm := getObjectsAll(resp, s3Prefix, reg)
-		mu.Lock()
-		results = append(results, bm...)
-		mu.Unlock()
+		results = append(results, getObjectsAll(resp, s3Prefix, reg)...)
 	})
 	if err != nil {
 		return nil, err
@@ -82,15 +77,9 @@ func (a *DefaultAwsOps) BucketObjectsETagMap(
 	reg *regexp.Regexp,
 ) (map[string]string, error) {
 	results := make(map[string]string)
-	var mu sync.Mutex
 
 	err := a.enumerateBucket(ctx, bucket, s3Prefix, concurrency, recursive, func(resp *s3.ListObjectsOutput) {
-		bm := getObjectsAllMap(resp, s3Prefix, reg)
-		mu.Lock()
-		for key, val := range bm {
-			results[key] = val
-		}
-		mu.Unlock()
+		maps.Copy(results, getObjectsAllMap(resp, s3Prefix, reg))
 	})
 	if err != nil {
 		return nil, err
@@ -99,103 +88,67 @@ func (a *DefaultAwsOps) BucketObjectsETagMap(
 	return results, nil
 }
 
-// enumerateBucket handles paginated listing of S3 objects with concurrent workers.
-// The callback is invoked for each page of results.
+// enumerateBucket handles paginated listing of S3 objects. The callback is
+// invoked for each page of results that has contents.
+//
+// Pages are fetched one at a time: each request needs the marker returned by
+// the previous page, so the listing cannot run in parallel. The concurrency
+// argument is kept for API compatibility and is not used.
 func (a *DefaultAwsOps) enumerateBucket(
 	ctx context.Context,
 	bucket, s3Prefix string,
-	concurrency int,
+	_ int,
 	recursive bool,
 	callback func(*s3.ListObjectsOutput),
 ) error {
-	// Channel for markers to process. Buffer allows some lookahead.
-	markers := make(chan string, concurrency*2)
-
-	// Track in-flight work to know when we're done
-	var pending sync.WaitGroup
-
-	// Use errgroup for proper goroutine lifecycle management
-	g, ctx := errgroup.WithContext(ctx)
-
 	// Delimiter for non-recursive listing
 	var delimiter *string
 	if !recursive {
 		delimiter = aws.String("/")
 	}
 
-	// Progress tracking
 	var totalObjects int64
-	var totalMu sync.Mutex
+	var marker *string
 
-	// Start with empty marker
-	pending.Add(1)
-	markers <- ""
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 
-	// Spawn worker goroutines
-	for i := 0; i < concurrency; i++ {
-		g.Go(func() error {
-			for {
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case marker, ok := <-markers:
-					if !ok {
-						return nil
-					}
-
-					query := &s3.ListObjectsInput{
-						Bucket:    aws.String(bucket),
-						Prefix:    aws.String(s3Prefix),
-						Delimiter: delimiter,
-					}
-					if marker != "" {
-						query.Marker = &marker
-					}
-
-					resp, err := a.s3Client.ListObjects(ctx, query)
-					if err != nil {
-						pending.Done()
-						return fmt.Errorf("error listing objects: %w", err)
-					}
-
-					// Process results
-					if len(resp.Contents) > 0 {
-						callback(resp)
-
-						// Progress logging
-						totalMu.Lock()
-						totalObjects += int64(len(resp.Contents))
-						if totalObjects%1000 < int64(len(resp.Contents)) {
-							slog.Info("Parsed S3 files", "prefix", s3Prefix, "fileCount", totalObjects)
-						}
-						totalMu.Unlock()
-					}
-
-					// Queue next page if there is one
-					if resp.IsTruncated != nil && *resp.IsTruncated && resp.NextMarker != nil {
-						pending.Add(1)
-						select {
-						case markers <- *resp.NextMarker:
-						case <-ctx.Done():
-							pending.Done()
-							pending.Done()
-							return ctx.Err()
-						}
-					}
-
-					pending.Done()
-				}
-			}
+		resp, err := a.s3Client.ListObjects(ctx, &s3.ListObjectsInput{
+			Bucket:    aws.String(bucket),
+			Prefix:    aws.String(s3Prefix),
+			Delimiter: delimiter,
+			Marker:    marker,
 		})
+		if err != nil {
+			return fmt.Errorf("error listing objects: %w", err)
+		}
+
+		if n := int64(len(resp.Contents)); n > 0 {
+			callback(resp)
+
+			totalObjects += n
+			if totalObjects%1000 < n {
+				slog.Info("Parsed S3 files", "prefix", s3Prefix, "fileCount", totalObjects)
+			}
+		}
+
+		if resp.IsTruncated == nil || !*resp.IsTruncated {
+			return nil
+		}
+
+		// S3 returns NextMarker only when a delimiter is set. Otherwise, the
+		// last key of the page is the marker for the next page.
+		switch {
+		case resp.NextMarker != nil:
+			marker = resp.NextMarker
+		case len(resp.Contents) > 0:
+			marker = resp.Contents[len(resp.Contents)-1].Key
+		default:
+			return nil
+		}
 	}
-
-	// Close the markers channel when all work is done
-	go func() {
-		pending.Wait()
-		close(markers)
-	}()
-
-	return g.Wait()
 }
 
 var BinaryReg = regexp.MustCompile(`(.+)(\.tar\.gz|\.zip)$`)

@@ -4,8 +4,12 @@ package s3server
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -154,4 +158,226 @@ func (s *MetaTestSuite) TestBucketObjectsMap(c *check.C) {
 		"HIJKLMN": "456",
 		"OPQRSTU": "789",
 	})
+}
+
+// pagedResponder serves the pages in order. Each page after the first must be
+// requested with the expected marker. It records each marker it receives.
+type pagedResponder struct {
+	pages   []string
+	markers map[string]int
+	seen    []string
+}
+
+func (p *pagedResponder) respond(req *http.Request) (*http.Response, error) {
+	marker := req.URL.Query().Get("marker")
+	p.seen = append(p.seen, marker)
+	idx, ok := p.markers[marker]
+	if !ok {
+		return httpmock.NewStringResponse(http.StatusBadRequest, "unexpected marker "+marker), nil
+	}
+	return httpmock.NewStringResponse(http.StatusOK, p.pages[idx]), nil
+}
+
+func listPage(truncated bool, nextMarker string, keys ...string) string {
+	var b strings.Builder
+	b.WriteString(`<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>sync</Name>`)
+	fmt.Fprintf(&b, "<IsTruncated>%t</IsTruncated>", truncated)
+	if nextMarker != "" {
+		fmt.Fprintf(&b, "<NextMarker>%s</NextMarker>", nextMarker)
+	}
+	for _, k := range keys {
+		fmt.Fprintf(&b, "<Contents><Key>%s</Key><ETag>etag-%s</ETag></Contents>", k, k)
+	}
+	b.WriteString("</ListBucketResult>")
+	return b.String()
+}
+
+func newMockedAwsOps() (*DefaultAwsOps, *http.Client) {
+	client := &http.Client{}
+	s3Client := s3.New(
+		s3.Options{
+			Region:      "us-east-1",
+			Credentials: aws.AnonymousCredentials{},
+			HTTPClient:  client,
+		},
+	)
+	return NewAwsOps(s3Client), client
+}
+
+const syncBucketURL = "https://sync.s3.us-east-1.amazonaws.com/"
+
+func (s *MetaTestSuite) TestBucketObjectsPaginationNextMarker(c *check.C) {
+	awsOps, client := newMockedAwsOps()
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	// With a delimiter, S3 returns NextMarker on truncated pages.
+	p := &pagedResponder{
+		pages: []string{
+			listPage(true, "m1", "a.tar.gz", "b.zip"),
+			listPage(true, "m2", "c.tar.gz"),
+			listPage(false, "", "d.zip", "e.json"),
+		},
+		markers: map[string]int{"": 0, "m1": 1, "m2": 2},
+	}
+	httpmock.RegisterResponder("GET", syncBucketURL, p.respond)
+
+	files, err := awsOps.BucketObjects(context.Background(), "sync", "", 4, false, BinaryReg)
+	c.Assert(err, check.IsNil)
+	c.Check(files, check.DeepEquals, []string{"a", "b", "c", "d"})
+	c.Check(p.seen, check.DeepEquals, []string{"", "m1", "m2"})
+}
+
+func (s *MetaTestSuite) TestBucketObjectsPaginationRecursiveLastKey(c *check.C) {
+	awsOps, client := newMockedAwsOps()
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	// Without a delimiter, S3 does not return NextMarker. The last key of the
+	// page must be used as the marker for the next page.
+	p := &pagedResponder{
+		pages: []string{
+			listPage(true, "", "x/a.tar.gz", "x/b.zip"),
+			listPage(false, "", "x/y/c.tar.gz"),
+		},
+		markers: map[string]int{"": 0, "x/b.zip": 1},
+	}
+	httpmock.RegisterResponder("GET", syncBucketURL, p.respond)
+
+	files, err := awsOps.BucketObjectsETagMap(context.Background(), "sync", "x/", 1, true, BinaryReg)
+	c.Assert(err, check.IsNil)
+	c.Check(files, check.DeepEquals, map[string]string{
+		"a":   "etag-x/a.tar.gz",
+		"b":   "etag-x/b.zip",
+		"y/c": "etag-x/y/c.tar.gz",
+	})
+	c.Check(p.seen, check.DeepEquals, []string{"", "x/b.zip"})
+}
+
+func (s *MetaTestSuite) TestBucketObjectsTruncatedWithoutMarker(c *check.C) {
+	awsOps, client := newMockedAwsOps()
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	// A truncated page with no NextMarker and no contents cannot be continued.
+	// The listing must stop and not loop on the same request.
+	p := &pagedResponder{
+		pages:   []string{listPage(true, "")},
+		markers: map[string]int{"": 0},
+	}
+	httpmock.RegisterResponder("GET", syncBucketURL, p.respond)
+
+	files, err := awsOps.BucketObjects(context.Background(), "sync", "", 1, true, nil)
+	c.Assert(err, check.IsNil)
+	c.Check(files, check.HasLen, 0)
+	c.Check(p.seen, check.DeepEquals, []string{""})
+}
+
+func (s *MetaTestSuite) TestBucketObjectsErrorOnLaterPage(c *check.C) {
+	awsOps, client := newMockedAwsOps()
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	// The second page asks for marker "m1", which the responder rejects.
+	p := &pagedResponder{
+		pages:   []string{listPage(true, "m1", "a.tar.gz")},
+		markers: map[string]int{"": 0},
+	}
+	httpmock.RegisterResponder("GET", syncBucketURL, p.respond)
+
+	files, err := awsOps.BucketObjects(context.Background(), "sync", "", 1, false, BinaryReg)
+	c.Assert(err, check.NotNil)
+	c.Check(strings.Contains(err.Error(), "error listing objects"), check.Equals, true)
+	c.Check(files, check.IsNil)
+	c.Check(p.seen, check.DeepEquals, []string{"", "m1"})
+}
+
+func (s *MetaTestSuite) TestEnumerateBucketCancelInCallback(c *check.C) {
+	awsOps, client := newMockedAwsOps()
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	p := &pagedResponder{
+		pages: []string{
+			listPage(true, "m1", "a.tar.gz"),
+			listPage(false, "", "b.tar.gz"),
+		},
+		markers: map[string]int{"": 0, "m1": 1},
+	}
+	httpmock.RegisterResponder("GET", syncBucketURL, p.respond)
+
+	// Cancel after the first truncated page. The listing must stop and return
+	// the context error without fetching the next page.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	calls := 0
+	err := awsOps.enumerateBucket(ctx, "sync", "", 1, false, func(*s3.ListObjectsOutput) {
+		calls++
+		cancel()
+	})
+	c.Assert(errors.Is(err, context.Canceled), check.Equals, true)
+	c.Check(calls, check.Equals, 1)
+	c.Check(p.seen, check.DeepEquals, []string{""})
+}
+
+func (s *MetaTestSuite) TestEnumerateBucketCancelNoGoroutineLeak(c *check.C) {
+	awsOps, client := newMockedAwsOps()
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	p := &pagedResponder{
+		pages: []string{
+			listPage(true, "m1", "a.tar.gz"),
+			listPage(false, "", "b.tar.gz"),
+		},
+		markers: map[string]int{"": 0, "m1": 1},
+	}
+	httpmock.RegisterResponder("GET", syncBucketURL, p.respond)
+
+	runtime.GC()
+	before := runtime.NumGoroutine()
+
+	// Cancel in the callback after a truncated page, many times. Each run must
+	// leave no goroutine behind.
+	const runs = 200
+	for i := 0; i < runs; i++ {
+		ctx, cancel := context.WithCancel(context.Background())
+		err := awsOps.enumerateBucket(ctx, "sync", "", 1, false, func(*s3.ListObjectsOutput) {
+			cancel()
+		})
+		cancel()
+		c.Assert(errors.Is(err, context.Canceled), check.Equals, true)
+	}
+
+	// Give goroutines that are exiting time to finish.
+	var after int
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); {
+		after = runtime.NumGoroutine()
+		if after-before < 5 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	c.Check(after-before < 5, check.Equals, true, check.Commentf("goroutines before=%d after=%d", before, after))
+}
+
+func (s *MetaTestSuite) TestEnumerateBucketCanceledContext(c *check.C) {
+	awsOps, client := newMockedAwsOps()
+	httpmock.ActivateNonDefault(client)
+	defer httpmock.DeactivateAndReset()
+
+	p := &pagedResponder{
+		pages:   []string{listPage(false, "", "a.tar.gz")},
+		markers: map[string]int{"": 0},
+	}
+	httpmock.RegisterResponder("GET", syncBucketURL, p.respond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	files, err := awsOps.BucketObjects(ctx, "sync", "", 1, false, BinaryReg)
+	c.Assert(errors.Is(err, context.Canceled), check.Equals, true)
+	c.Check(files, check.IsNil)
+	c.Check(p.seen, check.HasLen, 0)
 }
