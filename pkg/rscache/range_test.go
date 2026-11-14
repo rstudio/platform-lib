@@ -162,3 +162,46 @@ func (s *RangeCacheSuite) TestNotSatisfiablePassesThrough(c *check.C) {
 	c.Assert(errors.As(err, &rerr), check.Equals, true)
 	c.Check(rerr.Size, check.Equals, int64(10))
 }
+
+func newMemoryBackedRange(storage rsstorage.StorageServer, q Queue) CacheProvider {
+	fc := NewFileCache(fileCfg(q, &fakeDupMatcher{}, storage, &fakeRecurser{}, time.Second*5))
+	return NewMemoryBackedFileCache(MemoryBackedFileCacheConfig{FileCache: fc})
+}
+
+func (s *RangeCacheSuite) TestMemoryBackedRanges(c *check.C) {
+	storage := &rangeStorage{filled: true, data: []byte("0123456789")}
+	cache := newMemoryBackedRange(storage, &fillingQueue{storage: storage})
+	rc, ok := cache.(RangeFileCache)
+	c.Assert(ok, check.Equals, true)
+	spec := ResolverSpec{Work: &FakeWork{address: "addr"}}
+
+	r, size, mod, err := rc.GetRange(context.Background(), spec, 3, 4)
+	c.Assert(err, check.IsNil)
+	got, _ := io.ReadAll(r)
+	c.Check(r.Close(), check.IsNil)
+	c.Check(string(got), check.Equals, "3456")
+	c.Check(size, check.Equals, int64(10))
+	c.Check(mod.Equal(rangeCacheModTime), check.Equals, true)
+}
+
+// noRangeCache is a FileCache with no GetRange.
+type noRangeCache struct{ FileCache }
+
+func (s *RangeCacheSuite) TestMemoryBackedInnerCannotRange(c *check.C) {
+	cache := NewMemoryBackedFileCache(MemoryBackedFileCacheConfig{FileCache: noRangeCache{}})
+	spec := ResolverSpec{Work: &FakeWork{address: "addr"}}
+
+	_, _, _, err := cache.GetRange(context.Background(), spec, 0, 1)
+	c.Check(errors.Is(err, rsstorage.ErrRangeNotSupported), check.Equals, true)
+}
+
+func (s *RangeCacheSuite) TestMemoryBackedNotSatisfiable(c *check.C) {
+	storage := &rangeStorage{filled: true, data: []byte("0123456789")}
+	cache := newMemoryBackedRange(storage, &fillingQueue{storage: storage})
+	spec := ResolverSpec{Work: &FakeWork{address: "addr"}}
+
+	_, _, _, err := cache.(RangeFileCache).GetRange(context.Background(), spec, 10, 1)
+	var rerr *rsstorage.RangeNotSatisfiableError
+	c.Assert(errors.As(err, &rerr), check.Equals, true)
+	c.Check(rerr.Size, check.Equals, int64(10))
+}

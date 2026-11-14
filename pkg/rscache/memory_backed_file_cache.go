@@ -11,6 +11,8 @@ import (
 	"io"
 	"log/slog"
 	"time"
+
+	"github.com/rstudio/platform-lib/v4/pkg/rsstorage"
 )
 
 func decompressAndDecodeGob(reader io.ReadCloser, compressed bool, typeExample interface{}) (result interface{}, err error) {
@@ -61,6 +63,18 @@ type MemoryBackedFileCacheConfig struct {
 	FileCache          FileCache
 	MemoryCache        MemoryCache
 	MaxMemoryPerObject int64
+}
+
+var _ RangeFileCache = (*MemoryBackedFileCache)(nil)
+
+// GetRange passes through to the inner cache. It skips the memory layer and
+// does not fill it.
+func (mbfc *MemoryBackedFileCache) GetRange(ctx context.Context, resolver ResolverSpec, offset, length int64) (io.ReadCloser, int64, time.Time, error) {
+	rfc, ok := mbfc.fc.(RangeFileCache)
+	if !ok {
+		return nil, 0, time.Time{}, rsstorage.ErrRangeNotSupported
+	}
+	return rfc.GetRange(ctx, resolver, offset, length)
 }
 
 func NewMemoryBackedFileCache(cfg MemoryBackedFileCacheConfig) *MemoryBackedFileCache {
