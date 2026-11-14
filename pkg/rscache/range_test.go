@@ -139,6 +139,19 @@ func (s *RangeCacheSuite) TestUnsupportedStorageFallsBack(c *check.C) {
 	c.Check(q.AddParams, check.HasLen, 0)
 }
 
+func (s *RangeCacheSuite) TestInvalidRangeDoesNotFillCache(c *check.C) {
+	storage := &rangeStorage{filled: false, data: []byte("0123456789")}
+	q := &fillingQueue{storage: storage}
+	cache := newRangeCache(storage, q)
+	spec := ResolverSpec{Work: &FakeWork{address: "addr"}}
+
+	for _, rng := range [][2]int64{{-1, 5}, {0, 0}, {0, -3}} {
+		_, _, _, err := cache.GetRange(context.Background(), spec, rng[0], rng[1])
+		c.Check(errors.Is(err, rsstorage.ErrInvalidRange), check.Equals, true)
+	}
+	c.Check(q.pushes, check.Equals, 0)
+}
+
 func (s *RangeCacheSuite) TestNotSatisfiablePassesThrough(c *check.C) {
 	storage := &rangeStorage{filled: true, data: []byte("0123456789")}
 	cache := newRangeCache(storage, &fillingQueue{storage: storage})

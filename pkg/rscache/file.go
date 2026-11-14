@@ -338,6 +338,11 @@ func (o *fileCache) GetRange(ctx context.Context, resolver ResolverSpec, offset,
 		return nil, 0, time.Time{}, rsstorage.ErrRangeNotSupported
 	}
 
+	// Reject malformed ranges before any cache fill.
+	if offset < 0 || length < 1 {
+		return nil, 0, time.Time{}, rsstorage.ErrInvalidRange
+	}
+
 	// Head checks the cache and, on a miss, queues the work and waits for it.
 	if _, _, err := o.Head(ctx, resolver); err != nil {
 		return nil, 0, time.Time{}, err

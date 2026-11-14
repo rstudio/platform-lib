@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -255,7 +256,12 @@ func (s *StorageServer) GetRange(ctx context.Context, dir, address string, offse
 
 	addr := internal.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
 	infoAddr := filepath.Join(addr, "info.json")
-	rng := fmt.Sprintf("bytes=%d-%d", offset, offset+length-1)
+	// Clamp the end so a huge length cannot overflow int64.
+	end := int64(math.MaxInt64)
+	if length-1 <= math.MaxInt64-offset {
+		end = offset + length - 1
+	}
+	rng := fmt.Sprintf("bytes=%d-%d", offset, end)
 	resp, err := s.svc.GetObject(ctx, &s3.GetObjectInput{Bucket: &s.bucket, Key: &addr, Range: &rng})
 
 	var nsk *awsTypes.NoSuchKey
