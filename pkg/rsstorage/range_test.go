@@ -150,3 +150,13 @@ func (s *RangeSuite) TestReadChunkedRangeFallback(c *check.C) {
 		"dir/item/info.json", "dir/item/00000003", "dir/item/00000004", "dir/item/00000005",
 	})
 }
+
+// An unfinished chunked write is an error, not a read of partial data.
+func (s *RangeSuite) TestReadChunkedRangeIncomplete(c *check.C) {
+	info, err := json.Marshal(types.ChunksInfo{ChunkSize: 10, NumChunks: 10, FileSize: 95, Complete: false})
+	c.Assert(err, check.IsNil)
+	server := &mapServer{objects: map[string][]byte{"dir/item/info.json": info}}
+	_, _, _, _, ok, err := ReadChunkedRange(context.Background(), server, "dir", "item", 0, 10)
+	c.Check(ok, check.Equals, false)
+	c.Check(errors.Is(err, ErrNoChunk), check.Equals, true)
+}

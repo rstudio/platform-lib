@@ -280,6 +280,7 @@ func (s *StorageServer) GetRange(ctx context.Context, dir, address string, offse
 		return rsstorage.ReadChunkedRange(ctx, s, dir, address, offset, length)
 	case err != nil && errors.As(err, &apiErr) && apiErr.ErrorCode() == "InvalidRange":
 		// The offset is past the end of the object. Get the size for the caller.
+		// For a chunk of a chunked item, this means a short or corrupt chunk.
 		head, headErr := s.svc.HeadObject(ctx, &s3.HeadObjectInput{Bucket: &s.bucket, Key: &addr})
 		if headErr != nil {
 			return nil, nil, 0, time.Time{}, false, headErr

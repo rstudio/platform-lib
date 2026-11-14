@@ -43,6 +43,9 @@ func (e *RangeNotSatisfiableError) Is(target error) bool {
 //
 // GetRange returns the bytes [offset, offset+length), clamped at the end of the object.
 // Size and modtime are for the whole object. Errors: see the Err vars above.
+//
+// A chunked object must be complete. GetRange does not wait for a chunked write in
+// progress; callers that can see one should read through rscache.
 type RangeGetter interface {
 	GetRange(ctx context.Context, dir, address string, offset, length int64) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error)
 }
@@ -64,7 +67,8 @@ func ClampRange(offset, length, size int64) (int64, error) {
 // ReadChunkedRange reads a range of a chunked object from server. It opens only the chunks
 // the range touches. If server is a RangeGetter, each chunk is read with a ranged read, so
 // bytes before the offset are never fetched. Otherwise bytes before the offset in the first
-// chunk are read and dropped.
+// chunk are read and dropped. The object must be complete: an unfinished chunked write
+// returns an error wrapping ErrNoChunk instead of waiting.
 func ReadChunkedRange(
 	ctx context.Context,
 	server StorageServer,
@@ -86,6 +90,9 @@ func ReadChunkedRange(
 		return nil, nil, 0, time.Time{}, false, closeErr
 	}
 
+	if !info.Complete {
+		return nil, nil, 0, time.Time{}, false, fmt.Errorf("chunked asset %s is incomplete: %w", address, ErrNoChunk)
+	}
 	size := int64(info.FileSize)
 	n, err := ClampRange(offset, length, size)
 	if err != nil {
