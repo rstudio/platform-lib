@@ -244,6 +244,46 @@ func (s *StorageServer) Get(ctx context.Context, dir, address string) (io.ReadCl
 	return f, nil, stat.Size(), stat.ModTime(), true, nil
 }
 
+// GetRange implements rsstorage.RangeGetter. Chunked items read only the chunks the range touches.
+func (s *StorageServer) GetRange(ctx context.Context, dir, address string, offset, length int64) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
+	filePath := filepath.Join(s.dir, dir, address)
+
+	f, err := s.fileIO.Open(filePath)
+	if os.IsNotExist(err) {
+		return nil, nil, 0, time.Time{}, false, nil
+	}
+	if err != nil {
+		return nil, nil, 0, time.Time{}, false, err
+	}
+
+	stat, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, nil, 0, time.Time{}, false, err
+	}
+
+	if stat.IsDir() {
+		f.Close()
+		return rsstorage.ReadChunkedRange(ctx, s, dir, address, offset, length)
+	}
+
+	n, err := rsstorage.ClampRange(offset, length, stat.Size())
+	if err == nil {
+		_, err = f.Seek(offset, io.SeekStart)
+	}
+	if err != nil {
+		f.Close()
+		return nil, nil, 0, time.Time{}, false, err
+	}
+	rc := &rangeFile{Reader: io.LimitReader(f, n), Closer: f}
+	return rc, nil, stat.Size(), stat.ModTime(), true, nil
+}
+
+type rangeFile struct {
+	io.Reader
+	io.Closer
+}
+
 func (s *StorageServer) Flush(ctx context.Context, dir, address string) {
 	// Determine location for this file
 	filePath := filepath.Join(s.dir, dir, address)
