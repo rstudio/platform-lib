@@ -6,7 +6,7 @@ Instructions for coding agents working in this repo.
 
 `github.com/rstudio/platform-lib/v4` is a set of shared Go libraries. Other applications import it, so treat every exported identifier under `pkg/` as public API. A breaking change to exported API needs a new major version, which also means changing the `/vN` suffix in the module path and in every import path (see Releases).
 
-It is one Go module. There is a single `go.mod` at the repo root. Do not add another one. Some `README.md` files under `pkg/` say each implementation should have its own `go.mod`; that is out of date, because there is only the root module.
+It is one Go module. There is a single `go.mod` at the repo root. Do not add another one.
 
 ## Layout
 
@@ -19,7 +19,7 @@ It is one Go module. There is a single `go.mod` at the repo root. Do not add ano
 - `pkg/rsstorage`: storage servers. The interface and shared code are in `pkg/rsstorage` and `types`. `servers/{file,postgres,s3server}` are the implementations.
 - `internal/util`: private helpers.
 - `examples/cmd`: small example programs. `just build` builds them.
-- `docs`, `scripts`, `docker`, `.devcontainer`: docs, helper scripts, integration test compose file, VS Code dev container.
+- `scripts`, `docker`, `.devcontainer`: helper scripts, integration test compose file, VS Code dev container.
 
 ## Commands
 
