@@ -9,7 +9,7 @@
 // node takes over.
 //
 // The package defines three things:
-//   - Leader, the interface that a leader loop implements.
+//   - Leader, the interface for a leader loop.
 //   - TaskHandler, which runs the leader's tasks for as long as the node is
 //     leading.
 //   - Task and Schedule, which describe the work. A task is either persistent
@@ -17,8 +17,9 @@
 //     time its schedule fires).
 //
 // GenericTaskHandler, GenericTask and IntervalSchedule are ready-made
-// implementations. The implementations of Leader live in the subpackages
-// impls/local, for a single node, and impls/pgx, for several nodes that share
-// a PostgreSQL database. Leaders use the broadcaster from the rsnotify package
+// implementations. The leaders live in the subpackages impls/local, for a
+// single node, and impls/pgx, for several nodes that share a PostgreSQL
+// database. The single-node leader implements Leader. The PostgreSQL leader
+// has a Lead method that takes a context, so it does not. Leaders use the broadcaster from the rsnotify package
 // to talk to other nodes.
 package rselection

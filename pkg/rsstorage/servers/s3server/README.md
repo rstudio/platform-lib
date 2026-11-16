@@ -95,8 +95,11 @@ S3 content length. If that metadata is missing, the size is 0.
 
 `AwsOps` is a separate set of helpers for listing a bucket. `NewAwsOps` takes an
 `*s3.Client`. It has `BucketDirs`, which lists the directories under a prefix,
-and `BucketObjects` and `BucketObjectsETagMap`, which list keys, or keys and
-ETags, optionally filtered by a regular expression. `BinaryReg` is a ready-made
-expression that matches `.tar.gz` and `.zip` names. The storage server does not
+and `BucketObjects` and `BucketObjectsETagMap`, which list object names, or names
+and ETags, under a prefix. The prefix is removed from each name. If you pass a
+regular expression, only matching keys are returned, and each result is the
+first capture group of the match. `BinaryReg` is a ready-made expression that
+matches `.tar.gz` and `.zip` names and captures the name without the
+extension. The storage server does not
 use these helpers. The `concurrency` argument is kept for compatibility and is
 not used.

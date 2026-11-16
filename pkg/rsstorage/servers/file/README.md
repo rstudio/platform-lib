@@ -28,7 +28,7 @@ server := file.NewStorageServer(file.StorageServerArgs{
 | `ChunkSize`, `Waiter`, `Notifier` | For chunked storage. See [servers](../README.md). |
 | `Class` | Accepted so that the arguments match the other servers. The file server does not use it. |
 | `CacheTimeout` | The longest time that `CalculateUsage` spends adding up file sizes. If it is 0, `CalculateUsage` fails at once with a `cacheTimeout reached` error. |
-| `WalkTimeout` | The longest gap between two files while walking the directory, in `Enumerate`, `EnumeratePrefix`, and `CalculateUsage`. The default is 5 minutes. It limits the time between files, not the whole walk. |
+| `WalkTimeout` | The longest gap between two files while walking the directory, in `Enumerate`, `EnumeratePrefix`, and `CalculateUsage`. The default is 5 minutes. It limits the time between files, not the whole walk. In `Enumerate` and `EnumeratePrefix` the timer restarts only when an item is returned, so files that do not match the prefix do not restart it. |
 
 See [example_test.go](example_test.go) for runnable examples.
 
@@ -51,6 +51,7 @@ See [example_test.go](example_test.go) for runnable examples.
   holds `Dir`, and the total size of the files in `Dir`. It is not supported on
   Windows and returns an error there.
 - `Enumerate` and `EnumeratePrefix` return each chunked item once, with
-  `Chunked` set. `EnumeratePrefix` skips directories that cannot hold a match,
-  so a prefix without a `/` reads only the root directory.
+  `Chunked` set. `EnumeratePrefix` skips directories that cannot hold a match.
+  A prefix without a `/` reads the root directory and any top-level directory
+  whose name starts with the prefix.
 - The `Dir` of a listed item is relative to the root of the server.

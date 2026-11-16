@@ -25,8 +25,7 @@ library provides the pieces for that work and two ways to choose a leader:
 
 ## Definitions
 
-- **Leader** The node that currently runs the cluster's background work. It
-  implements the `Leader` interface. A leader loop runs a `TaskHandler` for as
+- **Leader** The node that currently runs the cluster's background work. A leader loop runs a `TaskHandler` for as
   long as the node is leading.
 
 - **Follower** A node that is not the leader. In the PostgreSQL implementation,
@@ -86,9 +85,11 @@ database.
 
 - `PgxLeader` pings the followers on a timer and tracks which nodes answer. It
   also sweeps nodes that stopped answering. It runs the task handler while it
-  leads. It answers verification requests by checking that every node in the
-  database (from the `ClusterPgStore` you provide) is also a node it has heard
-  from. If it hears a ping from another leader, it stops leading. If
+  leads. It answers verification requests with two checks: its last ping attempt
+  succeeded, and every node in the database (from the `ClusterPgStore` you
+  provide) is in its own list of known nodes. That list starts from the
+  database when the leader starts, and the sweep removes nodes whose last ping
+  is too old. If it hears a ping from another leader, it stops leading. If
   `StepDownTimeout` is set and the cluster stays unhealthy for that long, it
   also stops, so that a new election can happen.
 - `PgxFollower` answers the leader's pings. If it hears no ping for `Timeout`,
@@ -153,8 +154,8 @@ back to following. See [`impls/pgx/example_test.go`](impls/pgx/example_test.go).
 
 `GenericTaskHandlerConfig` has an optional `OnTaskRun` callback, which is
 called before each scheduled run. `PgxLeaderConfig` has optional
-`OnIntegrityResult` and `OnPingResult` callbacks. Each callback may be called
-from several goroutines at once, so it must be safe for concurrent use and must
+`OnIntegrityResult` and `OnPingResult` callbacks. `OnPingResult` may run concurrently with itself and with
+`OnIntegrityResult`, so both callbacks must be safe for concurrent use and must
 not block.
 
 ## Testing

@@ -39,6 +39,6 @@ You can leave `ChunkSize`, `Waiter`, and `Notifier` unset if you never call
 | `CalculateUsage` | Works (not on Windows) | Returns an error | Returns an error |
 | `Flush` | Re-reads file attributes for NFS | Does nothing | Does nothing |
 | Modification time of a regular item | Yes | Yes | No (zero time) |
-| `EnumeratePrefix` | Skips directories that cannot match | Sends the prefix to S3 | Sends the prefix to the database |
+| `EnumeratePrefix` | Walks only the directories that can hold a match | Sends the prefix to S3 | Sends the prefix to the database |
 
 Every server implements `rsstorage.PrefixEnumerator`.

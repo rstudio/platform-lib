@@ -5,7 +5,7 @@
 A storage library. Useful for applications that need to store and
 retrieve data from centralized locations like NFS or AWS S3.
 
-The package defines one interface, `StorageServer`. Your code talks to the
+The main interface is `StorageServer`. Your code talks to the
 interface, and you pick the implementation: a file system, an S3 bucket, or a
 PostgreSQL database. Large items can be stored in chunks, so a reader can start
 before the writer has finished.
@@ -51,7 +51,7 @@ See [servers](servers/README.md) for how to build each one.
 
 | Group | Methods | What they do |
 | --- | --- | --- |
-| Read | `Check`, `Get` | `Check` says whether an item exists and returns its size and modification time without opening it. `Get` also returns a reader. Both return `found` as `false`, and no error, for a missing item. |
+| Read | `Check`, `Get` | `Check` says whether an item exists and returns its size and modification time. `Get` also returns a reader. Both return `found` as `false`, and no error, for a missing item. |
 | Write | `Put`, `PutChunked` | `Put` stores one item. `PutChunked` stores it in chunks. Both call a `Resolver` to get the data. |
 | Remove | `Remove` | Deletes an item, including all the chunks of a chunked item. Removing an item that is not there is not an error. |
 | List | `Enumerate` | Returns every item the server holds. A chunked item appears once, with `Chunked` set to `true`. |
@@ -105,7 +105,10 @@ notifier that does nothing and a waiter that returns at once are enough.
 
 `Get` on a chunked item returns a reader that streams the chunks in order. If
 the item is still being written, the reader waits for the next chunk as above.
-`ErrNoChunkMetadata` is returned when the directory has no `info.json`.
+When the directory has no `info.json`, `Get` fails with `ErrNoChunkMetadata`.
+The S3 and PostgreSQL servers return an error that `errors.Is` matches. The
+file server puts only the text of that error in its own error, so `errors.Is`
+does not match there.
 
 ### Copy and move
 
@@ -115,7 +118,7 @@ the item is still being written, the reader waits for the next chunk as above.
   path. For `Move`, the file server renames the file and the PostgreSQL server
   rewrites the address in its table. For `Copy`, the S3 server asks S3 to copy
   the object, so the bytes do not pass through your process. If the faster path
-  fails, the file and S3 servers fall back to the next case.
+  fails, the server falls back to the next case.
 - Otherwise, the data is read from the source and written to the destination
   with `Put` or `PutChunked`. This is the case for servers of different types,
   and when the destination is wrapped in `MetadataStorageServer`. The wrapper's
