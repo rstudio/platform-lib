@@ -14,7 +14,7 @@ It is one Go module. There is a single `go.mod` at the repo root. Do not add ano
 - `pkg/rselection`: leader election and task handling. `impls/local` and `impls/pgx` are the implementations, `electiontypes` holds shared types.
 - `pkg/rskey`: only a README that points to `github.com/rstudio/rskey`. No Go code.
 - `pkg/rslog`: logging library that wraps `github.com/sirupsen/logrus`. `rslogtest` has logger mocks and helpers for tests. Release notes for it are in `pkg/rslog/NEWS.md`.
-- `pkg/rsnotify`: notifications. `listener`, `notifier`, `broadcaster` and `listenerfactory` define the pieces. `listeners/{local,postgrespgx,postgrespq}` are Listener implementations.
+- `pkg/rsnotify`: notifications. `listener`, `notifier`, `broadcaster` and `listenerfactory` define the pieces. `listenerutils` has `SafeChannelName`, which shortens channel names that are too long for PostgreSQL. `listeners/{local,postgrespgx,postgrespq}` are Listener implementations.
 - `pkg/rsqueue`: work queues. `queue`, `agent`, `groups`, `permit`, `runnerfactory`, `metrics`, `types`, `utils` are the core. `impls/database` is the database implementation.
 - `pkg/rsstorage`: storage servers. The interface and shared code are in `pkg/rsstorage` and `types`. `servers/{file,postgres,s3server}` are the implementations.
 - `internal/util`: private helpers.
@@ -45,7 +45,7 @@ The `Platform Lib Pipeline` workflow runs `just lint`, `just vet`, then `just te
 
 - `just lint` runs `scripts/fmt-check.sh` (`gofmt -s`), `scripts/header-check.sh` and `scripts/test-wiring.sh`.
 - Header: line 3 of every `.go` file must match `// Copyright (C) YYYY by RStudio, PBC` or `// Copyright (C) YYYY by Posit Software, PBC`. Existing files put the `package` line first, then a blank line, then the copyright line, then the imports. A file that starts with a `//go:build` line has it on line 1, a blank line 2, and the copyright on line 3. For new files, use `Posit Software, PBC` with the current year, which is the form `.golangci.yml` expects.
-- Test wiring: every package that has tests must call `check.TestingT(t)` (gocheck) or `suite.Run` (testify). Every exported `type XxxSuite struct` in a `_test.go` file must be registered once, with `var _ = check.Suite(&XxxSuite{})` or `suite.Run(t, &XxxSuite{})`. Suites with lowercase names are ignored. A suite registered twice, or not at all, fails the check.
+- Test wiring: every package must have a `_test.go` file that calls `check.TestingT(t)` (gocheck) or `suite.Run` (testify). A package with no test file fails the check too, so a new package needs at least one wired test. Every exported `type XxxSuite struct` in a `_test.go` file must be registered once, with `var _ = check.Suite(&XxxSuite{})` or `suite.Run(t, &XxxSuite{})`. Suites with lowercase names are ignored. A suite registered twice, or not at all, fails the check.
 - `.golangci.yml` exists (errcheck, govet, staticcheck, goimports and others, with import groups for `github.com/rstudio`), but CI does not run `golangci-lint`. Keep imports grouped the same way anyway.
 - `.editorconfig`: UTF-8, LF line endings, final newline, no trailing whitespace, tabs in Go files, two-space indent in YAML and JSON.
 
