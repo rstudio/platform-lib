@@ -131,11 +131,8 @@ func (h *GenericTaskHandler) Verify() <-chan chan bool {
 	return h.verify
 }
 
-// Stop cancels the running tasks. It does nothing if Handle was never called.
 func (h *GenericTaskHandler) Stop() {
-	if h.cancel != nil {
-		h.cancel()
-	}
+	h.cancel()
 }
 
 type GenericTask struct {

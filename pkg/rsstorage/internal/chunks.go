@@ -34,11 +34,6 @@ func (w *DefaultChunkUtils) WriteChunked(
 	resolve types.Resolver,
 ) (err error) {
 
-	if w.ChunkSize == 0 {
-		err = errors.New("chunk size must be greater than zero")
-		return
-	}
-
 	// Determine number of chunks we will need to create
 	numChunks := sz / w.ChunkSize
 	if sz%w.ChunkSize > 0 {

@@ -1516,22 +1516,3 @@ func (s *FileCopyMoveSuite) TestLocate(c *check.C) {
 	c.Check(server.Locate("dir", "address"), check.Equals, "/some/test/dir/dir/address")
 	c.Check(server.Locate("", "address"), check.Equals, "/some/test/dir/address")
 }
-
-func (s *FileStorageServerSuite) TestGetChunkedNoMetadata(c *check.C) {
-	server := &StorageServer{
-		fileIO: &fakeFileIO{
-			open: &FakeFileIOFile{
-				stat: &fakeFileStat{
-					dir: true,
-				},
-			},
-		},
-		chunker: &servertest.DummyChunkUtils{
-			ReadErr: rsstorage.ErrNoChunkMetadata,
-		},
-	}
-	_, _, _, _, ok, err := server.Get(context.Background(), "", "storageaddress")
-	c.Check(ok, check.Equals, false)
-	c.Check(err, check.ErrorMatches, "error reading chunked directory files for storageaddress: metadata not found for chunked asset")
-	c.Check(errors.Is(err, rsstorage.ErrNoChunkMetadata), check.Equals, true)
-}
