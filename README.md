@@ -1,51 +1,58 @@
 # RStudio Platform Go Libraries
 
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/rstudio/platform-lib/v4)](https://pkg.go.dev/github.com/rstudio/platform-lib/v4)
+[![Go Report Card](https://goreportcard.com/badge/github.com/rstudio/platform-lib/v4?style=flat-square)](https://goreportcard.com/report/github.com/rstudio/platform-lib/v4)
+[![Release](https://img.shields.io/github/release/rstudio/platform-lib.svg?style=flat-square)](https://github.com/rstudio/platform-lib/releases/latest)
+
 ## Overview
 
-This repo includes useful Go code for building applications.
+Shared Go libraries for building server applications: logging, storage,
+caching, job queues, notifications, and leader election.
 
-## Go Directories
+The repo is a single Go module. Import a package with its full path:
 
-### `/internal`
+```go
+import "github.com/rstudio/platform-lib/v4/pkg/rslog"
+```
 
-Private application and library code. This is for code we don't want others
-importing in their applications or libraries. Note that this layout pattern is
-enforced by the Go compiler itself. See the Go 1.4
-[`release notes`](https://golang.org/doc/go1.4#internalpackages) for more
-details. Note that you are not limited to the top level `internal` directory.
-You can have more than one `internal` directory at any level of your project
-tree.
+## Packages
 
-You can optionally add a bit of extra structure to your internal packages to
-separate your shared and non-shared internal code. It's not required (especially
-for smaller projects), but it's nice to have visual clues showing the intended
-package use. Your actual application code can go in the `/internal/app`
-directory (e.g., `/internal/app/myapp`) and the code shared by those apps in the
-`/internal/pkg` directory (e.g., `/internal/pkg/myprivlib`).
+| Package | Purpose |
+| --- | --- |
+| [`pkg/rscache`](pkg/rscache/README.md) | Caches files and objects on disk and in memory. Works with `rsstorage` and `rsqueue`. |
+| [`pkg/rselection`](pkg/rselection/README.md) | Leader election for a cluster of nodes, with tasks that run on the leader. Works with `rsnotify`. |
+| [`pkg/rslog`](pkg/rslog/README.md) | Logging. Wraps `github.com/sirupsen/logrus`. |
+| [`pkg/rsnotify`](pkg/rsnotify/README.md) | Sends and listens for notifications, in one process or across nodes through PostgreSQL. |
+| [`pkg/rsqueue`](pkg/rsqueue/README.md) | A database-backed job queue. |
+| [`pkg/rsstorage`](pkg/rsstorage/README.md) | File storage with one interface over a file system, PostgreSQL, or S3. |
 
-### `/pkg`
+`pkg/rskey` holds no code. It points to
+[rstudio/rskey](https://github.com/rstudio/rskey), which lives in its own repo.
 
-Shared library code for use by external applications (e.g., `/pkg/rslog`).
-Other projects can import these libraries expecting them to work.
+API reference for every package is on
+[pkg.go.dev](https://pkg.go.dev/github.com/rstudio/platform-lib/v4).
 
-### `/examples`
+## Examples
 
-Example applications that demonstrate using the shared libraries.
+The example applications live in `/examples/cmd`. Build them all with
+`just build`. The binaries go to `out/`.
 
-## Common Application Directories
+| Example | Shows |
+| --- | --- |
+| [`markdownRenderer`](examples/cmd/markdownRenderer/README.md) | `rscache`, `rsnotify`, `rsqueue`, and `rsstorage` working together to render Markdown to HTML. |
+| `testlog` | Logging with `rslog`. |
+| `testnotify` | Sending and receiving notifications with `rsnotify`. |
+| `testservice` | Changing the `log/slog` level and format when the process receives `SIGHUP`. |
 
-### `/scripts`
+## Repo Layout
 
-Scripts to perform various build, install, linting, and documentation tasks.
-
-These scripts keep the root level `justfile` small and simple (e.g.,
-[`https://github.com/hashicorp/terraform/blob/master/Makefile`](https://github.com/hashicorp/terraform/blob/master/Makefile)).
-
-## Other Directories
-
-### `/docs`
-
-Design and user documents (in addition to your godoc generated documentation).
+| Directory | Contents |
+| --- | --- |
+| `/pkg` | The shared libraries. Other projects import these. |
+| `/examples` | Example applications that use the libraries. |
+| `/internal` | Code that other modules cannot import. The Go compiler enforces this. |
+| `/scripts` | Shell scripts for testing, linting, and license reports. The `justfile` calls them. |
+| `/docker` | The Docker Compose file for the integration tests. |
 
 ## Tooling
 
@@ -123,23 +130,3 @@ let the workflow handle the release.
 
 A major bump (e.g. v3 to v4) also requires updating the `/vN` suffix in the
 module path and all import paths, not just the tag.
-
-## Badges
-
-* [Go Report Card](https://goreportcard.com/) - It will scan your code with
-  `gofmt`, `go vet`, `gocyclo`, `golint`, `ineffassign`, `license` and
-  `misspell`. Replace `github.com/golang-standards/project-layout` with your
-  project reference.
-
-    [![Go Report Card](https://goreportcard.com/badge/github.com/rstudio/platform-lib?style=flat-square)](https://goreportcard.com/report/github.com/rstudio/platform-lib)
-
-* [Pkg.go.dev](https://pkg.go.dev) - Pkg.go.dev is a new destination for Go
-  discovery & docs. You can create a badge using the
-  [badge generation tool](https://pkg.go.dev/badge).
-
-    [![PkgGoDev](https://pkg.go.dev/badge/github.com/rstudio/platform-lib)](https://pkg.go.dev/github.com/rstudio/platform-lib)
-
-* Release - It will show the latest release number for your project. Change the
-  github link to point to your project.
-
-    [![Release](https://img.shields.io/github/release/rstudio/platform-lib.svg?style=flat-square)](https://github.com/rstudio/platform-lib/releases/latest)

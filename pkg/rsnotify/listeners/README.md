@@ -2,7 +2,8 @@
 
 This directory contains implementations of `/pkg/rsnotify/listener.Listener`.
 
-Each implementation should have its own `go.mod`. This allows consumers to import
-only the listener types they need for their use cases.
+All implementations are part of the root module
+(`github.com/rstudio/platform-lib/v4`). Import only the listener packages you
+need for your use case.
 
 Each listener should also implement `/pkg/rsnotify/listenerfactory.ListenerFactory`.
