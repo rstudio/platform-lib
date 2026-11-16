@@ -54,9 +54,12 @@ func ExampleNewMetadataStorageServer() {
 	}
 
 	// Get records that the item was used.
-	r, _, _, _, _, err := server.Get(ctx, "docs", "a.txt")
+	r, _, _, _, found, err := server.Get(ctx, "docs", "a.txt")
 	if err != nil {
 		panic(err)
+	}
+	if !found {
+		panic("docs/a.txt was not found")
 	}
 	_ = r.Close()
 

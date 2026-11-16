@@ -39,6 +39,8 @@ func ExampleGenericTaskHandler() {
 
 	handler := rselection.NewGenericTaskHandler(rselection.GenericTaskHandlerConfig{})
 	handler.Register(task.Name(), task)
+	// Handle passes its argument to each task's Run. A leader passes its
+	// broadcaster here. This task does not use it, so nil is enough.
 	handler.Handle(nil)
 	defer handler.Stop()
 

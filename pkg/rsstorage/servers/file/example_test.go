@@ -72,10 +72,15 @@ func ExampleNewStorageServer() {
 	}
 	fmt.Println("found:", found, "chunked:", chunked != nil, "size:", size)
 
-	// Get returns a reader. Close it when done.
+	// Get returns a reader. Close it when done. For an item that is not
+	// there, Get returns found=false, a nil reader and no error, so check
+	// found before reading.
 	r, _, _, _, found, err := server.Get(ctx, "docs", "hello.txt")
 	if err != nil {
 		panic(err)
+	}
+	if !found {
+		panic("docs/hello.txt was not found")
 	}
 	body, err := io.ReadAll(r)
 	if err != nil {
@@ -210,15 +215,27 @@ func ExampleStorageServer_Copy() {
 	if err := source.Copy(ctx, "docs", "note.txt", destination); err != nil {
 		panic(err)
 	}
-	inSource, _, _, _, _ := source.Check(ctx, "docs", "note.txt")
-	inDestination, _, _, _, _ := destination.Check(ctx, "docs", "note.txt")
+	inSource, _, _, _, err := source.Check(ctx, "docs", "note.txt")
+	if err != nil {
+		panic(err)
+	}
+	inDestination, _, _, _, err := destination.Check(ctx, "docs", "note.txt")
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println("after copy:", inSource, inDestination)
 
 	if err := source.Move(ctx, "docs", "note.txt", destination); err != nil {
 		panic(err)
 	}
-	inSource, _, _, _, _ = source.Check(ctx, "docs", "note.txt")
-	inDestination, _, _, _, _ = destination.Check(ctx, "docs", "note.txt")
+	inSource, _, _, _, err = source.Check(ctx, "docs", "note.txt")
+	if err != nil {
+		panic(err)
+	}
+	inDestination, _, _, _, err = destination.Check(ctx, "docs", "note.txt")
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println("after move:", inSource, inDestination)
 
 	// Output:

@@ -30,8 +30,8 @@ func (assumeLeaderQueue) Push(ctx context.Context, w electiontypes.AssumeLeader)
 }
 
 // This example is compiled but not run, because it needs a PostgreSQL
-// database. Each node runs a follower. A node that is promoted runs a leader
-// until it stops.
+// database. Each node follows until it is promoted, leads until it stops
+// leading, and then follows again.
 func ExamplePgxLeader() {
 	var (
 		pool *pgxpool.Pool           // A connection pool for the shared database.
@@ -39,40 +39,49 @@ func ExamplePgxLeader() {
 	)
 	ctx := context.Background()
 	notifier := pgxelection.NewPgxPgNotifier(pgxelection.PgxPgNotifierConfig{Pool: pool})
-
-	follower := pgxelection.NewPgxFollower(pgxelection.PgxFollowerConfig{
-		Queue:         assumeLeaderQueue{},
-		Broadcaster:   awb,
-		Notifier:      notifier,
-		LeaderChannel: "election-leader",
-		Address:       "node-1",
-		StopChan:      make(chan bool),
-		Timeout:       10 * time.Second,
-	})
-
-	// Follow blocks until the node is told to stop or is promoted.
-	if follower.Follow(ctx) != pgxelection.FollowResultPromote {
-		return
-	}
-
 	handler := rselection.NewGenericTaskHandler(rselection.GenericTaskHandlerConfig{})
-	leader := pgxelection.NewPgxLeader(pgxelection.PgxLeaderConfig{
-		Store:           nodeStore{},
-		Broadcaster:     awb,
-		Notifier:        notifier,
-		TaskHandler:     handler,
-		LeaderChannel:   "election-leader",
-		FollowerChannel: "election-follower",
-		MessagesChannel: "election-messages",
-		Address:         "node-1",
-		StopChan:        make(chan bool),
-		PingInterval:    5 * time.Second,
-		SweepInterval:   10 * time.Second,
-		MaxPingAge:      30 * time.Second,
-		StepDownTimeout: time.Minute,
-	})
 
-	// Lead blocks until the leader stops, for example because it heard from
-	// another leader. The node then goes back to following.
-	_ = leader.Lead(ctx)
+	// The follower and the leader share this channel. Close it when the
+	// service shuts down. That stops whichever one is running and ends the
+	// loop.
+	stop := make(chan bool)
+
+	for {
+		follower := pgxelection.NewPgxFollower(pgxelection.PgxFollowerConfig{
+			Queue:         assumeLeaderQueue{},
+			Broadcaster:   awb,
+			Notifier:      notifier,
+			LeaderChannel: "election-leader",
+			Address:       "node-1",
+			StopChan:      stop,
+			Timeout:       10 * time.Second,
+		})
+
+		// Follow blocks until the node is told to stop or is promoted.
+		if follower.Follow(ctx) != pgxelection.FollowResultPromote {
+			return
+		}
+
+		leader := pgxelection.NewPgxLeader(pgxelection.PgxLeaderConfig{
+			Store:           nodeStore{},
+			Broadcaster:     awb,
+			Notifier:        notifier,
+			TaskHandler:     handler,
+			LeaderChannel:   "election-leader",
+			FollowerChannel: "election-follower",
+			MessagesChannel: "election-messages",
+			Address:         "node-1",
+			StopChan:        stop,
+			PingInterval:    5 * time.Second,
+			SweepInterval:   10 * time.Second,
+			MaxPingAge:      30 * time.Second,
+			StepDownTimeout: time.Minute,
+		})
+
+		// Lead blocks until the leader stops, for example because it heard
+		// from another leader. The loop then goes back to following.
+		if err := leader.Lead(ctx); err != nil {
+			return
+		}
+	}
 }
