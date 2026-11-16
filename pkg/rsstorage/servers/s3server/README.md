@@ -67,7 +67,7 @@ wrapper, err := s3server.NewEncryptedS3Wrapper(encryptionClient)
 
 The encryption client must satisfy `S3API`. The wrapper tells the server that
 objects are encrypted. For those objects, the server takes the size from the
-`X-Amz-Unencrypted-Content-Length` metadata of the object instead of from the
+`x-amz-unencrypted-content-length` metadata of the object instead of from the
 S3 content length. If that metadata is missing, the size is 0.
 
 ## Behavior

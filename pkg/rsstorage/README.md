@@ -94,8 +94,8 @@ A server that supports chunks needs two helpers, both defined in this package:
 
 - A `ChunkNotifier`. The writer calls `Notify` after each chunk is written.
 - A `ChunkWaiter`. A reader calls `WaitForChunk` when the next chunk is not
-  there yet and the item is not complete. It passes a 5 second timeout. After
-  100 tries the reader gives up with `ErrNoChunk`.
+  there yet and the item is not complete. It passes a 5 second timeout. The
+  reader waits up to 100 times for one chunk, then gives up with `ErrNoChunk`.
 
 You decide how the two talk to each other. In one process, a channel is enough.
 Across several nodes, they might use a database or a message system. The
@@ -105,8 +105,10 @@ notifier that does nothing and a waiter that returns at once are enough.
 
 `Get` on a chunked item returns a reader that streams the chunks in order. If
 the item is still being written, the reader waits for the next chunk as above.
-When the directory has no `info.json`, `Get` fails with an error that matches
-`ErrNoChunkMetadata` under `errors.Is`.
+When the directory has no `info.json`, the result depends on the server. The
+file server's `Get` fails with an error that matches `ErrNoChunkMetadata` under
+`errors.Is`. The S3 and PostgreSQL servers report that the item was not found,
+with no error.
 
 ### Copy and move
 
@@ -240,7 +242,7 @@ just test-integration ./pkg/rsstorage/...
 `just test-integration` uses `docker/docker-compose.test.yml` to start a
 PostgreSQL 16 container and a MinIO container (an S3-compatible service). It runs
 the tests in a Go container linked to them, without `-short`, and removes the
-containers afterward. It leaves a log file named `test-integration-<id>.log` in
+containers afterward. It leaves a log file named `test-integration-platform-lib-it-<id>.log` in
 the repository root. Each PostgreSQL test creates its own empty database.
 
 The tests in
