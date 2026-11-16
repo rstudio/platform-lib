@@ -85,9 +85,11 @@ func (m *memoryCache) Put(address string, item *CacheReturn) (err error) {
 		// When we pass pointers, the raw size we get from unsafe.Sizeof is the size of the pointer (a few bytes). By
 		//    encoding to gob, we get a more accurate size, which is important for ristretto so that it knows how "costly"
 		//    a cache item is.
-		if err = gob.NewEncoder(b).Encode(item); err == nil {
-			sz = int64(b.Len())
+		if err = gob.NewEncoder(b).Encode(item); err != nil {
+			err = fmt.Errorf("could not measure size of value for address %s: %w", address, err)
+			return
 		}
+		sz = int64(b.Len())
 	}
 
 	ok := m.ristretto.SetWithTTL(address, item, sz, m.ttl)

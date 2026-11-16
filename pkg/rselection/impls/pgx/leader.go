@@ -128,6 +128,8 @@ func NewPgxLeader(cfg PgxLeaderConfig) *PgxLeader {
 	}
 }
 
+var _ rselection.ContextLeader = (*PgxLeader)(nil)
+
 func (p *PgxLeader) Lead(ctx context.Context) error {
 	// Initialize list of nodes
 	p.nodes = make(map[string]*electiontypes.ClusterNode)

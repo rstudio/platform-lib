@@ -235,7 +235,7 @@ func (s *StorageServer) Get(ctx context.Context, dir, address string) (io.ReadCl
 	if stat.IsDir() {
 		r, c, sz, mod, err := s.chunker.ReadChunked(ctx, dir, address)
 		if err != nil {
-			return nil, nil, 0, time.Time{}, false, fmt.Errorf("error reading chunked directory files for %s: %s", address, err)
+			return nil, nil, 0, time.Time{}, false, fmt.Errorf("error reading chunked directory files for %s: %w", address, err)
 		}
 
 		return r, c, sz, mod, true, nil
