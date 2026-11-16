@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"path"
 	"path/filepath"
@@ -15,8 +16,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awsTypes "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
 
 	"github.com/rstudio/platform-lib/v4/pkg/rsstorage"
@@ -238,6 +241,75 @@ func (s *StorageServer) Get(ctx context.Context, dir, address string) (io.ReadCl
 		// For standard assets, the GetObject response has the information we need.
 		return resp.Body, nil, contentLength, *resp.LastModified, true, nil
 	}
+}
+
+// GetRange implements rsstorage.RangeGetter. Plain objects use a ranged GetObject; chunked
+// objects fetch only the chunks the range touches. Client-side (KMS) encrypted storage
+// returns ErrRangeNotSupported, since a byte range of ciphertext is not a range of the content.
+func (s *StorageServer) GetRange(ctx context.Context, dir, address string, offset, length int64) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
+	if s.svc.KmsEncrypted() {
+		return nil, nil, 0, time.Time{}, false, rsstorage.ErrRangeNotSupported
+	}
+	if offset < 0 || length < 1 {
+		return nil, nil, 0, time.Time{}, false, rsstorage.ErrInvalidRange
+	}
+
+	addr := internal.NotEmptyJoin([]string{s.prefix, dir, address}, "/")
+	infoAddr := filepath.Join(addr, "info.json")
+	// Clamp the end so a huge length cannot overflow int64.
+	end := int64(math.MaxInt64)
+	if length-1 <= math.MaxInt64-offset {
+		end = offset + length - 1
+	}
+	rng := fmt.Sprintf("bytes=%d-%d", offset, end)
+	resp, err := s.svc.GetObject(ctx, &s3.GetObjectInput{Bucket: &s.bucket, Key: &addr, Range: &rng})
+
+	var nsk *awsTypes.NoSuchKey
+	var nf *awsTypes.NotFound
+	var apiErr smithy.APIError
+	switch {
+	case err != nil && (errors.As(err, &nsk) || errors.As(err, &nf)):
+		// Not found as a plain object; it may be chunked.
+		_, err = s.svc.HeadObject(ctx, &s3.HeadObjectInput{Bucket: &s.bucket, Key: &infoAddr})
+		if err != nil && (errors.As(err, &nsk) || errors.As(err, &nf)) {
+			return nil, nil, 0, time.Time{}, false, nil
+		}
+		if err != nil {
+			return nil, nil, 0, time.Time{}, false, err
+		}
+		return rsstorage.ReadChunkedRange(ctx, s, dir, address, offset, length)
+	case err != nil && errors.As(err, &apiErr) && apiErr.ErrorCode() == "InvalidRange":
+		// The offset is past the end of the object. Get the size for the caller.
+		// For a chunk of a chunked item, this means a short or corrupt chunk.
+		head, headErr := s.svc.HeadObject(ctx, &s3.HeadObjectInput{Bucket: &s.bucket, Key: &addr})
+		if headErr != nil {
+			return nil, nil, 0, time.Time{}, false, headErr
+		}
+		return nil, nil, 0, time.Time{}, false, &rsstorage.RangeNotSatisfiableError{Size: aws.ToInt64(head.ContentLength)}
+	case err != nil:
+		return nil, nil, 0, time.Time{}, false, err
+	}
+
+	size, ok := totalFromContentRange(resp.ContentRange)
+	if !ok {
+		// Without a Content-Range we cannot know the object size.
+		_ = resp.Body.Close()
+		return nil, nil, 0, time.Time{}, false, fmt.Errorf("no usable Content-Range in ranged response for %s", address)
+	}
+	return resp.Body, nil, size, aws.ToTime(resp.LastModified), true, nil
+}
+
+// totalFromContentRange returns N from a "bytes a-b/N" header.
+func totalFromContentRange(cr *string) (int64, bool) {
+	if cr == nil {
+		return 0, false
+	}
+	i := strings.LastIndex(*cr, "/")
+	if i < 0 {
+		return 0, false
+	}
+	n, err := strconv.ParseInt((*cr)[i+1:], 10, 64)
+	return n, err == nil
 }
 
 func (s *StorageServer) Flush(ctx context.Context, dir, address string) {

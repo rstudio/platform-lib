@@ -63,6 +63,24 @@ func (s *MetadataStorageServer) Get(ctx context.Context, dir, address string) (i
 	return r, c, sz, ts, ok, err
 }
 
+// GetRange implements RangeGetter by forwarding to the wrapped server, and records the
+// access like Get. Written out because embedding does not promote optional methods.
+func (s *MetadataStorageServer) GetRange(ctx context.Context, dir, address string, offset, length int64) (io.ReadCloser, *types.ChunksInfo, int64, time.Time, bool, error) {
+	inner, ok := s.StorageServer.(RangeGetter)
+	if !ok {
+		return nil, nil, 0, time.Time{}, false, ErrRangeNotSupported
+	}
+	r, c, sz, ts, found, err := inner.GetRange(ctx, dir, address, offset, length)
+	if found && err == nil {
+		err = s.store.CacheObjectMarkUse(s.name, dir+"/"+address, time.Now())
+		if err != nil {
+			_ = r.Close()
+			return nil, nil, 0, time.Time{}, false, err
+		}
+	}
+	return r, c, sz, ts, found, err
+}
+
 func (s *MetadataStorageServer) PutChunked(ctx context.Context, resolve types.Resolver, dir, address string, sz uint64) (string, string, error) {
 	dirOut, addrOut, err := s.StorageServer.PutChunked(ctx, resolve, dir, address, sz)
 	if err == nil {
