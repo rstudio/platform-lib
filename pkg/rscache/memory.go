@@ -71,6 +71,7 @@ func (m *memoryCache) Put(address string, item *CacheReturn) (err error) {
 	reader, err := item.AsReader()
 	if err == nil {
 		// if we passed in a file reader, then what we want to store is the contents
+		defer reader.Close()
 		bVal := new(bytes.Buffer)
 
 		sz, err = io.Copy(bVal, reader)

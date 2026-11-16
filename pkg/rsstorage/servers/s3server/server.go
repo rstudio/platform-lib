@@ -27,7 +27,10 @@ import (
 	"github.com/rstudio/platform-lib/v4/pkg/rsstorage/types"
 )
 
-const AmzUnencryptedContentLengthHeader = "X-Amz-Unencrypted-Content-Length"
+// AmzUnencryptedContentLengthHeader is the metadata key that holds the size of
+// an encrypted object before encryption. It is lower case because the AWS SDK
+// returns metadata keys in lower case.
+const AmzUnencryptedContentLengthHeader = "x-amz-unencrypted-content-length"
 
 type moveOrCopyFn func(ctx context.Context, oldBucket, oldKey, newBucket, newKey string) (*s3.CopyObjectOutput, error)
 
