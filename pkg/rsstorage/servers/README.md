@@ -22,7 +22,7 @@ Each constructor takes a `StorageServerArgs` struct and returns an
 
 | Argument | Meaning |
 | --- | --- |
-| `ChunkSize` | The size of each chunk, in bytes, for `PutChunked`. Required for chunked storage. `PutChunked` panics with a divide by zero if it is left at 0. |
+| `ChunkSize` | The size of each chunk, in bytes, for `PutChunked`. Required for chunked storage. `PutChunked` returns an error if it is left at 0. |
 | `Waiter` | An `rsstorage.ChunkWaiter`. Called by readers that wait for the next chunk of an item that is still being written. |
 | `Notifier` | An `rsstorage.ChunkNotifier`. Called by the writer after each chunk. A chunked write calls it, so it must not be `nil` if you use `PutChunked`. |
 

@@ -105,10 +105,8 @@ notifier that does nothing and a waiter that returns at once are enough.
 
 `Get` on a chunked item returns a reader that streams the chunks in order. If
 the item is still being written, the reader waits for the next chunk as above.
-When the directory has no `info.json`, `Get` fails with `ErrNoChunkMetadata`.
-The S3 and PostgreSQL servers return an error that `errors.Is` matches. The
-file server puts only the text of that error in its own error, so `errors.Is`
-does not match there.
+When the directory has no `info.json`, `Get` fails with an error that matches
+`ErrNoChunkMetadata` under `errors.Is`.
 
 ### Copy and move
 
