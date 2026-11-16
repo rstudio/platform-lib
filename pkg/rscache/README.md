@@ -139,7 +139,9 @@ file. Pass a pointer to an empty value of the type you want as the type
 example, and `AsObject()` returns it filled in. Set `ResolverSpec.Gzip` if the
 cached gob file is gzip-compressed. When an object is put in memory, the memory
 cache gob-encodes it to measure its size, so register the type with
-`gob.Register`.
+`gob.Register`. If the type is not registered, the object is not kept in
+memory. `GetObject` still returns it from storage, and the error is logged at
+debug level.
 
 ## Usage
 

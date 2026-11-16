@@ -29,6 +29,8 @@ func NewLocalLeader(cfg LocalLeaderConfig) *LocalLeader {
 	}
 }
 
+var _ rselection.Leader = (*LocalLeader)(nil)
+
 func (p *LocalLeader) Lead() error {
 	// Start handling leader tasks
 	p.taskHandler.Handle(p.awb)

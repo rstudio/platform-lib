@@ -25,8 +25,12 @@ library provides the pieces for that work and two ways to choose a leader:
 
 ## Definitions
 
-- **Leader** The node that currently runs the cluster's background work. A leader loop runs a `TaskHandler` for as
-  long as the node is leading.
+- **Leader** The node that currently runs the cluster's background work. A
+  leader loop runs a `TaskHandler` for as long as the node is leading. The
+  single-node leader implements the `Leader` interface (`Lead()`). The
+  PostgreSQL leader implements `ContextLeader` (`Lead(ctx)`). It passes the
+  context to the notifications it sends. Cancelling the context does not end
+  the leader loop.
 
 - **Follower** A node that is not the leader. In the PostgreSQL implementation,
   a follower answers the leader's pings. If it hears no pings for too long, it

@@ -149,3 +149,25 @@ func (s *MemoryCacheIntegrationSuite) SetUpSuite(c *check.C) {
 func (s *MemoryCacheIntegrationSuite) TearDownSuite(c *check.C) {
 	c.Assert(s.tempdirhelper.TearDown(), check.IsNil)
 }
+
+type unregisteredItem struct {
+	Name string
+}
+
+func (s *MemoryCacheSuite) TestPutUnencodableObjectNotStored(c *check.C) {
+	rc, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: 100,
+		MaxCost:     1000,
+		BufferItems: 64,
+	})
+	c.Assert(err, check.IsNil)
+	m := NewMemoryCache(MemoryCacheConfig{TTL: time.Hour, Ristretto: rc})
+
+	// The type is not registered with gob, so its size cannot be measured.
+	err = m.Put("unencodable", &CacheReturn{Value: &unregisteredItem{Name: "a"}})
+	c.Assert(err, check.ErrorMatches, "could not measure size of value for address unencodable: .*")
+
+	// The item must not be stored.
+	rc.Wait()
+	c.Check(m.Get("unencodable").IsNull(), check.Equals, true)
+}
