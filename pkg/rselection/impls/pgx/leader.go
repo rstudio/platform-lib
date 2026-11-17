@@ -42,7 +42,8 @@ type PgxLeader struct {
 	// The address of this node
 	address string
 
-	// Used to shut down this service
+	// Used to shut down this service. It belongs to the caller, so the leader
+	// only receives on it and never sends or closes.
 	stop chan bool
 
 	// Timeouts
@@ -175,6 +176,10 @@ func (p *PgxLeader) lead(ctx context.Context, pingTick, sweepTick <-chan time.Ti
 	defer logTicker.Stop()
 	logTickCh := logTicker.C
 
+	// Receives a signal when another leader is heard. It is local to this run so
+	// that a late signal can never reach a later run or the caller.
+	demote := make(chan struct{}, 1)
+
 	// Send a ping synchronously to ensure other nodes know about the new leader
 	p.pingNodes(ctx)
 
@@ -192,13 +197,15 @@ func (p *PgxLeader) lead(ctx context.Context, pingTick, sweepTick <-chan time.Ti
 		select {
 		case <-stop:
 			return
+		case <-demote:
+			return
 		case n := <-l:
 			if cn, ok := n.(*electiontypes.ClusterPingResponse); ok {
 				go p.handlePingResponse(cn)
 			}
 		case n := <-leaderPings:
 			if cn, ok := n.(*electiontypes.ClusterPingRequest); ok {
-				go p.handleLeaderPing(cn)
+				go p.handleLeaderPing(cn, demote)
 			}
 		case n := <-nodesCh:
 			// This supports receiving a request to enumerate cluster nodes. The leader
@@ -413,11 +420,15 @@ func (p *PgxLeader) handleNodesRequest(ctx context.Context, cn *electiontypes.Cl
 	}
 }
 
-func (p *PgxLeader) handleLeaderPing(cn *electiontypes.ClusterPingRequest) {
+func (p *PgxLeader) handleLeaderPing(cn *electiontypes.ClusterPingRequest, demote chan<- struct{}) {
 	// If we received a ping from another leader, then stop leading
 	if cn.SrcAddr != p.address {
 		slog.Debug("Leader received ping from another leader. Stopping and moving back to the follower loop.")
-		p.stop <- true
+		// One queued signal is enough, so a second ping does not block.
+		select {
+		case demote <- struct{}{}:
+		default:
+		}
 	} else {
 		resp := electiontypes.NewClusterPingResponse(p.address, cn.SrcAddr, p.awb.IP())
 		p.handlePingResponse(resp)
