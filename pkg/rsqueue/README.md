@@ -71,7 +71,7 @@ priority).
 
 Work can also be addressed. In addition to the `Push` method, the queue interface includes `AddressedPush`.
 If you attempt to push work with a duplicate address into the queue, you'll receive the error
-`queue.ErrDuplicateAddressedPut`. Typically, it's ok to ignore `queue.ErrDuplicateAddressedPut` since it
+`queue.ErrDuplicateAddressedPush`. Typically, it's ok to ignore `queue.ErrDuplicateAddressedPush` since it
 means that the queue already contains the work you're attempting to insert.
 
 The queue interface includes `PollAddress` for polling addressed work for completion. `PollAddress` provides
