@@ -199,3 +199,10 @@ func (s *TaskHandlerSuite) TestOnTaskRunFires(c *check.C) {
 
 	handler.Stop()
 }
+
+func (s *TaskHandlerSuite) TestStopBeforeHandle(c *check.C) {
+	handler := NewGenericTaskHandler(GenericTaskHandlerConfig{})
+
+	// Stopping a handler that never started must not panic.
+	handler.Stop()
+}

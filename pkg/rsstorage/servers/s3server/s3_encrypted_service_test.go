@@ -345,3 +345,36 @@ func (s *S3EncryptedServiceSuite) TestListObjects(c *check.C) {
 	c.Assert(*result.Contents[0].Key, check.Equals, "test-prefix/file1.txt")
 	c.Assert(*result.Contents[1].Key, check.Equals, "test-prefix/file2.txt")
 }
+
+// Check on a KMS-encrypted object reads the unencrypted size from the object
+// metadata. The response sends the header in mixed case, as S3 may, so this
+// covers how the AWS SDK normalizes metadata keys.
+func (s *S3EncryptedServiceSuite) TestCheckReadsUnencryptedLength(c *check.C) {
+	client := http.Client{}
+	s3Service, err := NewEncryptedS3Wrapper(newTestEncryptedClient(c, &client))
+	c.Assert(err, check.IsNil)
+
+	httpmock.ActivateNonDefault(&client)
+	defer httpmock.DeactivateAndReset()
+
+	httpmock.RegisterResponder(http.MethodHead, `https://tyler-s3-test.s3.us-east-1.amazonaws.com/dir/test.txt`,
+		func(req *http.Request) (*http.Response, error) {
+			res := httpmock.NewStringResponse(http.StatusOK, "")
+			res.Header.Set("Content-Length", "20")
+			res.Header.Set("Last-Modified", "Mon, 16 Nov 2026 12:00:00 GMT")
+			res.Header.Set("X-Amz-Meta-X-Amz-Unencrypted-Content-Length", "4")
+			return res, nil
+		},
+	)
+
+	server := NewStorageServer(StorageServerArgs{
+		Bucket: "tyler-s3-test",
+		Svc:    s3Service,
+	})
+
+	ok, chunked, sz, _, err := server.Check(context.Background(), "dir", "test.txt")
+	c.Assert(err, check.IsNil)
+	c.Assert(ok, check.Equals, true)
+	c.Assert(chunked, check.IsNil)
+	c.Assert(sz, check.Equals, int64(4))
+}
