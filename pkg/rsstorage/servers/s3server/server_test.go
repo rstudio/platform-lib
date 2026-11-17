@@ -1207,7 +1207,8 @@ func (s *S3StorageServerSuite) TestCheckKmsEncrypted(c *check.C) {
 				ContentLength: aws.Int64(100),
 				LastModified:  aws.Time(now),
 				Metadata: map[string]string{
-					AmzUnencryptedContentLengthHeader: "45",
+					// The AWS SDK returns metadata keys in lower case.
+					"x-amz-unencrypted-content-length": "45",
 				},
 			},
 		},
@@ -1237,7 +1238,8 @@ func (s *S3StorageServerSuite) TestGetKmsEncrypted(c *check.C) {
 				ContentLength: aws.Int64(100),
 				LastModified:  aws.Time(now),
 				Metadata: map[string]string{
-					AmzUnencryptedContentLengthHeader: "45",
+					// The AWS SDK returns metadata keys in lower case.
+					"x-amz-unencrypted-content-length": "45",
 				},
 			},
 		},

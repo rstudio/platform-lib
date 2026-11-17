@@ -42,6 +42,15 @@ type FileCache interface {
 	Uncache(ctx context.Context, resolver ResolverSpec) error
 }
 
+// RangeFileCache is an optional interface of a FileCache: a ranged read of a cached item.
+// Type-assert the FileCache for it. It returns rsstorage.ErrRangeNotSupported when the
+// storage server cannot range; the other errors are rsstorage.GetRange's.
+type RangeFileCache interface {
+	// GetRange returns the bytes [offset, offset+length), clamped at the end of the item,
+	// and the size and modtime of the whole item.
+	GetRange(ctx context.Context, resolver ResolverSpec, offset, length int64) (io.ReadCloser, int64, time.Time, error)
+}
+
 type FileCacheConfig struct {
 	Queue            Queue
 	DuplicateMatcher DuplicateMatcher
@@ -318,6 +327,35 @@ func (o *fileCache) Get(ctx context.Context, resolver ResolverSpec) (value *Cach
 	}
 
 	return
+}
+
+// GetRange implements RangeFileCache. On a miss it fills the cache first, the same way Get
+// does, then reads the range from storage. It never ranges the origin.
+func (o *fileCache) GetRange(ctx context.Context, resolver ResolverSpec, offset, length int64) (io.ReadCloser, int64, time.Time, error) {
+	rg, ok := o.server.(rsstorage.RangeGetter)
+	if !ok {
+		// Return before filling the cache; the caller's fallback Get does that.
+		return nil, 0, time.Time{}, rsstorage.ErrRangeNotSupported
+	}
+
+	// Reject malformed ranges before any cache fill.
+	if offset < 0 || length < 1 {
+		return nil, 0, time.Time{}, rsstorage.ErrInvalidRange
+	}
+
+	// Head checks the cache and, on a miss, queues the work and waits for it.
+	if _, _, err := o.Head(ctx, resolver); err != nil {
+		return nil, 0, time.Time{}, err
+	}
+
+	r, _, size, modTime, found, err := rg.GetRange(ctx, resolver.Dir(), resolver.Address(), offset, length)
+	if err != nil {
+		return nil, 0, time.Time{}, err
+	}
+	if !found {
+		return nil, 0, time.Time{}, fmt.Errorf("error: item '%s' was not found in cache after it was filled", resolver.Address())
+	}
+	return r, size, modTime, nil
 }
 
 func (o *fileCache) Uncache(ctx context.Context, resolver ResolverSpec) error {

@@ -194,3 +194,46 @@ func (s *RecoverySuite) TestPingNodesFiresPingCallback(c *check.C) {
 	// The callback receives the time the ping ran, from the injectable clock.
 	c.Assert(times, check.DeepEquals, []time.Time{fixed, fixed})
 }
+
+func otherLeaderPing() *electiontypes.ClusterPingRequest {
+	return &electiontypes.ClusterPingRequest{
+		ClusterNotification: electiontypes.ClusterNotification{
+			MessageType: electiontypes.ClusterMessageTypePing,
+			SrcAddr:     "another-leader",
+			DstAddr:     "leader",
+		},
+	}
+}
+
+// A ping from another leader that arrives after the caller closed the stop
+// channel must not panic, and must signal demotion without touching stop.
+func (s *RecoverySuite) TestPingFromOtherLeaderAfterStopClosed(c *check.C) {
+	stop := make(chan bool)
+	close(stop)
+	leader := &PgxLeader{address: "leader", stop: stop}
+	demote := make(chan struct{}, 1)
+
+	leader.handleLeaderPing(otherLeaderPing(), demote)
+
+	c.Assert(demote, check.HasLen, 1)
+}
+
+// Repeated pings from another leader must not block once a demotion is queued.
+func (s *RecoverySuite) TestRepeatedPingsFromOtherLeaderDoNotBlock(c *check.C) {
+	leader := &PgxLeader{address: "leader", stop: make(chan bool)}
+	demote := make(chan struct{}, 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		leader.handleLeaderPing(otherLeaderPing(), demote)
+		leader.handleLeaderPing(otherLeaderPing(), demote)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		c.Fatal("handleLeaderPing blocked on a second ping from another leader")
+	}
+	c.Assert(demote, check.HasLen, 1)
+}
